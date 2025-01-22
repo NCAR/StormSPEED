@@ -3,7 +3,6 @@
 
 #ifndef INCLUDE_CEDR_KOKKOS_HPP
 #define INCLUDE_CEDR_KOKKOS_HPP
-#define KOKKOS_VERSION 30401
 
 #include <Kokkos_Core.hpp>
 

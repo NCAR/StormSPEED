@@ -9,6 +9,9 @@
 #include "cedr_kokkos.hpp"
 #include "cedr_mpi.hpp"
 
+#include <sstream>  // For std::stringstream
+#include <iostream> // For std::cerr
+
 namespace cedr {
 namespace util {
 
