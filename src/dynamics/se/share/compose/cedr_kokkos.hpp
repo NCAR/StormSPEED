@@ -3,7 +3,6 @@
 
 #ifndef INCLUDE_CEDR_KOKKOS_HPP
 #define INCLUDE_CEDR_KOKKOS_HPP
-#define KOKKOS_VERSION 30401
 
 #include <Kokkos_Core.hpp>
 
@@ -31,7 +30,7 @@ typedef Kokkos::Experimental::SYCL> CedrGpuSpace;
 #define PROTECTED_CUDA public
 
 #if defined KOKKOS_COMPILER_GNU
-// See https://github.com/kokkos/kokkos-kernels/issues/129
+// See https://github.com/kokkos/kokkos-kernels/issues/129 
 # define ConstExceptGnu
 #else
 # define ConstExceptGnu const
@@ -124,7 +123,7 @@ struct ExeSpaceUtils {
 #ifdef COMPOSE_MIMIC_GPU
     const int max_threads =
 #ifdef KOKKOS_ENABLE_OPENMP
-      ExeSpace::concurrency()
+      ExeSpace().concurrency()
 #else
       1
 #endif
