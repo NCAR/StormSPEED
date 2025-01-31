@@ -646,22 +646,22 @@ if ($dyn_pkg eq 'fv3' and $spmd eq 'OFF') {
 
 my $se_dyn_target = '';
 my $se_bld_target =  '';
+
 if ($dyn_pkg eq 'se') {
     if (defined $opts{'se_dyn_target'}) {
 	$se_dyn_target = $opts{'se_dyn_target'};
     }
-    #    $cfg_ref->set('se_dyn_target', $se_dyn_target);
 
     print  "se_dyn_target=  $se_dyn_target\n";
     if (substr($opts{'se_dyn_target'},0,5) eq 'preqx') {
 	# preqx, preqx_acc, preqx_kokkos use 'preqx' namelist defaults
 	$cfg_ref->set('se_dyn_target', 'preqx');
-	my $se_bld_target =  'preqx';
+	$se_bld_target =  'preqx';
     }
     if (substr($opts{'se_dyn_target'},0,5) eq 'theta') {
 	# theta-l (f code) and theta-l_kokkos (cxx code) use 'theta-l' namelist defaults
 	$cfg_ref->set('se_dyn_target', 'theta-l');
-	my $se_bld_target =  'theta-l';
+	$se_bld_target =  'theta-l';
     }
     print  "SE dycore target options:\n";
     print  "  build target:    $se_bld_target\n";
@@ -1903,7 +1903,7 @@ if ($dyn_pkg eq 'se') {
 
 	$cfg_cppdefs .= " -D_PRIM";
     }
-    if($se_dyn_target eq 'theta-l') {
+    if($se_dyn_target eq 'theta-l' or $se_dyn_target eq 'theta-l_kokkos') {
 	my $csnp = $cfg_ref->get('csnp');
 	$cfg_cppdefs .= " -DCAM  -DNP=$csnp -DHAVE_F2003_PTR_BND_REMAP -DHOMME_ENABLE_COMPOSE -DMODEL_THETA_L";
 
@@ -2296,22 +2296,24 @@ sub write_filepath
        print $fh "$camsrcdir/src/dynamics/se/preqx/share\n";
     }
     if($se_dyn_target eq 'theta-l') {
-	print $fh "$KOKKOSROOT/include\n";
-	print $fh "$camsrcdir/src/dynamics/se/share\n";
-	print $fh "$camsrcdir/src/dynamics/se/share/compose\n";
-	print $fh "$camsrcdir/src/dynamics/se/theta-l\n";
-	print $fh "$camsrcdir/src/dynamics/se/theta-l/share\n";
+       print $fh "$KOKKOSROOT/include\n";
+       print $fh "$camsrcdir/src/dynamics/se/share\n";
+       print $fh "$camsrcdir/src/dynamics/se/share/compose\n";
+       print $fh "$camsrcdir/src/dynamics/se/theta-l\n";
+       print $fh "$camsrcdir/src/dynamics/se/theta-l/share\n";
     }
     if ($se_dyn_target eq 'theta-l_kokkos') {
-	print $fh "$KOKKOSROOT/include\n";
-	print $fh "$camsrcdir/src/dynamics/se/share\n";
-        print $fh "$camsrcdir/src/dynamics/se/share/cxx\n";
-        print $fh "$camsrcdir/src/dynamics/se/share/cxx/mpi\n";
-        print $fh "$camsrcdir/src/dynamics/se/share/cxx/utilities\n";
-        print $fh "$camsrcdir/src/dynamics/se/theta-l_kokkos\n";
-        print $fh "$camsrcdir/src/dynamics/se/theta-l_kokkos/cxx\n";
-        print $fh "$camsrcdir/src/dynamics/se/theta-l/share\n";
-        print $fh "$camsrcdir/src/dynamics/se/share/compose\n";
+	   print $fh "$KOKKOSROOT/include\n";
+	   print $fh "$camsrcdir/src/dynamics/se/share\n";
+       print $fh "$camsrcdir/src/dynamics/se/share/compose\n";
+       print $fh "$camsrcdir/src/dynamics/se/share/cxx\n";
+       print $fh "$camsrcdir/src/dynamics/se/share/cxx/mpi\n";
+       print $fh "$camsrcdir/src/dynamics/se/share/cxx/utilities\n";
+       print $fh "$camsrcdir/src/dynamics/se/share/cxx/vector\n";
+       print $fh "$camsrcdir/src/dynamics/se/theta-l_kokkos\n";
+       print $fh "$camsrcdir/src/dynamics/se/theta-l_kokkos/cxx\n";
+       print $fh "$camsrcdir/src/dynamics/se/theta-l\n";   # we need the dycore.F90 file for compilation
+       print $fh "$camsrcdir/src/dynamics/se/theta-l/share\n";
     }
     print $fh "$camsrcdir/src/dynamics/tests\n";
     if($inic_val) {
@@ -2346,8 +2348,19 @@ sub write_cppdefs
 
     $fh->open(">$file") or die "** can't open cpp defs file: $file\n";
 
-    print $fh "$make_cppdefs\n";
+    print $fh "$make_cppdefs ";
 
+    my $dyn           = $cfg_ref->get('dyn');
+    if ($dyn eq "se" and $opts{"se_dyn_target"} eq "theta-l") {
+        print $fh " -DMODEL_THETA_L -DHOMME_ENABLE_COMPOSE "
+    }
+
+    if ($dyn eq "se" and $opts{"se_dyn_target"} eq "theta-l_kokkos") {
+        print $fh " -DKOKKOS_TARGET -DMODEL_THETA_L -DHOMME_ENABLE_COMPOSE -DCOMPOSE_PORT "
+    }
+
+    print $fh "\n";
+    
     $fh->close;
 }
 
