@@ -43,6 +43,7 @@ module element_mod
      ! Equ-angular gnomonic projection coordinates
      type (cartesian2D_t)     :: cartp(np,np)                         ! gnomonic or reference coords of GLL points
      type (cartesian2D_t)     :: corners(4)                           ! gnomonic or reference coords of element corners
+     real (kind=real_kind)    :: u2qmap(4,2)                          ! bilinear map from ref element to quad in cubedsphere coordinates
 
      ! 3D cartesian coordinates
      type (cartesian3D_t)     :: corners3D(4)                         ! Physical coords of corners
@@ -268,7 +269,7 @@ contains
 
 
 ! this should go in openACC's element_state.F90, but it cant because that
-! module doesn't know about element_t.  
+! module doesn't know about element_t.
 ! LB: this should go in prim_driver_mod in preqx_acc, and that module
 !     should define its own version of prim_init1, which would be pretty
 !     much the same as the version in prim_driver_base, with the addition
@@ -289,9 +290,9 @@ contains
     allocate( derived_divdp_proj       (np,np,nlev,nelemd)                    )
     do ie = 1 , nelemd
       elem(ie)%state%Qdp                 => state_Qdp                (:,:,:,:,:,ie)
-      elem(ie)%derived%vn0               => derived_vn0              (:,:,:,:,ie)  
-      elem(ie)%derived%divdp             => derived_divdp            (:,:,:,ie)    
-      elem(ie)%derived%divdp_proj        => derived_divdp_proj       (:,:,:,ie)    
+      elem(ie)%derived%vn0               => derived_vn0              (:,:,:,:,ie)
+      elem(ie)%derived%divdp             => derived_divdp            (:,:,:,ie)
+      elem(ie)%derived%divdp_proj        => derived_divdp_proj       (:,:,:,ie)
     enddo
 #endif
   end subroutine setup_element_pointers

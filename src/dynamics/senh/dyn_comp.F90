@@ -11,6 +11,7 @@ use cam_history_support,     only: max_fieldname_len
 use cam_initfiles,           only: initial_file_get_id, topo_file_get_id, pertlim
 use cam_logfile,             only: iulog
 use cam_map_utils,           only: iMap
+use control_mod,             only: hypervis_subcycle_q, integration, statefreq, runtype, use_moisture
 use dimensions_mod,          only: nelemd, nlev, np, npsq, ne, ne_x, ne_y, fv_nphys,qsize
 use dyn_grid,                only: timelevel, dom_mt, hvcoord, ini_grid_hdim_name
 !jtuse dyn_grid,                only: get_horiz_grid_dim_d, dyn_decomp, fv_nphys, ini_grid_name
@@ -18,7 +19,7 @@ use dyn_grid,                only: get_horiz_grid_dim_d, dyn_decomp, ini_grid_na
 use edge_mod,                only: edgevpack_nlyr, edgevunpack_nlyr, edge_g
 use element_mod,             only: element_t
 use element_state,           only: elem_state_t
-use hybrid_mod,              only: hybrid_t
+use hybrid_mod,              only: hybrid_create, hybrid_t
 use inic_analytic,           only: analytic_ic_active, analytic_ic_set_ic
 use ncdio_atm,               only: infld
 use parallel_mod,            only: par, initmp
@@ -741,8 +742,6 @@ subroutine dyn_init(dyn_in, dyn_out)
     use cam_pio_utils,    only: clean_iodesc_list
 
     use prim_driver_mod,  only: prim_init2
-    use prim_si_mod,      only: prim_set_mass
-    use hybrid_mod,       only: hybrid_create
     use parallel_mod,     only: par
     use control_mod,      only: runtype
 !jt    use comsrf,           only: sgh, sgh30
@@ -791,52 +790,12 @@ subroutine dyn_init(dyn_in, dyn_out)
        nete=dom_mt(ithr)%end
        hybrid = hybrid_create(par,ithr,hthreads)
 
-       if(adiabatic) then
-          if(runtype == 0) then
-             do ie=nets,nete
-                elem(ie)%state%q(:,:,:,:)=0.0_r8
-                elem(ie)%derived%fq(:,:,:,:)=0.0_r8
-             end do
-          end if
-       else if(ideal_phys) then
-          if(runtype == 0) then
-             do ie=nets,nete
-                elem(ie)%state%ps_v(:,:,:) =hvcoord%ps0
 
-                elem(ie)%state%phis(:,:)=0.0_r8
-
-                elem(ie)%state%v(:,:,:,:,:) =0.0_r8
-
-                elem(ie)%state%q(:,:,:,:)=0.0_r8
-
-                temperature(:,:,:)=300.0_r8
-                ps=hvcoord%ps0
-                call set_thermostate(elem(ie),ps,temperature,hvcoord)
-             end do
-          end if
-       else if(aqua_planet .and. runtype==0)  then
-          do ie=nets,nete
-             elem(ie)%state%phis(:,:)=0.0_r8
-          end do
-!jt          if(allocated(sgh)) sgh=0.0_r8
-!jt          if(allocated(sgh30)) sgh30=0.0_r8
-       end if
-
-       do ie=nets,nete
-          elem(ie)%derived%FM=0.0_r8
-          elem(ie)%derived%FT=0.0_r8
-          elem(ie)%derived%FQ=0.0_r8
-#ifdef MODEL_THETA_L
-          elem(ie)%derived%FPHI=0.0_r8
-          elem(ie)%derived%FVTheta=0.0_r8
-#endif
-       end do
-
-       ! scale PS to achieve prescribed dry mass
-       if (runtype == 0) then
-          ! new run, scale mass to value given in namelist, if needed
-          call prim_set_mass(elem, TimeLevel,hybrid,hvcoord,nets,nete)
-       endif
+!!$       ! scale PS to achieve prescribed dry mass
+!!$       if (runtype == 0) then
+!!$          ! new run, scale mass to value given in namelist, if needed
+!!$          call prim_set_mass(elem, TimeLevel,hybrid,hvcoord,nets,nete)
+!!$       endif
 
        call t_startf('prim_init2')
        call prim_init2(elem,hybrid,nets,nete, TimeLevel, hvcoord)
@@ -960,7 +919,7 @@ subroutine read_inidat(dyn_in)
   use aoa_tracers,             only: aoa_tracers_implements_cnst, aoa_tracers_init_cnst
   use constituents,            only: cnst_name, cnst_read_iv, qmin,cnst_is_a_water_species
   use cam_control_mod,         only: ideal_phys, aqua_planet
-  use cam_initfiles,           only: initial_file_get_id, topo_file_get_id, pertlim
+  use cam_initfiles,           only: initial_file_get_id, topo_file_get_id, pertlim, scale_dry_air_mass
   use cam_history_support,     only: max_fieldname_len
   use cam_grid_support,        only: cam_grid_get_local_size, cam_grid_get_gcid
   use carma_intr,              only: carma_implements_cnst, carma_init_cnst
@@ -970,13 +929,14 @@ subroutine read_inidat(dyn_in)
   use co2_cycle,               only: co2_implements_cnst, co2_init_cnst
   use const_init,              only: cnst_init_default
   use dof_mod,                 only: putUniquePoints
-  use dyn_tests_utils,         only: vcoord=>vc_moist_pressure
+  use dyn_tests_utils,         only: vcoord=>vc_moist_pressure, vc_moist_pressure
   use edge_mod,                only : edgevpack_nlyr, edgevunpack_nlyr, edge_g
   use element_ops,             only: set_thermostate
   use gllfvremap_mod,          only: gfr_fv_phys_to_dyn_topo
   use hycoef,                  only: ps0
   use microp_driver,           only: microp_driver_implements_cnst, microp_driver_init_cnst
   use phys_control,            only: phys_getopts
+  use prim_si_mod,             only: prim_set_mass
   use rk_stratiform,           only: rk_stratiform_implements_cnst, rk_stratiform_init_cnst
 
   use shr_vmath_mod,           only: shr_vmath_log
@@ -988,6 +948,7 @@ subroutine read_inidat(dyn_in)
 
    type (dyn_import_t), target, intent(inout) :: dyn_in   ! dynamics import
 
+    type(hybrid_t) :: hybrid
 !jt   type(file_desc_t), pointer :: fh_ini, fh_topo
     type(file_desc_t), pointer :: fh_ini
     real(r8), parameter :: rad2deg = 180.0 / SHR_CONST_PI
@@ -1042,6 +1003,10 @@ subroutine read_inidat(dyn_in)
     integer,  allocatable            :: glob_ind(:)
     integer,  allocatable            :: m_ind(:)
     real(r8), allocatable            :: dbuf4(:,:,:,:)
+    integer :: ithr, nets, nete
+
+    !use_moisturefor homme routines
+    use_moisture = vcoord == vc_moist_pressure
 
     tl = 1
 
@@ -1467,6 +1432,71 @@ subroutine read_inidat(dyn_in)
       elem(ie)%state%q(:,:,:,:)=qtmp(:,:,:,ie,:)
    end do
 #endif
+
+   ! we only need to initialize state%dp3d
+
+   do ie = 1, nelemd
+      do k = 1, nlev
+         do j = 1, np
+            do i = 1, np
+               elem(ie)%state%dp3d(i,j,k,:) = (hvcoord%hyai(k+1) - hvcoord%hyai(k))*ps0 + &
+                    (hvcoord%hybi(k+1) - hvcoord%hybi(k))*elem(ie)%state%ps_v(i,j,tl)
+            end do
+         end do
+      end do
+   end do
+
+#ifdef COLUMN_OPENMP
+   call omp_set_num_threads(vthreads)
+#endif
+   ithr=omp_get_thread_num()
+   nets=dom_mt(ithr)%start
+   nete=dom_mt(ithr)%end
+   hybrid = hybrid_create(par,ithr,hthreads)
+
+   ! If scale_dry_air_mass > 0.0 then scale dry air mass to scale_dry_air_mass global average dry pressure
+   ! scale PS to achieve prescribed dry mass
+   if (scale_dry_air_mass > 0.0_r8) then
+      if (iam < par%nprocs) then
+         call prim_set_mass(elem, TimeLevel,hybrid,hvcoord,nets,nete)
+      end if
+   end if
+
+   ! store Q values:
+   !
+   ! if CSLAM is NOT active then state%Qdp for all constituents
+   ! if CSLAM active then we only advect water vapor and condensate
+   ! loading tracers in state%qdp
+
+!!$   if (use_cslam) then
+!!$      do ie = 1, nelemd
+!!$         do nq = 1, thermodynamic_active_species_num
+!!$            m_cnst = thermodynamic_active_species_idx(nq)
+!!$            do k = 1, nlev
+!!$               do j = 1, np
+!!$                  do i = 1, np
+!!$                     elem(ie)%state%Qdp(i,j,k,nq,:) = &
+!!$                                 elem(ie)%state%dp3d(i,j,k,1)*qtmp(i,j,k,ie,m_cnst)
+!!$                  end do
+!!$               end do
+!!$            end do
+!!$         end do
+!!$      end do
+!!$   else
+      do ie = 1, nelemd
+         do m_cnst = 1, qsize
+            do k = 1, nlev
+               do j = 1, np
+                  do i = 1, np
+                     elem(ie)%state%Qdp(i,j,k,m_cnst,:)=&
+                        elem(ie)%state%dp3d(i,j,k,1)*qtmp(i,j,k,ie,m_cnst)
+                  end do
+               end do
+            end do
+         end do
+      end do
+!!$   end if
+
 
    !$omp parallel do private(ie, ps, t, m_cnst)
    do ie=1,nelemd
