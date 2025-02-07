@@ -663,6 +663,10 @@ if ($dyn_pkg eq 'se') {
 	$cfg_ref->set('se_dyn_target', 'theta-l');
 	$se_bld_target =  'theta-l';
     }
+    if (substr($opts{'se_dyn_target'},0,3) eq 'cam') {
+	$cfg_ref->set('se_dyn_target', 'cam');
+	$se_bld_target =  'cam';
+    }
     print  "SE dycore target options:\n";
     print  "  build target:    $se_bld_target\n";
     my $temp = $cfg_ref->get('se_dyn_target');
@@ -2285,35 +2289,38 @@ sub write_filepath
     print $fh "$camsrcdir/src/physics/cam\n";
 
     # Dynamics package and test utilities
-    print $fh "$camsrcdir/src/dynamics/$dyn\n";
-
+    if ($dyn eq 'se' and ($se_dyn_target eq 'preqx' or$se_dyn_target eq 'theta-l' or $se_dyn_target eq 'theta-l_kokkos')) {
+	print $fh "$camsrcdir/src/dynamics/senh\n";
+    } else {
+	print $fh "$camsrcdir/src/dynamics/$dyn\n";
+    }
     if($se_dyn_target eq 'cam') {
        print $fh "$camsrcdir/src/dynamics/se/dycore\n";
     }
     if($se_dyn_target eq 'preqx') {
-       print $fh "$camsrcdir/src/dynamics/se/share\n";
-       print $fh "$camsrcdir/src/dynamics/se/preqx\n";
-       print $fh "$camsrcdir/src/dynamics/se/preqx/share\n";
+       print $fh "$camsrcdir/src/dynamics/senh/share\n";
+       print $fh "$camsrcdir/src/dynamics/senh/preqx\n";
+       print $fh "$camsrcdir/src/dynamics/senh/preqx/share\n";
     }
     if($se_dyn_target eq 'theta-l') {
        print $fh "$KOKKOSROOT/include\n";
-       print $fh "$camsrcdir/src/dynamics/se/share\n";
-       print $fh "$camsrcdir/src/dynamics/se/share/compose\n";
-       print $fh "$camsrcdir/src/dynamics/se/theta-l\n";
-       print $fh "$camsrcdir/src/dynamics/se/theta-l/share\n";
+       print $fh "$camsrcdir/src/dynamics/senh/share\n";
+       print $fh "$camsrcdir/src/dynamics/senh/share/compose\n";
+       print $fh "$camsrcdir/src/dynamics/senh/theta-l\n";
+       print $fh "$camsrcdir/src/dynamics/senh/theta-l/share\n";
     }
     if ($se_dyn_target eq 'theta-l_kokkos') {
 	   print $fh "$KOKKOSROOT/include\n";
-	   print $fh "$camsrcdir/src/dynamics/se/share\n";
-       print $fh "$camsrcdir/src/dynamics/se/share/compose\n";
-       print $fh "$camsrcdir/src/dynamics/se/share/cxx\n";
-       print $fh "$camsrcdir/src/dynamics/se/share/cxx/mpi\n";
-       print $fh "$camsrcdir/src/dynamics/se/share/cxx/utilities\n";
-       print $fh "$camsrcdir/src/dynamics/se/share/cxx/vector\n";
-       print $fh "$camsrcdir/src/dynamics/se/theta-l_kokkos\n";
-       print $fh "$camsrcdir/src/dynamics/se/theta-l_kokkos/cxx\n";
-       print $fh "$camsrcdir/src/dynamics/se/theta-l\n";   # we need the dycore.F90 file for compilation
-       print $fh "$camsrcdir/src/dynamics/se/theta-l/share\n";
+	   print $fh "$camsrcdir/src/dynamics/senh/share\n";
+       print $fh "$camsrcdir/src/dynamics/senh/share/compose\n";
+       print $fh "$camsrcdir/src/dynamics/senh/share/cxx\n";
+       print $fh "$camsrcdir/src/dynamics/senh/share/cxx/mpi\n";
+       print $fh "$camsrcdir/src/dynamics/senh/share/cxx/utilities\n";
+       print $fh "$camsrcdir/src/dynamics/senh/share/cxx/vector\n";
+       print $fh "$camsrcdir/src/dynamics/senh/theta-l_kokkos\n";
+       print $fh "$camsrcdir/src/dynamics/senh/theta-l_kokkos/cxx\n";
+       print $fh "$camsrcdir/src/dynamics/senh/theta-l\n";   # we need the dycore.F90 file for compilation
+       print $fh "$camsrcdir/src/dynamics/senh/theta-l/share\n";
     }
     print $fh "$camsrcdir/src/dynamics/tests\n";
     if($inic_val) {
@@ -2360,7 +2367,7 @@ sub write_cppdefs
     }
 
     print $fh "\n";
-    
+
     $fh->close;
 }
 
