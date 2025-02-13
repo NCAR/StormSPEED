@@ -16,6 +16,7 @@ use dimensions_mod,          only: nelemd, nlev, np, npsq, ne, ne_x, ne_y, fv_np
 use dyn_grid,                only: timelevel, dom_mt, hvcoord, ini_grid_hdim_name
 !jtuse dyn_grid,                only: get_horiz_grid_dim_d, dyn_decomp, fv_nphys, ini_grid_name
 use dyn_grid,                only: get_horiz_grid_dim_d, dyn_decomp, ini_grid_name
+use dyn_tests_utils,         only: vcoord=>vc_moist_pressure, vc_moist_pressure
 use edge_mod,                only: edgevpack_nlyr, edgevunpack_nlyr, edge_g
 use element_mod,             only: element_t
 use element_state,           only: elem_state_t
@@ -61,6 +62,9 @@ type dyn_export_t
 end type dyn_export_t
 
 character(*), parameter, public :: VERSION     = "$Id$"
+
+! Namelist
+logical, public, protected :: write_restart_unstruct
 
 ! Frontogenesis indices
 integer, public :: frontgf_idx = -1
@@ -176,6 +180,7 @@ subroutine dyn_readnl(NLFileName)
   real (r8)                       :: se_hv_theta_thresh=.025d0  ! d(theta)/dp max threshold for HV correction term
   character(len=SHR_KIND_CL)      :: se_integration         ! integration_method
   logical                         :: se_lcp_moist
+  logical                         :: se_write_restart_unstruct
   real (r8)                       :: se_dp3d_thresh   = 0.125d0 ! threshold for dp3d minimum limiter
   real(r8)                        :: se_lx, se_ly
   character(len=SHR_KIND_CL)      :: se_mesh_file
@@ -269,6 +274,7 @@ subroutine dyn_readnl(NLFileName)
       se_hv_theta_thresh,      &
       se_integration,          &             ! integration method
       se_lcp_moist,            &
+      se_write_restart_unstruct,  &
       se_limiter_option,       &
       se_lx,                   &
       se_ly,                   &
@@ -340,6 +346,7 @@ subroutine dyn_readnl(NLFileName)
  se_mesh_file            = 'none'
  se_ne                   = -1
  se_npes                 = npes
+ se_write_restart_unstruct   = .false.
  se_nsplit               = 2
  se_nu                   = 1.0e15_r8
  se_nu_div               = 2.5e15_r8
@@ -400,6 +407,7 @@ subroutine dyn_readnl(NLFileName)
  call MPI_bcast(se_hv_theta_thresh, 1, mpi_real8, masterprocid, mpicom, ierr)
  call MPI_bcast(se_integration, SHR_KIND_CL,  mpi_character, masterprocid, mpicom, ierr)
  call MPI_bcast(se_lcp_moist, 1, mpi_logical, masterprocid, mpicom, ierr)
+ call MPI_bcast(se_write_restart_unstruct, 1, mpi_logical, masterprocid, mpicom, ierr)
  call MPI_bcast(se_limiter_option, 1, mpi_integer, masterprocid, mpicom, ierr)
  call MPI_bcast(se_lx, 1, mpi_real8, masterprocid, mpicom, ierr)
  call MPI_bcast(se_ly, 1, mpi_real8, masterprocid, mpicom, ierr)
@@ -649,6 +657,8 @@ subroutine dyn_readnl(NLFileName)
 !!$      end if
  end if
 
+ write_restart_unstruct = se_write_restart_unstruct
+
  call homme_postprocess_namelist(se_mesh_file, par)
 
  if (masterproc) then
@@ -672,6 +682,8 @@ subroutine dyn_readnl(NLFileName)
     write(iulog, '(a,i0)') 'dyn_readnl: se_statefreq = ',se_statefreq
     write(iulog, '(a,i0)') 'dyn_readnl: se_tstep_type = ',se_tstep_type
     write(iulog, '(a,i0)') 'dyn_readnl: se_vert_remap_q_alg = ',se_vert_remap_q_alg
+    write(iulog,'(a,l1)') 'dyn_readnl: write restart data on unstructured grid = ', &
+         se_write_restart_unstruct
 !!$    if (se_refined_mesh) then
 !!$      write(iulog, *) 'dyn_readnl: Refined mesh simulation'
 !!$      write(iulog, *) 'dyn_readnl: se_mesh_file = ',trim(se_mesh_file)
@@ -757,7 +769,10 @@ subroutine dyn_init(dyn_in, dyn_out)
     real(r8) :: temperature(np,np,nlev),ps(np,np)
    !----------------------------------------------------------------------------
 
-   ! Initialize the import/export objects
+  !use_moisturefor homme routines
+   use_moisture = vcoord == vc_moist_pressure
+
+    ! Initialize the import/export objects
    dyn_in%elem  => elem
 !jt   dyn_in%fvm   => fvm
 
@@ -929,7 +944,6 @@ subroutine read_inidat(dyn_in)
   use co2_cycle,               only: co2_implements_cnst, co2_init_cnst
   use const_init,              only: cnst_init_default
   use dof_mod,                 only: putUniquePoints
-  use dyn_tests_utils,         only: vcoord=>vc_moist_pressure, vc_moist_pressure
   use edge_mod,                only : edgevpack_nlyr, edgevunpack_nlyr, edge_g
   use element_ops,             only: set_thermostate
   use gllfvremap_mod,          only: gfr_fv_phys_to_dyn_topo
@@ -1004,9 +1018,6 @@ subroutine read_inidat(dyn_in)
     integer,  allocatable            :: m_ind(:)
     real(r8), allocatable            :: dbuf4(:,:,:,:)
     integer :: ithr, nets, nete
-
-    !use_moisturefor homme routines
-    use_moisture = vcoord == vc_moist_pressure
 
     tl = 1
 
