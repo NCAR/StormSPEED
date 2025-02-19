@@ -1668,6 +1668,55 @@
     </options>
   </test>
 
+  <!--  Test of the E3SM CAM-SE NonHydrostatic dycore with kokkos semilagrange tracer advection -->
+  <test compset="FKESSLER" grid="ne16_g17" name="ERS_Ln27_Vmct" testmods="cam/outfrq9s_thetal" supported="false">
+    <machines>
+      <machine name="izumi" compiler="gnu" category="aux_cam"/>
+      <machine name="izumi" compiler="intel" category="aux_cam"/>
+      <machine name="izumi" compiler="nag" category="aux_cam"/>
+      <machine name="derecho" compiler="intel" category="aux_cam"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="intel" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="nag" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+  </test>
+  <test compset="FKESSLER" grid="ne16_g17" name="ERS_Ln27_Vmct" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
+    <machines>
+      <machine name="izumi" compiler="gnu" category="aux_cam"/>
+      <machine name="izumi" compiler="intel" category="aux_cam"/>
+      <machine name="izumi" compiler="nag" category="aux_cam"/>
+      <machine name="derecho" compiler="intel" category="aux_cam"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="intel" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="nag" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+  </test>
+  <test compset="FKESSLER" grid="ne16_g17" name="ERP_Ln27_Vmct" testmods="cam/outfrq9s_thetal" supported="false">
+    <machines>
+      <machine name="izumi" compiler="gnu" category="aux_cam"/>
+      <machine name="izumi" compiler="intel" category="aux_cam"/>
+      <machine name="izumi" compiler="nag" category="aux_cam"/>
+      <machine name="derecho" compiler="intel" category="aux_cam"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="intel" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="nag" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+  </test>
+  <test compset="FKESSLER" grid="ne16_g17" name="ERP_Ln27_Vmct" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
+    <machines>
+      <machine name="izumi" compiler="gnu" category="aux_cam"/>
+      <machine name="izumi" compiler="intel" category="aux_cam"/>
+      <machine name="izumi" compiler="nag" category="aux_cam"/>
+      <machine name="derecho" compiler="intel" category="aux_cam"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="intel" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="nag" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+  </test>
   <!--  Test of finite volume CAM-SE grid with CSLAM tracer advection -->
   <test compset="FKESSLER" grid="ne5pg3_ne5pg3_mg37" name="ERS_Ln27_Vnuopc" testmods="cam/outfrq9s" supported="false">
     <machines>

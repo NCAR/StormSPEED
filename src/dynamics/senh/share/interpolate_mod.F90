@@ -1,5 +1,4 @@
 module interpolate_mod
-
   use shr_kind_mod,           only: r8=>shr_kind_r8
   use element_mod,            only: element_t
   use dimensions_mod,         only: np, ne, nelemd, nc, nhe, nhc
@@ -12,7 +11,7 @@ module interpolate_mod
   use parallel_mod,           only: syncmp, parallel_t
   use cam_abortutils,         only: endrun
   use spmd_utils,             only: MPI_MAX, MPI_SUM, MPI_MIN, mpi_real8, MPI_integer
-  use cube_mod,               only: convert_gbl_index, dmap, ref2sphere
+  use cube_mod,               only: convert_gbl_index, dmap, ref2sphere, dmap_cam
   use mesh_mod,               only: MeshUseMeshFile
   use control_mod,            only: cubed_sphere_map
   use cam_logfile,            only: iulog
@@ -615,8 +614,7 @@ contains
   end function interpol_bilinear
 
 
-  function parametric_coordinates(sphere, corners3D,ref_map_in, corners,cartp,facenum) result (ref)
-!jt  function parametric_coordinates(sphere, corners3D,ref_map_in, corners,u2qmap,facenum) result (ref)
+  function parametric_coordinates(sphere, corners3D,ref_map_in, corners,u2qmap,facenum) result (ref)
     implicit none
     type (spherical_polar_t), intent(in) :: sphere
     type (cartesian2D_t) :: ref
@@ -625,8 +623,7 @@ contains
     integer,optional  :: ref_map_in    ! default is global variable 'cubed_sphere_map'
     ! optional arguments, only needed for ref_map=1 (equi-angle gnomonic projection):
     type (cartesian2D_t),optional   :: corners(4)    ! gnomonic coords of element corners
-    type (cartesian2D_t),optional   :: cartp(np,np)  ! gnomonic coords of element data
-!jt    real (kind=r8),optional  :: u2qmap(4,2)
+    real (kind=r8),optional  :: u2qmap(4,2)
     integer,optional  :: facenum
 
 
@@ -673,8 +670,7 @@ contains
 
        resb = sphere1%lat - sphere%lat
 
-       call Dmap(D,a,b,corners3D,ref_map,cartp,facenum)
-!jt       call Dmap(D,a,b,corners3D,ref_map,corners,u2qmap,facenum)
+       call Dmap_Cam(D,a,b,corners3D,ref_map,corners,u2qmap,facenum)
        detD = D(1,1)*D(2,2) - D(1,2)*D(2,1)
        Dinv(1,1) =  D(2,2)/detD
        Dinv(1,2) = -D(1,2)/detD
@@ -993,8 +989,7 @@ contains
        if (found) then
           number = ii
           cart = parametric_coordinates(sphere, elem(ii)%corners3D,&
-                  cubed_sphere_map,elem(ii)%corners,elem(ii)%cartp,elem(ii)%facenum)
-!jt               cubed_sphere_map,elem(ii)%corners,elem(ii)%u2qmap,elem(ii)%facenum)
+               cubed_sphere_map,elem(ii)%corners,elem(ii)%u2qmap,elem(ii)%facenum)
           exit
        end if
     end do
@@ -1567,8 +1562,8 @@ end subroutine interpolate_ce
     endif
     do i=1,interpdata%n_interp
        ! convert fld from contra->latlon
-       call dmap(D,interpdata%interp_xy(i)%x,interpdata%interp_xy(i)%y,&
-            elem%corners3D,cubed_sphere_map,elem%cartp,elem%facenum)
+       call dmap_cam(D,interpdata%interp_xy(i)%x,interpdata%interp_xy(i)%y,&
+            elem%corners3D,cubed_sphere_map,elem%corners,elem%u2qmap,elem%facenum)
        ! convert fld from contra->latlon
        v1 = fld(i,1)
        v2 = fld(i,2)
@@ -1663,9 +1658,8 @@ end subroutine interpolate_ce
 
     do i=1,interpdata%n_interp
        ! compute D(:,:) at the point elem%interp_cube(i)
-       call dmap(D,interpdata%interp_xy(i)%x,interpdata%interp_xy(i)%y,&
-!jt            elem%corners3D,cubed_sphere_map,elem%corners,elem%u2qmap,elem%facenum)
-            elem%corners3D,cubed_sphere_map,elem%cartp,elem%facenum)
+       call dmap_cam(D,interpdata%interp_xy(i)%x,interpdata%interp_xy(i)%y,&
+            elem%corners3D,cubed_sphere_map,elem%corners,elem%u2qmap,elem%facenum)
        do k=1,nlev
           ! convert fld from contra->latlon
           v1 = fld(i,k,1)
@@ -1677,13 +1671,13 @@ end subroutine interpolate_ce
     end do
   end subroutine interpolate_vector3d
 
-!jt  subroutine vec_latlon_to_contra(elem,nphys,nhalo,nlev,fld,fvm)
-  subroutine vec_latlon_to_contra(elem,nphys,nhalo,nlev,fld)
+  subroutine vec_latlon_to_contra(elem,nphys,nhalo,nlev,fld,fvm)
+    use fvm_control_volume_mod, only: fvm_struct
     use dimensions_mod,         only: fv_nphys
     integer      , intent(in)   :: nphys,nhalo,nlev
     real(kind=r8), intent(inout):: fld(1-nhalo:nphys+nhalo,1-nhalo:nphys+nhalo,2,nlev)
     type (element_t), intent(in)           :: elem
-!jt    type(fvm_struct), intent(in), optional :: fvm
+    type(fvm_struct), intent(in), optional :: fvm
     !
     ! local variables
     !
@@ -1702,18 +1696,18 @@ end subroutine interpolate_ce
           enddo
         enddo
       end do
-!!$    else if (nphys==fv_nphys.and.nhalo.le.fv_nphys) then
-!!$      do k=1,nlev
-!!$        do j=1-nhalo,nphys+nhalo
-!!$          do i=1-nhalo,nphys+nhalo
-!!$            ! latlon->contra
-!!$            v1 = fld(i,j,1,k)
-!!$            v2 = fld(i,j,2,k)
-!!$            fld(i,j,1,k) = fvm%Dinv_physgrid(i,j,1,1)*v1 + fvm%Dinv_physgrid(i,j,1,2)*v2
-!!$            fld(i,j,2,k) = fvm%Dinv_physgrid(i,j,2,1)*v1 + fvm%Dinv_physgrid(i,j,2,2)*v2
-!!$          enddo
-!!$        enddo
-!!$      end do
+    else if (nphys==fv_nphys.and.nhalo.le.fv_nphys) then
+      do k=1,nlev
+        do j=1-nhalo,nphys+nhalo
+          do i=1-nhalo,nphys+nhalo
+            ! latlon->contra
+            v1 = fld(i,j,1,k)
+            v2 = fld(i,j,2,k)
+            fld(i,j,1,k) = fvm%Dinv_physgrid(i,j,1,1)*v1 + fvm%Dinv_physgrid(i,j,1,2)*v2
+            fld(i,j,2,k) = fvm%Dinv_physgrid(i,j,2,1)*v1 + fvm%Dinv_physgrid(i,j,2,2)*v2
+          enddo
+        enddo
+      end do
     else
       call endrun('ERROR: vec_latlon_to_contra - grid not supported or halo too large')
     end if

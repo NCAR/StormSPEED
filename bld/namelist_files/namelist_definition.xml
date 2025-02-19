@@ -7702,11 +7702,12 @@ Default: 0.
 
 
 <entry id="se_limiter_option" type="integer" category="se"
-       group="dyn_se_inparm" valid_values="0,4,8" >
+       group="dyn_se_inparm" valid_values="0,4,8,9" >
 Limiter used for horizontal tracer advection:
 0: None
 4: Sign-preserving limiter.
 8: Monotone limiter.
+9: CAAS monotone limiter.
 Default: 8
 </entry>
 
