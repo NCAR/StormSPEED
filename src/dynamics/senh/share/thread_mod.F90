@@ -23,13 +23,11 @@ module thread_mod
   integer, public :: tracer_num_threads
   integer, public :: horz_num_threads, vert_num_threads
 
-  integer, public, pointer :: NThreads   ! total number of threads
-                                ! standalone HOMME: from namelist
-                                ! in CAM: set by driver
-  integer, public, pointer :: hthreads   ! computed based on nthreads, vthreads,nelemd
-  integer, public, pointer :: vthreads   ! not used unless set in namelist
-
-!jt  integer, public :: vthreads = 1   ! not used unless set in namelist
+  integer, public :: NThreads = 1  ! total number of threads
+                                   ! standalone HOMME: from namelist
+                                   ! in CAM: set by driver
+  integer, public :: hthreads   ! computed based on nthreads, vthreads,nelemd
+  integer, public :: vthreads = 1  ! not used unless set in namelist
 
   public :: omp_get_thread_num
   public :: omp_in_parallel
@@ -85,9 +83,6 @@ contains
   subroutine initomp
     !$OMP PARALLEL
     max_num_threads = omp_get_num_threads()
-    NThreads => max_num_threads
-    hthreads => horz_num_threads
-    vthreads => vert_num_threads
     !$OMP END PARALLEL
     if (masterproc) then
       write(iulog,*) "INITOMP: INFO: number of OpenMP threads = ", max_num_threads
