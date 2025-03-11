@@ -1733,7 +1733,7 @@ Default: none
 <!-- History and Initial Conditions Output -->
 
 <entry id="avgflag_pertape" type="char*1(10)"  category="history"
-       group="cam_history_nl" valid_values="A,B,I,X,M,L,S" >
+       group="cam_history_nl" valid_values="A,B,I,X,M,N,L,S" >
 Sets the averaging flag for all variables on a particular history file
 series. Valid values are:
 
@@ -1741,6 +1741,7 @@ series. Valid values are:
  B ==&gt; GMT 00:00:00 average
  I ==&gt; Instantaneous
  M ==&gt; Minimum
+ N ==&gt; average over nsteps
  X ==&gt; Maximum
  L ==&gt; Local-time
  S ==&gt; Standard deviation
@@ -1832,6 +1833,7 @@ are:
  B ==&gt; GMT 00:00:00 average
  I ==&gt; Instantaneous
  M ==&gt; Minimum
+ N ==&gt; average over nsteps
  X ==&gt; Maximum
  L ==&gt; Local-time
  S ==&gt; Standard deviation
@@ -1906,27 +1908,27 @@ if .true. then output CLUBBs radiative history statistics
 Default: false
 </entry>
 
-<entry id="clubb_vars_zt" type="char*16(10000)"  category="history"
+<entry id="clubb_vars_zt" type="char*35(10000)"  category="history"
        group="clubb_stats_nl" valid_values="" >
 Same as {{ hilight }}fincl1{{ closehilight }}, but for CLUBB statistics on zt grid.
 </entry>
 
-<entry id="clubb_vars_zm" type="char*16(10000)"  category="history"
+<entry id="clubb_vars_zm" type="char*35(10000)"  category="history"
        group="clubb_stats_nl" valid_values="" >
 Same as {{ hilight }}fincl1{{ closehilight }}, but for CLUBB statistics on zm grid.
 </entry>
 
-<entry id="clubb_vars_rad_zt" type="char*16(10000)"  category="history"
+<entry id="clubb_vars_rad_zt" type="char*35(10000)"  category="history"
        group="clubb_stats_nl" valid_values="" >
 Same as {{ hilight }}fincl1{{ closehilight }}, but for CLUBB statistics on radiation zt grid.
 </entry>
 
-<entry id="clubb_vars_rad_zm" type="char*16(10000)"  category="history"
+<entry id="clubb_vars_rad_zm" type="char*35(10000)"  category="history"
        group="clubb_stats_nl" valid_values="" >
 Same as {{ hilight }}fincl1{{ closehilight }}, but for CLUBB statistics on radiation zm grid.
 </entry>
 
-<entry id="clubb_vars_sfc" type="char*16(10000)"  category="history"
+<entry id="clubb_vars_sfc" type="char*35(10000)"  category="history"
        group="clubb_stats_nl" valid_values="" >
 Same as {{ hilight }}fincl1{{ closehilight }}, but for CLUBB statistics on surface.
 </entry>
@@ -4603,8 +4605,6 @@ Specifies the name of the sea salt emission parameterization.
 Default: Gong
 </entry>
 
-
-=======
 <!-- Ozone: Data (original CAM version) -->
 
 <entry id="bndtvo" type="char*256" input_pathname="abs" category="o3_data_cam"
@@ -5062,6 +5062,17 @@ Default: 4 m/s
 </entry>
 
 <!-- Diagnostics -->
+<entry id="thermo_budget_histfile_num" type="integer"  category="diagnostics"
+       group="thermo_budget_nl" valid_values="1,2,3,4,5,6,7,8,9,10" >
+History tape number thermo budget output is written to.
+Default: 1
+</entry>
+
+<entry id="thermo_budget_history" type="logical"  category="diagnostics"
+       group="thermo_budget_nl" valid_values="" >
+Produce output for the energy budget diagnostic package.
+Default: .false.
+</entry>
 
 <entry id="history_amwg" type="logical"  category="diagnostics"
        group="phys_ctl_nl" valid_values="" >
@@ -5736,7 +5747,6 @@ SGH30, and LANDM_COSLAT are all zero without having to supply a topo file
 full of zeros.
 Default: set by build-namelist.
 </entry>
-
 
 <!-- Tropopause -->
 
@@ -7577,17 +7587,6 @@ Default: 2
 Dynamics timestep.  Replaces se_nsplit.
 </entry>
 
-<entry id="se_nsplit" type="integer" category="se"
-       group="dyn_se_inparm" valid_values="" >
-Number of dynamics steps per physics timestep.
-dt_remap = dtime/se_nsplit
-dt_tracer = dt_remap / rsplit
-dt_dyn = dt_tracer / qsplit
-dt_dyn_vis = dt_dyn / hypervis_subcycle
-dt_tracer_vis = dt_tracer / hypervis_subcycle_q
-Default: Set by build-namelist.
-</entry>
-
 <entry id="se_dt_tracer_factor" type="integer" category="se"
        group="dyn_se_inparm" valid_values="" >
 The tracer advection timestep is dt_tracer_factor*se_tstep, where se_tstep is
@@ -7697,20 +7696,6 @@ Number of hyperviscosity subcycles done in tracer advection code.
 Default: Set by build-namelist.
 </entry>
 
-<entry id="se_nu" type="real" category="se"
-       group="dyn_se_inparm" valid_values="" >
-Hyperviscosity coefficient for u,v, T [m^4/s].
-If &lt; 0, se_nu is automatically set.
-Default: Set by build-namelist.
-</entry>
-
-<entry id="se_nu_div" type="real" category="se"
-       group="dyn_se_inparm" valid_values="" >
-Hyperviscosity applied to divergence component of winds [m^4/s].
-If &lt; 0, uses se_nu_p.
-Default: Set by build-namelist.
-</entry>
-
 <entry id="se_nu_s" type="real" category="se"
        group="dyn_se_inparm" valid_values="" >
 Hyperviscosity applied to dynamics scalars [m^4/s].
@@ -7718,24 +7703,11 @@ If < 0, uses nu.
 Default: -1.
 </entry>
 
-<entry id="se_nu_p" type="real" category="se"
-       group="dyn_se_inparm" valid_values="" >
-Hyperviscosity coefficient applied to pressure-level thickness [m^4/s].
-If &lt; 0, se_nu_p is automatically set.
-Default: Set by build-namelist.
-</entry>
-
 <entry id="se_nu_q" type="real" category="se"
        group="dyn_se_inparm" valid_values="" >
 Hyperviscosity applied during tracer advection [m^4/s].
 If < 0, uses nu.
 Default: -1.
-</entry>
-
-<entry id="se_nu_top" type="real" category="se"
-       group="dyn_se_inparm" valid_values="" >
-Second-order viscosity applied only near the model top [m^2/s].
-Default: Set by build-namelist.
 </entry>
 
 <entry id="se_tom_sponge_start" type="real" category="se"
@@ -7820,16 +7792,38 @@ Number of PEs to be used by SE dycore.
 Default: Number of PEs used by CAM.
 </entry>
 
-<entry id="se_phys_dyn_cp" type="integer" category="se"
-       group="dyn_se_inparm" valid_values="0,1,2" >
-Scaling of temperature increment for different levels of
-thermal energy consistency.
-0: no scaling
-1: scale increment for cp consistency between dynamics and physics
-2: do 1 as well as take into account condensate effect on thermal energy
+<entry id="se_nsplit" type="integer" category="se"
+       group="dyn_se_inparm" valid_values="" >
+Number of dynamics steps per physics timestep.
 Default: Set by build-namelist.
 </entry>
 
+<entry id="se_nu" type="real" category="se"
+       group="dyn_se_inparm" valid_values="" >
+Hyperviscosity coefficient for u,v, T [m^4/s].
+If &lt; 0, se_nu is automatically set.
+Default: Set by build-namelist.
+</entry>
+
+<entry id="se_nu_div" type="real" category="se"
+       group="dyn_se_inparm" valid_values="" >
+Hyperviscosity applied to divergence component of winds [m^4/s].
+If &lt; 0, uses se_nu_p.
+Default: Set by build-namelist.
+</entry>
+
+<entry id="se_nu_p" type="real" category="se"
+       group="dyn_se_inparm" valid_values="" >
+Hyperviscosity coefficient applied to pressure-level thickness [m^4/s].
+If &lt; 0, se_nu_p is automatically set.
+Default: Set by build-namelist.
+</entry>
+
+<entry id="se_nu_top" type="real" category="se"
+       group="dyn_se_inparm" valid_values="" >
+Second-order viscosity applied only near the model top [m^2/s].
+Default: Set by build-namelist.
+</entry>
 
 <entry id="se_sponge_del4_nu_fac" type="real" category="se"
        group="dyn_se_inparm" valid_values="" >
@@ -7867,17 +7861,6 @@ See se_sponge_del4_nu_fac and se_sponge_del4_nu_div_fac
 
 If &lt; 0, se_sponge_del4_lev is automatically set based on model top location.
 Default: Set by build-namelist.
-</entry>
-
-<entry id="se_lcp_moist" type="logical" category="se"
-       group="dyn_se_inparm" valid_values="" >
-If TRUE the continous equations the dynamical core is based on will conserve a
-comprehensive moist total energy
-If FALSE the continous equations the dynamical core is based on will conserve
-a total energy based on cp for dry air and no condensates (same total energy as
-CAM physics uses).
-For more details see Lauritzen et al., (2018;DOI:10.1029/2017MS001257)
-Default: TRUE
 </entry>
 
 <entry id="se_large_Courant_incr" type="logical" category="se"
