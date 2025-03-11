@@ -48,7 +48,7 @@ use hybvcoord_mod,          only: hvcoord_t
 use prim_init,              only: prim_init1
 use edge_mod,               only: initEdgeBuffer
 use edgetype_mod,           only: EdgeBuffer_t
-use time_mod,               only: TimeLevel_t
+use se_dyn_time_mod,        only: TimeLevel_t
 use dof_mod,                only: UniqueCoords, UniquePoints
 
 implicit none
@@ -133,7 +133,7 @@ subroutine dyn_grid_init()
    use hybrid_mod,          only: hybrid_t, init_loop_ranges, &
                                   get_loop_ranges, config_thread_region
    use control_mod,         only: qsplit, rsplit
-   use time_mod,            only: tstep, nsplit
+   use se_dyn_time_mod,     only: tstep, nsplit
    use fvm_mod,             only: fvm_init2, fvm_init3, fvm_pg_init
    use dimensions_mod,      only: irecons_tracer
    use comp_gll_ctr_vol,    only: gll_grid_write
@@ -177,12 +177,12 @@ subroutine dyn_grid_init()
    if (iam < par%nprocs) then
 
       call prim_init1(elem, fvm, par, TimeLevel)
-      if (fv_nphys > 0) then
+      if (use_cslam) then
          call dp_init(elem, fvm)
       end if
 
       if (fv_nphys > 0) then
-         qsize_local = thermodynamic_active_species_num + 3
+         qsize_local = 3
       else
          qsize_local = pcnst + 3
       end if

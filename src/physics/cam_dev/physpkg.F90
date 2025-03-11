@@ -21,6 +21,8 @@ module physpkg
   use constituents,     only: pcnst, cnst_name, cnst_get_ind
   use camsrfexch,       only: cam_out_t, cam_in_t
 
+  use phys_control,     only: use_hemco ! Use Harmonized Emissions Component (HEMCO)
+
   use cam_control_mod,  only: ideal_phys, adiabatic
   use phys_control,     only: phys_do_flux_avg, phys_getopts, waccmx_is
   use scamMod,          only: single_column, scm_crm_mode
@@ -148,6 +150,7 @@ contains
     use subcol_utils,       only: is_subcol_on, subcol_get_scheme
     use dyn_comp,           only: dyn_register
     use offline_driver,     only: offline_driver_reg
+    use hemco_interface,    only: HCOI_Chunk_Init
 
     !---------------------------Local variables-----------------------------
     !
@@ -326,6 +329,11 @@ contains
     ! ***NOTE*** No registering constituents after the call to cnst_chk_dim.
 
     call offline_driver_reg()
+
+    if (use_hemco) then
+        ! initialize harmonized emissions component (HEMCO)
+        call HCOI_Chunk_Init()
+    endif
 
     ! This needs to be last as it requires all pbuf fields to be added
     if (cam_snapshot_before_num > 0 .or. cam_snapshot_after_num > 0) then
@@ -761,6 +769,8 @@ contains
     use cam_budget,         only: cam_budget_init
     use phys_grid_ctem,     only: phys_grid_ctem_init
 
+    use ccpp_constituent_prop_mod, only: ccpp_const_props_init
+
     ! Input/output arguments
     type(physics_state), pointer       :: phys_state(:)
     type(physics_tend ), pointer       :: phys_tend(:)
@@ -829,15 +839,18 @@ contains
     ! low level, so init it early. Must at least do this before radiation.
     call wv_sat_init
 
+    ! solar irradiance data modules
+    call solar_data_init()
+
     ! Initialize rad constituents and their properties
     call rad_cnst_init()
+
+    call radiation_init(pbuf2d)
+
     call aer_rad_props_init()
 
     ! initialize carma
     call carma_init()
-
-    ! solar irradiance data modules
-    call solar_data_init()
 
     ! Prognostic chemistry.
     call chem_init(phys_state,pbuf2d)
@@ -873,8 +886,6 @@ contains
           call waccmx_phys_ion_elec_temp_init(pbuf2d)
        endif
     endif
-
-    call radiation_init(pbuf2d)
 
     call cloud_diagnostics_init()
 
@@ -939,6 +950,10 @@ contains
 
     end if
 
+    ! Initialize CAM CCPP constituent properties array
+    ! for use in CCPP-ized physics schemes:
+    call ccpp_const_props_init()
+
     ! Initialize qneg3 and qneg4
     call qneg_init()
 
@@ -950,7 +965,7 @@ contains
 
     ! Initialize the budget capability
     call cam_budget_init()
- 
+
     ! addfld calls for U, V tendency budget variables that are output in
     ! tphysac, tphysbc
     call addfld ( 'UTEND_DCONV', (/ 'lev' /), 'A', 'm/s2', 'Zonal wind tendency by deep convection')
@@ -1168,6 +1183,7 @@ contains
 #if ( defined OFFLINE_DYN )
     use metdata,         only: get_met_srf2
 #endif
+    use hemco_interface, only: HCOI_Chunk_Run
     !
     ! Input arguments
     !
@@ -1200,6 +1216,14 @@ contains
     ! if using IOP values for surface fluxes overwrite here after surface components run
     !-----------------------------------------------------------------------
     if (single_column) call scam_use_iop_srf(cam_in)
+
+    if(use_hemco) then
+        !----------------------------------------------------------
+        ! run hemco (phase 2 before chemistry)
+        ! only phase 2 is used currently for HEMCO-CESM
+        !----------------------------------------------------------
+        call HCOI_Chunk_Run(cam_in, phys_state, pbuf2d, phase=2)
+    endif
 
     !-----------------------------------------------------------------------
     ! Tendency physics after coupler
@@ -1270,6 +1294,7 @@ contains
     use microp_aero,    only: microp_aero_final
     use phys_grid_ctem, only: phys_grid_ctem_final
     use nudging,        only: Nudge_Model, nudging_final
+    use hemco_interface, only: HCOI_Chunk_Final
 
     !-----------------------------------------------------------------------
     !
@@ -1294,6 +1319,11 @@ contains
     call microp_aero_final()
     call phys_grid_ctem_final()
     if(Nudge_Model) call nudging_final()
+
+    if(use_hemco) then
+        ! cleanup hemco
+        call HCOI_Chunk_Final
+    endif
 
   end subroutine phys_final
 
@@ -1573,7 +1603,7 @@ contains
        call cam_snapshot_all_outfld_tphysac(cam_snapshot_before_num, state, tend, cam_in, cam_out, pbuf,&
                     fh2o, surfric, obklen, flx_heat, cmfmc, dlf, det_s, det_ice, net_flx)
     end if
-    call chem_emissions( state, cam_in )
+    call chem_emissions( state, cam_in, pbuf )
     if (trim(cam_take_snapshot_after) == "chem_emissions") then
        call cam_snapshot_all_outfld_tphysac(cam_snapshot_after_num, state, tend, cam_in, cam_out, pbuf,&
                     fh2o, surfric, obklen, flx_heat, cmfmc, dlf, det_s, det_ice, net_flx)
@@ -2362,7 +2392,7 @@ contains
     else
       !
       ! for moist-mixing ratio based dycores
-      ! 
+      !
       ! Note: this operation will NOT be reverted with set_wet_to_dry after set_dry_to_wet call
       !
       call set_dry_to_wet(state)
@@ -2384,7 +2414,7 @@ contains
     if (vc_dycore == vc_height.or.vc_dycore == vc_dry_pressure) then
       !
       ! MPAS and SE specific scaling of temperature for enforcing energy consistency
-      ! (and to make sure that temperature dependent diagnostic tendencies 
+      ! (and to make sure that temperature dependent diagnostic tendencies
       !  are computed correctly; e.g. dtcore)
       !
       scaling(1:ncol,:)  = cpairv(:ncol,:,lchnk)/cp_or_cv_dycore(:ncol,:,lchnk)
@@ -2513,7 +2543,6 @@ contains
 
     real(r8) dlf(pcols,pver)                   ! Detraining cld H20 from shallow + deep convections
     real(r8) dlf2(pcols,pver)                  ! Detraining cld H20 from shallow convections
-    real(r8) pflx(pcols,pverp)                 ! Conv rain flux thru out btm of lev
     real(r8) rtdt                              ! 1./ztodt
 
     integer lchnk                              ! chunk identifier
@@ -2705,7 +2734,7 @@ contains
 
     if (trim(cam_take_snapshot_before) == "dadadj_tend") then
        call cam_snapshot_all_outfld_tphysbc(cam_snapshot_before_num, state, tend, cam_in, cam_out, pbuf, &
-           cmfmc, cmfcme, pflx, zdu, rliq, rice, dlf, dlf2, rliq2, net_flx)
+           cmfmc, cmfcme, zdu, rliq, rice, dlf, dlf2, rliq2, net_flx)
     end if
 
     call dadadj_tend(ztodt, state, ptend)
@@ -2718,7 +2747,7 @@ contains
 
     if (trim(cam_take_snapshot_after) == "dadadj_tend") then
        call cam_snapshot_all_outfld_tphysbc(cam_snapshot_after_num, state, tend, cam_in, cam_out, pbuf, &
-           cmfmc, cmfcme, pflx, zdu, rliq, rice, dlf, dlf2, rliq2, net_flx)
+           cmfmc, cmfcme, zdu, rliq, rice, dlf, dlf2, rliq2, net_flx)
     end if
 
     call t_stopf('dry_adjustment')
@@ -2732,12 +2761,12 @@ contains
 
     if (trim(cam_take_snapshot_before) == "convect_deep_tend") then
        call cam_snapshot_all_outfld_tphysbc(cam_snapshot_before_num, state, tend, cam_in, cam_out, pbuf, &
-           cmfmc, cmfcme, pflx, zdu, rliq, rice, dlf, dlf2, rliq2, net_flx)
+           cmfmc, cmfcme, zdu, rliq, rice, dlf, dlf2, rliq2, net_flx)
     end if
 
     call convect_deep_tend(  &
          cmfmc,      cmfcme,             &
-         pflx,    zdu,       &
+         zdu,       &
          rliq,    rice,      &
          ztodt,   &
          state,   ptend, cam_in%landfrac, pbuf)
@@ -2757,7 +2786,7 @@ contains
 
     if (trim(cam_take_snapshot_after) == "convect_deep_tend") then
        call cam_snapshot_all_outfld_tphysbc(cam_snapshot_after_num, state, tend, cam_in, cam_out, pbuf, &
-           cmfmc, cmfcme, pflx, zdu, rliq, rice, dlf, dlf2, rliq2, net_flx)
+           cmfmc, cmfcme, zdu, rliq, rice, dlf, dlf2, rliq2, net_flx)
     end if
 
     call t_stopf('convect_deep_tend')
@@ -2798,7 +2827,7 @@ contains
 
     if (trim(cam_take_snapshot_before) == "convect_diagnostics_calc") then
        call cam_snapshot_all_outfld_tphysbc(cam_snapshot_before_num, state, tend, cam_in, cam_out, pbuf, &
-           cmfmc, cmfcme, pflx, zdu, rliq, rice, dlf, dlf2, rliq2, net_flx)
+           cmfmc, cmfcme, zdu, rliq, rice, dlf, dlf2, rliq2, net_flx)
     end if
     call convect_diagnostics_calc (ztodt   , cmfmc, &
              dlf        , dlf2   ,  rliq   , rliq2, &
