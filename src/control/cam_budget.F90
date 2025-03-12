@@ -66,7 +66,7 @@ CONTAINS
     use spmd_utils,      only: mpi_character, mpi_logical, mpi_integer, mpi_success
     use shr_string_mod,  only: shr_string_toUpper
     use string_utils,    only: int2str
-    
+
     ! Dummy argument: filepath for file containing namelist input
     character(len=*), intent(in) :: nlfile
 
@@ -98,7 +98,7 @@ CONTAINS
     ! Write out thermo_budget options
     if (masterproc) then
        if (thermo_budget_history) then
-          if (dycore_is('FV') .or. dycore_is('FV3')) then
+          if (dycore_is('FV') .or. dycore_is('FV3') .or. dycore_is('SENH')) then
              call endrun(subname//'ERROR thermodynamic budgets not implemented for this dycore')
           else
              write(iulog,*)'Thermo budgets will be written to the log file and diagnostics saved to history file:',&
@@ -270,7 +270,7 @@ CONTAINS
                 call endrun(errmsg)
              end if
           end if
-          call addfld (TRIM(ADJUSTL(name_str)),   horiz_only, 'N', TRIM(ADJUSTL(units_str)),TRIM(ADJUSTL(desc_str)), &     
+          call addfld (TRIM(ADJUSTL(name_str)),   horiz_only, 'N', TRIM(ADJUSTL(units_str)),TRIM(ADJUSTL(desc_str)), &
                gridname=gridname,optype=optype,op_f1name=TRIM(ADJUSTL(strstg1)),op_f2name=TRIM(ADJUSTL(strstg2)))
           call add_default(TRIM(ADJUSTL(name_str)), thermo_budget_histfile_num, 'N')
        end do
@@ -307,7 +307,7 @@ CONTAINS
     !-----------------------------------------------------------------------
     ! Initialize tape pointer here to avoid initialization only on first invocation
     nullify(tape)
-    
+
     name_str=''
     write(name_str,*) TRIM(ADJUSTL(name))
 
@@ -351,7 +351,7 @@ CONTAINS
       ! Get the index of a budget.  Ret -1 for not found
       !-----------------------------Arguments---------------------------------
       character(len=*),  intent(in)  :: name  ! budget name
-      
+
       !---------------------------Local workspace-----------------------------
       integer                        :: budget_ind_byname   ! function return
       integer                        :: m                   ! budget index
@@ -371,7 +371,7 @@ CONTAINS
 
   pure function is_cam_budget(name)
 
-    ! Get the index of a budget.  
+    ! Get the index of a budget.
 
     !-----------------------------Arguments---------------------------------
     character(len=*),  intent(in)  :: name  ! budget name

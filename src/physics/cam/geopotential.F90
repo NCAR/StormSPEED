@@ -90,7 +90,7 @@ use geopotential_temp,         only: geopotential_temp_run !CCPP version
     !
     ! original code for backwards compatability with FV
     !
-    if (.not.(dycore_is('MPAS') .or. dycore_is('SE'))) then
+    if (.not.(dycore_is('MPAS') .or. dycore_is('SE') .or. dycore_is('SENH'))) then
 
       !dry air gas constant over gravity
       rog(:ncol,:) = rair(:ncol,:) / gravit
@@ -106,7 +106,7 @@ use geopotential_temp,         only: geopotential_temp_run !CCPP version
 
         ! First set hydrostatic elements consistent with dynamics
 
-        if ((dycore_is('LR') .or. dycore_is('FV3').or. dycore_is('SENH'))) then
+        if ((dycore_is('LR') .or. dycore_is('FV3'))) then
           do i = 1,ncol
             hkl(i) = piln(i,k+1) - piln(i,k)
             hkk(i) = 1._r8 - pint(i,k) * hkl(i) * rpdel(i,k)
