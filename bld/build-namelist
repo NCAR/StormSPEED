@@ -3793,11 +3793,14 @@ if ($dyn =~ /se/) {
 		       se_limiter_option
 		       se_lx
 		       se_ly
-		       se_ne
 		       se_ne_x
 		       se_ne_y
 		       se_nsplit
 		       se_partmethod
+		       se_semi_lagrange_cdr_alg
+		       se_semi_lagrange_cdr_check
+		       se_semi_lagrange_hv_q
+		       se_semi_lagrange_nearest_point_lev
 		       se_topology
 		       se_tstep
 		       se_statefreq
