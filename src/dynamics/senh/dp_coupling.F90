@@ -517,7 +517,7 @@ CONTAINS
       call geopotential_t(phys_state(lchnk)%lnpint, phys_state(lchnk)%lnpmid  ,&
                           phys_state(lchnk)%pint  , phys_state(lchnk)%pmid    ,&
                           phys_state(lchnk)%pdel  , phys_state(lchnk)%rpdel   ,&
-                          phys_state(lchnk)%t     , phys_state(lchnk)%q(:,:,1),&
+                          phys_state(lchnk)%t     , phys_state(lchnk)%q       ,&
                           rairv(:,:,lchnk)        , gravit, zvirv             ,&
                           phys_state(lchnk)%zi    , phys_state(lchnk)%zm      ,&
                           ncol)
@@ -545,8 +545,8 @@ CONTAINS
 !        back to wet. (in APE, all tracers are wet, so it is ok for now)
 !
 ! Convert dry type constituents from moist to dry mixing ratio
-       call set_state_pdry(phys_state(lchnk))	 ! First get dry pressure to use for this timestep
-       call set_wet_to_dry(phys_state(lchnk))    ! Dynamics had moist, physics wants dry.
+       call set_state_pdry(phys_state(lchnk), .true.)	 ! First get dry pressure to use for this timestep
+       call set_wet_to_dry(phys_state(lchnk), convert_cnst_type='wet')    ! Dynamics had moist, physics wants dry.
 !
 ! Ensure tracers are all positive
 !

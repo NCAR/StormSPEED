@@ -339,7 +339,7 @@
 <use_topo_file analytic_ic="1"    > .false. </use_topo_file>
 
 <!-- Mesh files for refined SE grids -->
-<se_mesh_file> "none" </se_mesh_file>
+<se_mesh_file> none </se_mesh_file>
 <se_mesh_file hgrid="ne0np4CONUS.ne30x8"      >atm/cam/coords/ne0np4CONUS.ne30x8.g</se_mesh_file>
 <se_mesh_file hgrid="ne0np4TESTONLY.ne5x4"    >atm/cam/coords/ne0np4EQFACE.ne5x4.g</se_mesh_file>
 <se_mesh_file hgrid="ne0np4.ARCTIC.ne30x4"    >atm/cam/coords/ne30x4_EXODUS_ARCTIC_c191009.g</se_mesh_file>
@@ -347,6 +347,7 @@
 
 <!-- Analytic ICs  -->
 <analytic_ic_type                   > none </analytic_ic_type>
+<analytic_ic_type dyn="mpas" aquaplanet="1"  > us_standard_atmosphere </analytic_ic_type>
 <analytic_ic_type phys="adiabatic"  > held_suarez_1994 </analytic_ic_type>
 <analytic_ic_type phys="held_suarez"> held_suarez_1994 </analytic_ic_type>
 <analytic_ic_type phys="kessler"    > moist_baroclinic_wave_dcmip2016 </analytic_ic_type>
@@ -2926,7 +2927,7 @@
 <scm_relax_tau_top_sec           scam="1"                  > 172800.D0  </scm_relax_tau_top_sec>
 
 
-<!-- IOP SCAM defaults (The Single Column Atmosphere Model Version 6 (SCAM6), J. Adv. Model. Earth Sy., 11, 1381–1401, https://doi.org/10.1029/2018MS001578-->
+<!-- IOP SCAM defaults (The Single Column Atmosphere Model Version 6 (SCAM6), J. Adv. Model. Earth Sy., 11, 1381?1401, https://doi.org/10.1029/2018MS001578-->
 
 <!-- IOP ARM95/ARM Southern Great Plains/lat:36/lon:263/Jul 1995/18d/M. Zhang et al. (2016)/Land convection -->
 <ncdata             hgrid="ne3np4"    nlev="32"       scam_iop="arm95"     >atm/cam/inic/se/CESM2.F2000climo.ne3np4.cam.i.0003-06-01-00000.nc</ncdata>
@@ -3150,6 +3151,9 @@
 <!-- ================================================================== -->
 <!-- Defaults for SE                                                    -->
 <!-- ================================================================== -->
+<se_coord_transform_method se_dyn_target="theta-l"    > 1 </se_coord_transform_method>
+<se_rk_stage_user se_dyn_target="theta-l"             > 3 </se_rk_stage_user>
+<se_z2_map_method se_dyn_target="theta-l"             > 1 </se_z2_map_method>
 
 <se_pgf_formulation>           1</se_pgf_formulation>
 <se_pgf_formulation waccmx="1">3</se_pgf_formulation>
@@ -3161,137 +3165,84 @@
 
 <se_large_Courant_incr        > .true.  </se_large_Courant_incr>
 
-<se_hypervis_order            > 2 </se_hypervis_order>
-
 <se_hypervis_scaling se_refined_mesh="1" hypervis_type="tensor" >3.22D0 </se_hypervis_scaling>
+<se_hypervis_scaling se_dyn_target="preqx"                      >0.0D0 </se_hypervis_scaling>
+<se_hypervis_scaling se_dyn_target="theta-l"                    >3.0D0 </se_hypervis_scaling>
 
-<se_hypervis_scaling    se_dyn_target="theta-l"                   >3.0D0 </se_hypervis_scaling>
-<se_hypervis_subcycle   se_dyn_target="theta-l"                   > 1 </se_hypervis_subcycle>
-<se_hypervis_subcycle_q se_dyn_target="theta-l"                   > 6 </se_hypervis_subcycle_q>
+<se_hypervis_subcycle                                                                               > 3 </se_hypervis_subcycle>
+<se_hypervis_subcycle  se_dyn_target="cam" waccm_phys="1"                                           > 2 </se_hypervis_subcycle>
+<se_hypervis_subcycle  se_dyn_target="cam" hgrid="ne16np4"                                          > 4 </se_hypervis_subcycle>
+<se_hypervis_subcycle  se_dyn_target="cam" hgrid="ne16np4"  waccm_phys="1" waccmx="0"               > 9 </se_hypervis_subcycle>
+<se_hypervis_subcycle  se_dyn_target="cam" hgrid="ne30np4"  waccm_phys="1" waccmx="0"               > 8 </se_hypervis_subcycle>
+<se_hypervis_subcycle  se_dyn_target="cam" hgrid="ne30np4"  model_top="lt"                          > 2 </se_hypervis_subcycle>
+<se_hypervis_subcycle  se_dyn_target="cam" hgrid="ne30np4"  model_top="mt"                          > 3 </se_hypervis_subcycle>
+<se_hypervis_subcycle  se_dyn_target="cam" se_refined_mesh="1"                                      > 3 </se_hypervis_subcycle>
+<se_hypervis_subcycle  se_dyn_target="cam" hgrid="ne0np4CONUS.ne30x8" waccm_phys="1"                > 1 </se_hypervis_subcycle>
+<se_hypervis_subcycle  se_dyn_target="cam" hgrid="ne0np4CONUS.ne30x8" waccm_phys="1"                > 1 </se_hypervis_subcycle>
+<se_hypervis_subcycle  se_dyn_target="preqx"                                                        > 3 </se_hypervis_subcycle>
+<se_hypervis_subcycle  se_dyn_target="preqx" hgrid="ne120np4"                                       > 4 </se_hypervis_subcycle>
+<se_hypervis_subcycle  se_dyn_target="theta-l"                                                      > 1 </se_hypervis_subcycle>
+
+<se_hypervis_subcycle_sponge                                                               > 1  </se_hypervis_subcycle_sponge>
+<se_hypervis_subcycle_sponge  hgrid="ne30np4"  model_top="mt"           > 3  </se_hypervis_subcycle_sponge>
+<se_hypervis_subcycle_sponge  hgrid="ne16np4"  waccm_phys="1" waccmx="0"> 2  </se_hypervis_subcycle_sponge>
+<se_hypervis_subcycle_sponge  hgrid="ne30np4"  waccm_phys="1" waccmx="0"> 4  </se_hypervis_subcycle_sponge>
+<se_hypervis_subcycle_sponge  waccmx="1"                                > 20 </se_hypervis_subcycle_sponge>
+<se_hypervis_subcycle_sponge  hgrid="ne120np4"                          > 4  </se_hypervis_subcycle_sponge>
+<se_hypervis_subcycle_sponge  se_refined_mesh="1"                       > 2  </se_hypervis_subcycle_sponge>
+<se_hypervis_subcycle_sponge  hgrid="ne0np4CONUS.ne30x8" waccm_phys="1" > 4  </se_hypervis_subcycle_sponge>
+
+<se_hypervis_subcycle_q                                                     >1 </se_hypervis_subcycle_q>
+<se_hypervis_subcycle_q se_dyn_target="cam" hgrid="ne16np4"                 >2 </se_hypervis_subcycle_q>
+<se_hypervis_subcycle_q se_dyn_target="preqx" hgrid="ne30np4"               >6 </se_hypervis_subcycle_q>
+<se_hypervis_subcycle_q se_dyn_target="theta-l"                             >6 </se_hypervis_subcycle_q>
+
 <se_hypervis_subcycle_tom  se_dyn_target="theta-l"                > 1 </se_hypervis_subcycle_tom>
+<se_hypervis_subcycle_tom  se_dyn_target="preqx"                  > 0 </se_hypervis_subcycle_tom>
 
-<se_hypervis_scaling    se_dyn_target="preqx"                   >0D0 </se_hypervis_scaling>
-<se_hypervis_subcycle   se_dyn_target="preqx"                   > 3 </se_hypervis_subcycle>
-<se_hypervis_subcycle_q se_dyn_target="preqx"                   > 1 </se_hypervis_subcycle_q>
-<se_hypervis_subcycle_tom  se_dyn_target="preqx"                > 0 </se_hypervis_subcycle_tom>
-
-<se_hypervis_scaling  se_dyn_target="preqx"                      >0D0 </se_hypervis_scaling>
-<se_hypervis_subcycle se_dyn_target="preqx"                      > 3 </se_hypervis_subcycle>
-
-<se_hypervis_subcycle  waccm_phys="1"                            > 2 </se_hypervis_subcycle>
-<se_hypervis_subcycle  se_dyn_target="theta-l"                   > 1 </se_hypervis_subcycle>
-
-<se_hypervis_subcycle_q  hgrid="ne16np4" se_dyn_target="theta-l" > 3 </se_hypervis_subcycle_q>
-
-
-<se_integration  se_dyn_target="theta-l"            > 'explicit' </se_integration>
-
-<se_mesh_file  se_dyn_target="theta-l"              > '/dev/null' </se_mesh_file>
-
-<se_nu se_dyn_target="preqx"                        >1.0e15 </se_nu>
-<se_nu se_dyn_target="theta-l"                      >3.4e-8  </se_nu>
-
-<se_nu_div   se_dyn_target="theta-l"                > -1 </se_nu_div>
-<se_nu_div   se_dyn_target="preqx"                  > 2.5e15</se_nu_div>
-
-<se_nu_p   se_dyn_target="theta-l"                  > -1 </se_nu_p>
-<se_nu_q   se_dyn_target="theta-l"                  > -1 </se_nu_q>
-<se_nu_s   se_dyn_target="theta-l"                  > -1 </se_nu_s>
-
-<se_nu_top   se_dyn_target="theta-l"              > 2.5e5 </se_nu_top>
-<se_nu_top   se_dyn_target="preqx"                > 2.5e5 </se_nu_top>
-<se_qsplit   se_dyn_target="theta-l"                  > -1 </se_qsplit>
-<se_rsplit   se_dyn_target="theta-l"                  > -1 </se_rsplit>
-<se_qsplit   se_dyn_target="preqx"                    > 1  </se_qsplit>
-<se_rsplit   se_dyn_target="preqx"                    > 3  </se_rsplit>
-
-<se_geometry se_dyn_target="theta-l"                  > 'sphere' </se_geometry>
-
-<se_limiter_option se_dyn_target="theta-l"            > 9 </se_limiter_option>
-<se_limiter_option se_dyn_target="preqx"              > 8 </se_limiter_option>
-
-<se_lx se_dyn_target="theta-l"                        > 0.0 </se_lx>
-<se_ly se_dyn_target="theta-l"                        > 0.0 </se_ly>
-
-<se_ne se_dyn_target="theta-l" hgrid="ne30np4"        > 30 </se_ne>
-<se_ne se_dyn_target="theta-l" hgrid="ne16np4"        > 16 </se_ne>
-
-<se_ne_x se_dyn_target="theta-l"                      > 0 </se_ne_x>
-<se_ne_y se_dyn_target="theta-l"                      > 0 </se_ne_y>
-
-<se_nsplit  se_dyn_target="theta-l"                   > -1 </se_nsplit>
-<se_nsplit  se_dyn_target="preqx"                     > 2  </se_nsplit>
-
-<se_partmethod  se_dyn_target="theta-l"               > 4 </se_partmethod>
-<se_topology  se_dyn_target="theta-l"                 > 'cube' </se_topology>
-
-<se_tstep  se_dyn_target="theta-l"                    > 300 </se_tstep>
-<se_tstep  se_dyn_target="preqx"                      > -1  </se_tstep>
-
-<se_statefreq  se_dyn_target="theta-l"                > 480 </se_statefreq>
-
-<se_theta_advect_form se_dyn_target="theta-l"         > 1 </se_theta_advect_form>
-
-<se_theta_hydrostatic_mode se_dyn_target="theta-l"    > .false. </se_theta_hydrostatic_mode>
-<se_theta_hydrostatic_mode se_dyn_target="preqx"      > .true. </se_theta_hydrostatic_mode>
-
-<se_transport_alg se_dyn_target="theta-l"             > 12 </se_transport_alg>
-<se_transport_alg se_dyn_target="preqx"               >  0 </se_transport_alg>
-
-<se_tstep_type se_dyn_target="theta-l"                > 9 </se_tstep_type>
-<se_tstep_type se_dyn_target="preqx"                  > 5 </se_tstep_type>
-
-<se_vert_remap_q_alg se_dyn_target="theta-l"          > 10 </se_vert_remap_q_alg>
-<se_vert_remap_q_alg se_dyn_target="preqx"            > 1  </se_vert_remap_q_alg>
-
-<se_vthreads se_dyn_target="theta-l"                  > 1 </se_vthreads>
-
-<se_hypervis_subcycle  hgrid="ne30np4"                           > 4 </se_hypervis_subcycle>
-<se_hypervis_subcycle  hgrid="ne16np4"                           > 4 </se_hypervis_subcycle>
-<se_hypervis_subcycle  hgrid="ne30np4" npg="3" nlev="58"         > 4 </se_hypervis_subcycle>
-<se_hypervis_subcycle  se_refined_mesh="1"                       > 3 </se_hypervis_subcycle>
-<se_hypervis_subcycle  hgrid="ne0np4CONUS.ne30x8" waccm_phys="1" > 1 </se_hypervis_subcycle>
-<se_hypervis_subcycle                                                           > 3 </se_hypervis_subcycle>
-<se_hypervis_subcycle  hgrid="ne16np4"  waccm_phys="1" waccmx="0"               > 9 </se_hypervis_subcycle>
-<se_hypervis_subcycle  hgrid="ne30np4"  waccm_phys="1" waccmx="0"               > 8 </se_hypervis_subcycle>
-<se_hypervis_subcycle  hgrid="ne30np4"  model_top="lt"                          > 2 </se_hypervis_subcycle>
-<se_hypervis_subcycle  hgrid="ne30np4"  model_top="mt"                          > 3 </se_hypervis_subcycle>
-
-<se_hypervis_subcycle_sponge                                           > 1  </se_hypervis_subcycle_sponge>
-<se_hypervis_subcycle_sponge hgrid="ne30np4"  model_top="mt"           > 3  </se_hypervis_subcycle_sponge>
-<se_hypervis_subcycle_sponge hgrid="ne16np4"  waccm_phys="1" waccmx="0"> 2  </se_hypervis_subcycle_sponge>
-<se_hypervis_subcycle_sponge hgrid="ne30np4"  waccm_phys="1" waccmx="0"> 4  </se_hypervis_subcycle_sponge>
-<se_hypervis_subcycle_sponge waccmx="1"                                > 20 </se_hypervis_subcycle_sponge>
-<se_hypervis_subcycle_sponge hgrid="ne120np4"                          > 4  </se_hypervis_subcycle_sponge>
-<se_hypervis_subcycle_sponge se_refined_mesh="1"                       > 2  </se_hypervis_subcycle_sponge>
-<se_hypervis_subcycle_sponge hgrid="ne0np4CONUS.ne30x8" waccm_phys="1" > 4  </se_hypervis_subcycle_sponge>
-
-<se_hypervis_subcycle_q>1                 </se_hypervis_subcycle_q>
-<se_hypervis_subcycle_q hgrid="ne16np4">2 </se_hypervis_subcycle_q>
-<se_hypervis_subcycle_q hgrid="ne30np4">2 </se_hypervis_subcycle_q>
-
-<se_limiter_option> 8 </se_limiter_option>
+<se_limiter_option                             > 8 </se_limiter_option>
+<se_limiter_option se_dyn_target="theta-l"     > 9 </se_limiter_option>
 
 <se_fine_ne>   0 </se_fine_ne>
+
 <se_hypervis_power> 0 </se_hypervis_power>
 
 <se_max_hypervis_courant > 1.0e99 </se_max_hypervis_courant>
 <se_max_hypervis_courant se_refined_mesh="1" hypervis_type="scalar" > 1.9 </se_max_hypervis_courant>
 
-<se_nu>-1</se_nu>
-<se_nu hgrid="ne16np4" waccm_phys="1" waccmx="0">6.e15</se_nu>
-<se_nu waccmx="1">5.e15</se_nu>
+<se_integration  se_dyn_target="theta-l"            > 'explicit' </se_integration>
 
-<se_nu_div> -1 </se_nu_div>
+<se_mesh_file  se_dyn_target="theta-l"              > '/dev/null' </se_mesh_file>
+
+<se_nu                                              >-1</se_nu>
+<se_nu hgrid="ne16np4" waccm_phys="1" waccmx="0"    >6.e15</se_nu>
+<se_nu waccmx="1"                                   >5.e15</se_nu>
+<se_nu se_dyn_target="preqx"                        >1.0e15 </se_nu>
+<se_nu se_dyn_target="theta-l"                      >3.4e-8  </se_nu>
+
+<se_nu_div                                          > -1 </se_nu_div>
 <se_nu_div hgrid="ne16np4" waccm_phys="1" waccmx="0">6.e15</se_nu_div>
-<se_nu_div waccmx="1"> 10.e15 </se_nu_div>
+<se_nu_div waccmx="1"                               > 10.e15 </se_nu_div>
+<se_nu_div se_dyn_target="theta-l"                  > -1 </se_nu_div>
+<se_nu_div se_dyn_target="preqx"                    > 2.5e15</se_nu_div>
 
-<se_nu_p>-1 </se_nu_p>
+<se_nu_p                                            > -1 </se_nu_p>
+<se_nu_q   se_dyn_target="theta-l"                  > -1 </se_nu_q>
+<se_nu_s   se_dyn_target="theta-l"                  > -1 </se_nu_s>
+<se_nu_p   se_dyn_target="preqx"                    >1.e15 </se_nu_p>
+<se_nu_q   se_dyn_target="preqx"                    >1.e15 </se_nu_q>
+<se_nu_s   se_dyn_target="preqx"                    >1.e15 </se_nu_s>
+<se_nu_p   se_dyn_target="preqx" hgrid="ne120np4"   >1.5e13 </se_nu_p>
+<se_nu_q   se_dyn_target="preqx" hgrid="ne120np4"   >1.5e13 </se_nu_q>
+<se_nu_s   se_dyn_target="preqx" hgrid="ne120np4"   >1.5e13 </se_nu_s>
 
-<se_nu_top                                   > 1.25e5 </se_nu_top>
-<se_nu_top waccmx="1"                        > 1.0e6 </se_nu_top>
-<se_nu_top model_top="mt"                    > 1.0e6 </se_nu_top>
-<se_nu_top waccm_phys="1"                    > 1.0e6 </se_nu_top>
+<se_nu_top                                            > 1.25e5 </se_nu_top>
+<se_nu_top se_dyn_target="cam" waccmx="1"             > 1.0e6 </se_nu_top>
+<se_nu_top se_dyn_target="cam" model_top="mt"         > 1.0e6 </se_nu_top>
+<se_nu_top se_dyn_target="cam" waccm_phys="1"         > 1.0e6 </se_nu_top>
+<se_nu_top se_dyn_target="theta-l"                    > 2.5e5 </se_nu_top>
+<se_nu_top se_dyn_target="theta-l" hgrid="ne120np4"   > 1.e5 </se_nu_top>
+<se_nu_top se_dyn_target="preqx"                      > 2.5e5 </se_nu_top>
 
 <se_molecular_diff               >  0.0 </se_molecular_diff>
 <se_molecular_diff waccmx="1"    >  1.0 </se_molecular_diff>
@@ -3301,7 +3252,9 @@
 <se_sponge_del4_nu_div_fac hgrid="ne16np4" waccm_phys="1" waccmx="0"> 7.5 </se_sponge_del4_nu_div_fac>
 <se_sponge_del4_lev       > -1 </se_sponge_del4_lev>
 
-<se_qsplit > 1 </se_qsplit>
+<se_qsplit se_dyn_target="cam"                        > 1 </se_qsplit>
+<se_qsplit se_dyn_target="preqx"                      > 1 </se_qsplit>
+<se_qsplit se_dyn_target="theta-l"                    > -1 </se_qsplit>
 
 <se_refined_mesh > .false. </se_refined_mesh>
 <se_refined_mesh hgrid="ne0np4CONUS.ne30x8" > .true. </se_refined_mesh>
@@ -3309,23 +3262,40 @@
 <se_refined_mesh hgrid="ne0np4.ARCTIC.ne30x4" > .true. </se_refined_mesh>
 <se_refined_mesh hgrid="ne0np4.ARCTICGRIS.ne30x8" > .true. </se_refined_mesh>
 
-<se_nsplit>                   2 </se_nsplit>
-<se_nsplit hgrid="ne16np4" >  1 </se_nsplit>
-<se_nsplit hgrid="ne30np4" >  1 </se_nsplit>
+<se_nsplit se_dyn_target="cam"                                                >  2 </se_nsplit>
+<se_nsplit se_dyn_target="cam" hgrid="ne16np4"                                >  1 </se_nsplit>
 
-<se_nsplit hgrid="ne5np4"   waccm_phys="1"                >  3  </se_nsplit>
-<se_nsplit hgrid="ne16np4"  waccmx="1"                    >  5  </se_nsplit>
-<se_nsplit hgrid="ne16np4"  waccm_phys="1"                >  2  </se_nsplit>
-<se_nsplit hgrid="ne30np4"  waccm_phys="1"                >  4  </se_nsplit>
-<se_nsplit hgrid="ne30np4"                                >  2  </se_nsplit>
-<se_nsplit hgrid="ne0np4CONUS.ne30x8" waccm_phys="1"      > 10  </se_nsplit>
+<se_nsplit se_dyn_target="cam" hgrid="ne5np4"   waccm_phys="1"                >  3  </se_nsplit>
+<se_nsplit se_dyn_target="cam" hgrid="ne16np4"  waccmx="1"                    >  5  </se_nsplit>
+<se_nsplit se_dyn_target="cam" hgrid="ne16np4"  waccm_phys="1"                >  2  </se_nsplit>
+<se_nsplit se_dyn_target="cam" hgrid="ne30np4"  waccm_phys="1"                >  4  </se_nsplit>
+<se_nsplit se_dyn_target="cam" hgrid="ne30np4"                                >  2  </se_nsplit>
+<se_nsplit se_dyn_target="cam" hgrid="ne0np4CONUS.ne30x8" waccm_phys="1"      > 10  </se_nsplit>
+<se_nsplit se_dyn_target="cam" hgrid="ne0np4TESTONLY.ne5x4"                   > 7 </se_nsplit>
 
-<se_nsplit hgrid="ne0np4TESTONLY.ne5x4"> 7 </se_nsplit>
+<se_nsplit se_dyn_target="preqx"                                              >  2 </se_nsplit>
+<se_nsplit se_dyn_target="preqx" hgrid="ne16np4"                              >  1 </se_nsplit>
 
-<se_rsplit                                          > 3 </se_rsplit>
-<se_rsplit waccm_phys="1" waccmx="0"                > 2 </se_rsplit>
-<se_rsplit waccmx="1"                               > 4 </se_rsplit>
-<se_rsplit hgrid="ne0np4CONUS.ne30x8" waccm_phys="1"> 3 </se_rsplit>
+<se_nsplit se_dyn_target="preqx" hgrid="ne5np4"   waccm_phys="1"              >  3  </se_nsplit>
+<se_nsplit se_dyn_target="preqx" hgrid="ne16np4"  waccmx="1"                  >  5  </se_nsplit>
+<se_nsplit se_dyn_target="preqx" hgrid="ne16np4"  waccm_phys="1"              >  2  </se_nsplit>
+<se_nsplit se_dyn_target="preqx" hgrid="ne30np4"  waccm_phys="1"              >  4  </se_nsplit>
+<se_nsplit se_dyn_target="preqx" hgrid="ne30np4"                              >  2  </se_nsplit>
+<se_nsplit se_dyn_target="preqx" hgrid="ne120np4"                             >  6  </se_nsplit>
+<se_nsplit se_dyn_target="preqx" hgrid="ne0np4CONUS.ne30x8" waccm_phys="1"    > 10  </se_nsplit>
+<se_nsplit se_dyn_target="preqx" hgrid="ne0np4TESTONLY.ne5x4"                 > 7 </se_nsplit>
+<se_nsplit se_dyn_target="theta-l"                                            > -1 </se_nsplit>
+
+<se_rsplit se_dyn_target="cam"                                            > 3 </se_rsplit>
+<se_rsplit se_dyn_target="cam" waccm_phys="1" waccmx="0"                  > 2 </se_rsplit>
+<se_rsplit se_dyn_target="cam" waccmx="1"                                 > 4 </se_rsplit>
+<se_rsplit se_dyn_target="cam" hgrid="ne0np4CONUS.ne30x8" waccm_phys="1"  > 3 </se_rsplit>
+<se_rsplit se_dyn_target="preqx"                                          > 3 </se_rsplit>
+<se_rsplit se_dyn_target="preqx" hgrid="ne120np4"                         > 2 </se_rsplit>
+<se_rsplit se_dyn_target="preqx" waccm_phys="1" waccmx="0"                > 2 </se_rsplit>
+<se_rsplit se_dyn_target="preqx" waccmx="1"                               > 4 </se_rsplit>
+<se_rsplit se_dyn_target="preqx" hgrid="ne0np4CONUS.ne30x8" waccm_phys="1"> 3 </se_rsplit>
+<se_rsplit se_dyn_target="theta-l"                                        > -1 </se_rsplit>
 
 <se_fvm_supercycling>-1</se_fvm_supercycling>
 <se_fvm_supercycling_jet>-1</se_fvm_supercycling_jet>
@@ -3334,9 +3304,11 @@
 
 <se_statediag_numtrac>3</se_statediag_numtrac>
 
-<se_statefreq> 0 </se_statefreq>
+<se_statefreq> 1 </se_statefreq>
 
-<se_tstep_type > 4 </se_tstep_type>
+<se_tstep_type se_dyn_target="cam"                    > 4 </se_tstep_type>
+<se_tstep_type se_dyn_target="theta-l"                > 9 </se_tstep_type>
+<se_tstep_type se_dyn_target="preqx"                  > 5 </se_tstep_type>
 
 <se_vert_remap_T        > thermal_energy_over_P </se_vert_remap_T>
 <se_vert_remap_uvTq_alg  > FV3_CS                </se_vert_remap_uvTq_alg>
@@ -3350,14 +3322,50 @@
 <se_tracer_num_threads> 0 </se_tracer_num_threads>
 <se_vert_num_threads> 0 </se_vert_num_threads>
 
+<se_geometry se_dyn_target="theta-l"                  > 'sphere' </se_geometry>
+
+<se_lx se_dyn_target="theta-l"                        > 0.0 </se_lx>
+<se_ly se_dyn_target="theta-l"                        > 0.0 </se_ly>
+
+<se_ne se_dyn_target="theta-l" hgrid="ne30np4"        > 30 </se_ne>
+<se_ne se_dyn_target="theta-l" hgrid="ne16np4"        > 16 </se_ne>
+
+<se_ne_x se_dyn_target="theta-l"                      > 0 </se_ne_x>
+<se_ne_y se_dyn_target="theta-l"                      > 0 </se_ne_y>
+
+<se_partmethod se_dyn_target="theta-l"               > 4 </se_partmethod>
+<se_topology se_dyn_target="theta-l"                 > 'cube' </se_topology>
+
+<se_tstep se_dyn_target="theta-l" hgrid="ne3np4"     > 300 </se_tstep>
+<se_tstep se_dyn_target="theta-l" hgrid="ne5np4"     > 300 </se_tstep>
+<se_tstep se_dyn_target="theta-l" hgrid="ne30np4"    > 300 </se_tstep>
+<se_tstep se_dyn_target="theta-l" hgrid="ne60np4"    > 200 </se_tstep>
+<se_tstep se_dyn_target="theta-l" hgrid="ne120np4"   >  75 </se_tstep>
+<se_tstep se_dyn_target="theta-l" hgrid="ne256np4"   >  33 </se_tstep>
+<se_tstep se_dyn_target="theta-l" hgrid="ne512np4"   >  16 </se_tstep>
+<se_tstep se_dyn_target="theta-l" hgrid="ne1024np4"  >   8 </se_tstep>
+<se_tstep se_dyn_target="preqx"                      > -1  </se_tstep>
+
+<se_theta_advect_form se_dyn_target="theta-l"         > 1 </se_theta_advect_form>
+
+<se_theta_hydrostatic_mode se_dyn_target="theta-l"    > .false. </se_theta_hydrostatic_mode>
+<se_theta_hydrostatic_mode se_dyn_target="preqx"      > .true. </se_theta_hydrostatic_mode>
+
+<se_transport_alg se_dyn_target="theta-l"             > 12 </se_transport_alg>
+<se_transport_alg se_dyn_target="preqx"               >  0 </se_transport_alg>
+
+<se_vert_remap_q_alg se_dyn_target="theta-l"          > 10 </se_vert_remap_q_alg>
+<se_vert_remap_q_alg se_dyn_target="preqx"            > 1  </se_vert_remap_q_alg>
+
+<se_vthreads se_dyn_target="theta-l"                  > 1 </se_vthreads>
+
 <se_cubed_sphere_map>         0 </se_cubed_sphere_map>
 
 <se_dt_remap_factor  se_dyn_target="theta-l"      >   2 </se_dt_remap_factor>
 <se_dt_tracer_factor  se_dyn_target="theta-l"     >   6 </se_dt_tracer_factor>
 
-<se_dt_remap_factor  se_dyn_target="preqx"    hgrid="ne16np4" > -1 </se_dt_remap_factor>
-<se_dt_tracer_factor se_dyn_target="preqx"    hgrid="ne16np4" > -1 </se_dt_tracer_factor>
-
+<se_dt_remap_factor  se_dyn_target="preqx"        > -1 </se_dt_remap_factor>
+<se_dt_tracer_factor se_dyn_target="preqx"        > -1 </se_dt_tracer_factor>
 
 
 <!-- ================================================================== -->

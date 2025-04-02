@@ -8126,6 +8126,24 @@ Default: Set by build-namelist.
 
 <!-- SE dycore -->
 
+<entry id="se_coord_transform_method" type="integer" category="se"
+       group="dyn_se_inparm" valid_values="1,2,3" >
+Zoltan2 coordinate transformation method.
+1: SPHERE_COORDS
+2: CUBE_COORDS
+3: FACE_2D_LB_COORDS
+Default: 1
+</entry>
+
+<entry id="se_z2_map_method" type="integer" category="se"
+       group="dyn_se_inparm" valid_values="1,2,3" >
+How to perform network-topology aware task mapping when using Zoltan2
+1: Z2_NO_TASK_MAPPING
+2: Z2_TASK_MAPPING
+3: Z2_OPTIMIZED_TASK_MAPPING
+Default: 1
+</entry>
+
 <entry id="se_cubed_sphere_map" type="integer" category="se"
        group="dyn_se_inparm" valid_values="" >
 Defines which map is used for reference element in homme.
@@ -8471,9 +8489,38 @@ Vertically lagrangian code vertically remaps every rsplit tracer timesteps.
 Default: Set by build-namelist.
 </entry>
 
+<entry id="se_rk_stage_user" type="integer" category="se"
+       group="dyn_se_inparm" valid_values="" >
+Number of RK stages (shallow water model) 
+Default: 3
+</entry>
+
 <entry id="se_partmethod" type="integer" category="se"
        group="dyn_se_inparm" valid_values="4" >
 Mesh partitioning method.  The only supported value in CAM is 4 (space-filling).
+0: RECURSIVE
+1: KWAY      
+2: VOLUME    
+3: WRECURSIVE
+4: SFCURVE   
+5: ZOLTAN2_1PHASEMAP       Zoltan2 Single Phase Mapper and Partitioner.
+6: ZOLTAN2RCB              Geometric Recursive Bisection
+7: ZOLTAN2MJ               Geometric Multijagged
+8: ZOLTAN2MJRCB            Geometric Multijagged runned as recursive bisection.
+9: ZOLTAN2RIB              Recursive Inertial Bisection
+10: ZOLTAN2HSFC            Hilbert Space Filling Curve
+11: ZOLTAN2PATOH           Patoh Hypergraph partitioner. Requires PATOH TPL
+12: ZOLTAN2PHG             PHG Hypergraph partitioner
+13: ZOLTAN2METIS           Metis Graph Partitioner. Requires metis TPL
+14: ZOLTAN2PARMETIS        Parmetis. Requires parmetis TPL
+15: ZOLTAN2PARMA           Parma Mesh Partitioner. Requires parma tpl
+16: ZOLTAN2SCOTCH          Scotch graph partitioner. Requires scotch tpl
+17: ZOLTAN2PTSCOTCH        PTscotch graph partitioner. Requires scotch tpl
+18: ZOLTAN2BLOCK    
+19: ZOLTAN2CYCLIC    
+20: ZOLTAN2RANDOM    
+21: ZOLTAN2ZOLTAN    
+22: ZOLTAN2ND
 Default: 4
 </entry>
 
@@ -8646,7 +8693,7 @@ Default: Set by build-namelist.
 </entry>
 
 <entry id="se_topology" type="char*80" category="se"
-       group="dyn_se_inparm" valid_values="cube,plane" >
+       group="dyn_se_inparm" valid_values="cube" >
 SE's topology.
 Only "cube" is supported in CAM. "plane" allowed for SCREAM in doubly
 periodic mode.

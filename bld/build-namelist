@@ -4219,9 +4219,9 @@ if ($dyn =~ /se/) {
 
     if($se_dyn_target ne 'cam') {
 	my @vars = qw( se_cubed_sphere_map
+		       se_coord_transform_method
 		       se_dt_remap_factor
 		       se_dt_tracer_factor
-		       se_hypervis_order
 		       se_hypervis_scaling
 		       se_hypervis_subcycle
 		       se_hypervis_subcycle_q
@@ -4246,6 +4246,7 @@ if ($dyn =~ /se/) {
 		       se_ne_y
 		       se_nsplit
 		       se_partmethod
+		       se_rk_stage_user
 		       se_topology
 		       se_tstep
 		       se_statefreq
@@ -4255,6 +4256,7 @@ if ($dyn =~ /se/) {
 		       se_tstep_type
 		       se_vert_remap_q_alg
 		       se_vthreads
+		       se_z2_map_method
 	    );
 	# Add the collected vars
 	foreach my $var (@vars) {

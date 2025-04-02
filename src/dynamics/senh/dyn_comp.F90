@@ -113,7 +113,7 @@ subroutine dyn_readnl(NLFileName)
 #endif
   use dimensions_mod, only: qsize, qsize_d, ntrac, ntrac_d, npsq, ne, npart, lcp_moist
   use constituents,   only: pcnst
-  use params_mod,     only: SFCURVE
+  use params_mod,     only: SFCURVE, SPHERE_COORDS, Z2_NO_TASK_MAPPING
   use physical_constants, only: lx, ly
 !!XXgoldyXX: v For future CSLAM / physgrid commit
 !    use dp_grids,       only: fv_nphys, fv_nphys2, nphys_pts, write_phys_grid, phys_grid_file
@@ -337,6 +337,8 @@ subroutine dyn_readnl(NLFileName)
  se_max_hypervis_courant = 1.0e99_r8
  se_refined_mesh         = .false.
 #endif
+ se_COORD_TRANSFORM_METHOD = SPHERE_COORDS
+ se_Z2_MAP_METHOD = Z2_NO_TASK_MAPPING
  se_ftype                = 0
  se_hypervis_order       = 2
  se_hypervis_scaling     = 0
@@ -354,13 +356,16 @@ subroutine dyn_readnl(NLFileName)
  se_nu_q                 = -1.0_r8
  se_nu_s                 = -1.0_r8
  se_nu_top               = 2.5e5_r8
+ se_partmethod           = SFCURVE
  se_qsplit               = 1
+ se_rk_stage_user        = 3
  se_rsplit               = 3
  se_semi_lagrange_cdr_alg= 3
  se_semi_lagrange_cdr_check = .false.
  se_semi_lagrange_hv_q   = 1
  se_semi_lagrange_nearest_point_lev = 256
  se_statefreq            = 480
+ se_topology             = "cube"
  se_tstep_type           = 5
  se_vert_remap_q_alg     = 1
  !!XXgoldyXX: v For future CSLAM / physgrid commit
@@ -600,12 +605,12 @@ subroutine dyn_readnl(NLFileName)
 
 
 
- partmethod               = SFCURVE
+!jt partmethod               = SFCURVE
  npart                    = se_npes
  ! CAM requires forward-in-time  =z2_map_methodsubcycled dynamics
  ! RK2 3 stage tracers
- rk_stage_user            =  3
- topology                 = "cube"
+!jt rk_stage_user            =  3
+!jt topology                 = "cube"
  ! Finally, set the HOMME variables which have different names
  !jt   fine_ne                  = se_fine_ne
  !jt   statediag_numtrac        = MIN(se_statediag_numtrac,pcnst)
