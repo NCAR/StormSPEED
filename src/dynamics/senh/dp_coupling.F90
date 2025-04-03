@@ -546,7 +546,7 @@ CONTAINS
 !
 ! Convert dry type constituents from moist to dry mixing ratio
        call set_state_pdry(phys_state(lchnk), .true.)	 ! First get dry pressure to use for this timestep
-       call set_wet_to_dry(phys_state(lchnk), convert_cnst_type='wet')    ! Dynamics had moist, physics wants dry.
+       call set_wet_to_dry(phys_state(lchnk), convert_cnst_type='dry')    ! Dynamics had moist, physics wants dry.
 !
 ! Ensure tracers are all positive
 !

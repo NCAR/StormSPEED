@@ -18,7 +18,6 @@
 <dtime dyn="se"    waccmx="1"      >300 </dtime>
 <dtime dyn="se"    hgrid="ne5np4"  >1800</dtime>
 <dtime dyn="se"    hgrid="ne16np4" >1800</dtime>
-<dtime dyn="se"    se_dyn_target="theta-l"   hgrid="ne16np4" >600</dtime>
 <dtime dyn="se"    hgrid="ne30np4" >1800</dtime>
 <dtime dyn="se"    hgrid="ne60np4" > 900</dtime>
 <dtime dyn="se"    hgrid="ne120np4"> 450</dtime>
@@ -3338,6 +3337,7 @@
 
 <se_tstep se_dyn_target="theta-l" hgrid="ne3np4"     > 300 </se_tstep>
 <se_tstep se_dyn_target="theta-l" hgrid="ne5np4"     > 300 </se_tstep>
+<se_tstep se_dyn_target="theta-l" hgrid="ne16np4"    > 300 </se_tstep>
 <se_tstep se_dyn_target="theta-l" hgrid="ne30np4"    > 300 </se_tstep>
 <se_tstep se_dyn_target="theta-l" hgrid="ne60np4"    > 200 </se_tstep>
 <se_tstep se_dyn_target="theta-l" hgrid="ne120np4"   >  75 </se_tstep>
