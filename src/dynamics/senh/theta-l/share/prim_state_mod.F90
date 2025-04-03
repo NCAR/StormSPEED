@@ -41,7 +41,7 @@ private
   public :: prim_diag_scalars
 
 contains
-!=======================================================================================================! 
+!=======================================================================================================!
 
 
   subroutine prim_printstate_init(par, elem)
@@ -75,7 +75,7 @@ contains
        elem(ie)%accum%PEner=0
     end do
   end subroutine prim_printstate_init
-!=======================================================================================================! 
+!=======================================================================================================!
 
   subroutine prim_printstate(elem, tl,hybrid,hvcoord,nets,nete)
 
@@ -138,7 +138,7 @@ contains
                              dpmin_local(2), dpmax_local(2), mumax_local(2), mumin_local(2), &
                              w_over_dz_max_local(2)
     character(len=3)      :: which
- 
+
     real(kind=real_kind) :: relvort
     real(kind=real_kind) :: v1, v2, vco(np,np,2,nlev)
 
@@ -155,7 +155,7 @@ contains
     real (kind=real_kind) :: max_deltaerr_g, max_reserr_g
 
     call t_startf('prim_printstate')
-    if (hybrid%masterthread) then 
+    if (hybrid%masterthread) then
        if (Time_at(tl%nstep) <= 3600) then
           write(iulog,*) "nstep=",tl%nstep," time=",Time_at(tl%nstep)," [s]"
        else if (Time_at(tl%nstep) <= 24*3600) then
@@ -175,24 +175,24 @@ contains
 
 
     dt=tstep*qsplit
-    if (rsplit>0) dt = tstep*qsplit*rsplit  ! vertical REMAP timestep 
+    if (rsplit>0) dt = tstep*qsplit*rsplit  ! vertical REMAP timestep
     dt_f=dt
     if (ftype==4) dt_f=tstep
 
     !
-    !   dynamics variables in n0 are at time =  'time' 
+    !   dynamics variables in n0 are at time =  'time'
     !
     !   Diagnostics computed a 4 different levels during one compute REMAP step
     ! in RK code:
     !   E(:,:,2)-E(:,:,1)   change due to dynamics step  from time-dt to time
-    !   E(:,:,3)-E(:,:,2)   change due to energy fixer   
+    !   E(:,:,3)-E(:,:,2)   change due to energy fixer
     !   E(:,:,1)-E(:,:,4)   impact of forcing
     !
     ! Dissipation rates were computed during the first dynamics timstep, and represent
     ! the change going from 'time-dt' to 'time-dt+tstep' (one dynamics step)
     !
     time=tl%nstep*tstep
-    time2 = time 
+    time2 = time
     time1 = time - dt
 
 
@@ -245,9 +245,9 @@ contains
        enddo
 
        ! surface pressure
-       tmp(:,:,ie)=hvcoord%hyai(1)*hvcoord%ps0 + sum(elem(ie)%state%dp3d(:,:,:,n0),3) 
+       tmp(:,:,ie)=hvcoord%hyai(1)*hvcoord%ps0 + sum(elem(ie)%state%dp3d(:,:,:,n0),3)
 
-       !======================================================  
+       !======================================================
 
        psmax_local(ie) = MAXVAL(tmp(:,:,ie))
 
@@ -376,11 +376,11 @@ contains
 
     !   mass = integral( ps-p(top) ) = sum(dp3d)
     do ie=nets,nete
-       tmp(:,:,ie)=sum(elem(ie)%state%dp3d(:,:,:,n0),3) 
+       tmp(:,:,ie)=sum(elem(ie)%state%dp3d(:,:,:,n0),3)
 #ifdef CAM
        ! CAM neglicts the small, constant p(top) term.  Add this
        ! term in to be consistent
-       tmp(:,:,ie)=tmp(:,:,ie) + hvcoord%hyai(1)*hvcoord%ps0 
+       tmp(:,:,ie)=tmp(:,:,ie) + hvcoord%hyai(1)*hvcoord%ps0
 #endif
     enddo
     Mass2 = global_integral(elem, tmp(:,:,nets:nete),hybrid,npts,nets,nete)
@@ -432,7 +432,7 @@ contains
        write(iulog,'(a,E23.15,a,E23.15,a)') "      M = ",Mass,' kg/m^2',Mass2,'mb     '
 
     end if
- 
+
 100 format (A10,3(E23.15))
 102 format (A4,I3,A3,3(E24.16))
 108 format (A10,E23.15,A6,E23.15,A6,E23.15)
@@ -440,7 +440,7 @@ contains
 110 format (A33,E23.15,A2,I3,A1)
 
     if ( test_case(1:10) == "baroclinic" ) then
-       ! zeta does not need to be made continious, but we  
+       ! zeta does not need to be made continious, but we
        allocate(tmp3d(np,np,nlev,nets:nete))
        call compute_zeta_C0(tmp3d,elem,hybrid,nets,nete,n0)
        tmp=tmp3d(:,:,nlev,:)**2
@@ -448,7 +448,7 @@ contains
        deallocate(tmp3d)
     endif
 
-    if(hybrid%masterthread) then 
+    if(hybrid%masterthread) then
        if ( test_case(1:10) == "baroclinic" ) then
           write(iulog,101) "2-norm relative vorticity = ",relvort
 101       format (A30,E24.15)
@@ -475,8 +475,8 @@ contains
     endif
 
     ! ====================================================================
-    !	
-    !   Detailed diagnostics.  Computed with quantities computed by 
+    !
+    !   Detailed diagnostics.  Computed with quantities computed by
     !   prim_advance() and prim_advection()
     !
     !   only compute on full leapfrog timesteps (tl%nstep >= tl%nstep2)
@@ -489,33 +489,33 @@ contains
        enddo
        IEner(n) = global_integral(elem, tmp(:,:,nets:nete),hybrid,npts,nets,nete)
        IEner(n) = IEner(n)*scale
-       
+
        do ie=nets,nete
           tmp(:,:,ie)=elem(ie)%accum%KEner(:,:,n)
        enddo
        KEner(n) = global_integral(elem, tmp(:,:,nets:nete),hybrid,npts,nets,nete)
        KEner(n) = KEner(n)*scale
-       
+
        do ie=nets,nete
           tmp(:,:,ie)=elem(ie)%accum%PEner(:,:,n)
        enddo
        PEner(n) = global_integral(elem, tmp(:,:,nets:nete),hybrid,npts,nets,nete)
        PEner(n) = PEner(n)*scale
        TOTE(n)=IEner(n)+PEner(n)+KEner(n)
-       
+
        do q=1,qsize
           do ie=nets,nete
              tmp(:,:,ie)=elem(ie)%accum%Qvar(:,:,q,n)
           enddo
           Qvar(q,n) = global_integral(elem, tmp(:,:,nets:nete),hybrid,npts,nets,nete)
           Qvar(q,n) = Qvar(q,n)*scale
-          
+
           do ie=nets,nete
              tmp(:,:,ie)=elem(ie)%accum%Qmass(:,:,q,n)
           enddo
           Qmass(q,n) = global_integral(elem, tmp(:,:,nets:nete),hybrid,npts,nets,nete)
           Qmass(q,n) = Qmass(q,n)*scale
-          
+
           if (n==2) then
              do ie=nets,nete
                 tmp(:,:,ie)=elem(ie)%accum%Q1mass(:,:,q)
@@ -524,9 +524,9 @@ contains
              Q1mass(q) = Q1mass(q)*scale
           endif
        enddo
-       
+
     enddo
-    
+
 
 
     !
@@ -546,14 +546,14 @@ contains
     !if(hybrid%masterthread) print *,'KEH2'
     KEH2 = global_integral(elem, tmp(:,:,nets:nete),hybrid,npts,nets,nete)
     KEH2 = KEH2*scale
-    
+
     do ie=nets,nete
        tmp(:,:,ie) = elem(ie)%accum%KEu_vert1
     enddo
     !if(hybrid%masterthread) print *,'KEV1'
     KEV1 = global_integral(elem, tmp(:,:,nets:nete),hybrid,npts,nets,nete)
     KEV1 = KEV1*scale
-    
+
     do ie=nets,nete
        tmp(:,:,ie) = elem(ie)%accum%KEu_vert2
     enddo
@@ -574,14 +574,14 @@ contains
     !if(hybrid%masterthread) print *,'KEwH2'
     KEwH2 = global_integral(elem, tmp(:,:,nets:nete),hybrid,npts,nets,nete)
     KEwH2 = KEwH2*scale
-    
+
     do ie=nets,nete
        tmp(:,:,ie) = elem(ie)%accum%KEw_horiz3
     enddo
     !if(hybrid%masterthread) print *,'KEwH3'
     KEwH3 = global_integral(elem, tmp(:,:,nets:nete),hybrid,npts,nets,nete)
     KEwH3 = KEwH3*scale
-    
+
     do ie=nets,nete
        tmp(:,:,ie) = elem(ie)%accum%KEw_vert1
     enddo
@@ -597,7 +597,7 @@ contains
     KEwV2 = KEwV2*scale
 
     do ie=nets,nete
-       tmp(:,:,ie) = elem(ie)%accum%IEvert1 
+       tmp(:,:,ie) = elem(ie)%accum%IEvert1
     enddo
     !if(hybrid%masterthread) print *,'IEvert1'
     IEvert1 = global_integral(elem, tmp(:,:,nets:nete),hybrid,npts,nets,nete)
@@ -611,7 +611,7 @@ contains
     IEvert2 = IEvert2*scale
 
     do ie=nets,nete
-       tmp(:,:,ie) = elem(ie)%accum%PEhoriz1 
+       tmp(:,:,ie) = elem(ie)%accum%PEhoriz1
     enddo
     !if(hybrid%masterthread) print *,'PEhoriz1'
     PEhorz1 = global_integral(elem, tmp(:,:,nets:nete),hybrid,npts,nets,nete)
@@ -637,7 +637,7 @@ contains
     !if(hybrid%masterthread) print *,'PEver2'
     PEvert2 = global_integral(elem, tmp(:,:,nets:nete),hybrid,npts,nets,nete)
     PEvert2 = PEvert2*scale
-    
+
     !   KE->IE
     do ie=nets,nete
        tmp(:,:,ie) = elem(ie)%accum%T01
@@ -645,14 +645,14 @@ contains
     !if(hybrid%masterthread) print *,'T01'
     T1 = global_integral(elem, tmp(:,:,nets:nete),hybrid,npts,nets,nete)
     T1 = T1*scale
-    
+
     do ie=nets,nete
        tmp(:,:,ie) = elem(ie)%accum%T2
     enddo
     !if(hybrid%masterthread) print *,'T2'
     T2 = global_integral(elem, tmp(:,:,nets:nete),hybrid,npts,nets,nete)
     T2 = T2*scale
-    
+
     do ie=nets,nete
        tmp(:,:,ie) = elem(ie)%accum%S1
     enddo
@@ -682,9 +682,9 @@ contains
     P2 = P2*scale
 
 #else
-    T1=0; T2=0; S1=0; S2=0; P1=0; P2=0; 
-    IEvert1=0; PEhorz1=0; PEhorz2=0; PEvert1=0; PEvert2=0; 
-    KEH1=0; KEH2=0;  KEV1=0; KEV2=0;  KEwH1=0; KEwH2=0; KEwH3=0;  KEwV1=0; KEwV2=0; 
+    T1=0; T2=0; S1=0; S2=0; P1=0; P2=0;
+    IEvert1=0; PEhorz1=0; PEhorz2=0; PEvert1=0; PEvert2=0;
+    KEH1=0; KEH2=0;  KEV1=0; KEV2=0;  KEwH1=0; KEwH2=0; KEwH3=0;  KEwV1=0; KEwV2=0;
 #endif
     max_itercnt_g=parallelmax(max_itercnt,hybrid)
     max_deltaerr_g=parallelmax(max_deltaerr,hybrid)
@@ -694,13 +694,13 @@ contains
 
 
 
-    if(hybrid%masterthread) then 
+    if(hybrid%masterthread) then
        if(use_moisture)then
           if (qsize>=1) then
              write(iulog,'(a,E23.15,a,E23.15,a)') "    dry M = ",Mass-Q1mass(1),' kg/m^2'
           endif
        endif
-       
+
        write(iulog,'(3a25)') "**DYNAMICS**        J/m^2","   W/m^2","W/m^2    "
        if (ftype==4) &
             write(iulog,*) "NOTE:ftype=4 so d/dt and diss diagnostics include effects of forcing"
@@ -711,7 +711,7 @@ contains
           write(iulog,'(a,2e22.14)')'KEu v-adv,sum=0:',KEV1,KEV2
           write(iulog,'(a,3e22.14)')'IE  v-adv,sum=0:',IEvert1,PEvert1
           write(iulog,'(a,2e22.14)')'KE->I+P,I+P->KE:',(T1+PEhorz2),(S1+PEhorz1)
-          
+
           ddt_tot  =  (KEner(2)-KEner(1))/dt
           ddt_diss = ddt_tot -(T1+PEhorz2)
           write(iulog,'(a,3E22.14)') " KE,d/dt,diss:",KEner(2),ddt_tot,ddt_diss
@@ -737,19 +737,19 @@ contains
           write(iulog,'(a,2e22.14)')'KEw wvor, ~0:   ',KEwH3
           write(iulog,'(a,2e22.14)')'KE->PE, PE->KE :',P1,P2
           write(iulog,'(a,2e22.14)')'KE->IE, IE->KE :',T1+T2,S1+S2
-          
+
           ddt_tot  =  (KEner(2)-KEner(1))/dt
-          ddt_diss = ddt_tot -(T1+T2+P1) 
+          ddt_diss = ddt_tot -(T1+T2+P1)
           write(iulog,'(a,3E22.14)') "KE,d/dt,diss:",KEner(2),ddt_tot,ddt_diss
           !ddt_diss_adj = ddt_tot -(T1+T2+P1+KEwH1+KEwH2)
           !write(iulog,'(a,3E22.14)') "KE diss(adj):",ddt_diss_adj
-          
+
           ddt_tot =  (IEner(2)-IEner(1))/dt
           ddt_diss = ddt_tot - (S1+S2)
           write(iulog,'(a,3E22.14)') "IE,d/dt,diss:",IEner(2),ddt_tot,ddt_diss
           !ddt_diss_adj = ddt_tot - (S1+S2+IEvert1+IEvert2)
           !write(iulog,'(a,3E22.14)') "IE diss(adj):",ddt_diss_adj
-          
+
           ddt_tot = (PEner(2)-PEner(1))/dt
           ddt_diss = ddt_tot - P2
           write(iulog,'(a,3E22.14)') "PE,d/dt,diss:",PEner(2),ddt_tot,ddt_diss
@@ -764,7 +764,7 @@ contains
        ddt_tot = (TOTE(2)-TOTE(1))/dt
        write(iulog,'(a,3E22.14)') " E,dE/dt     ",TOTE(2),ddt_tot
 #endif
-       
+
        do q=1,qsize
           write(iulog,'(a,i3,a,E22.14,a,2E15.7)') "Q",q,",Q diss, dQ^2/dt:",Qmass(q,2)," kg/m^2",&
                (Qmass(q,2)-Qmass(q,1))/dt,(Qvar(q,2)-Qvar(q,1))/dt
@@ -787,8 +787,8 @@ contains
 #ifdef CAM
        ! for cam, this information only makes sense for short test runs with
        ! physics disabled (ftype<0).  So disable this diagnostic if ftype>=0:
-       if (ftype>=0) TOTE0=-1  
-#endif       
+       if (ftype>=0) TOTE0=-1
+#endif
        if (TOTE0>0) then
           write(iulog,100) "(E-E0)/E0    ",(TOTE(2)-TOTE0)/TOTE0
           do q=1,qsize
@@ -801,39 +801,39 @@ contains
       ! IMEX diagnostics
       write(iulog,'(a,I3,2E23.15)') 'IMEX max iterations, error:',max_itercnt_g,max_deltaerr_g,max_reserr_g
     endif
-    
-    
-    
+
+
+
     ! initialize "E0" for printout of E-E0/E0
-    ! energy is computed in timestep loop.  Save the value 
+    ! energy is computed in timestep loop.  Save the value
     ! after the first real timestep, not the half-timesteps used
-    ! to bootstrap leapfrog: 
-    if (tl%nstep >= tl%nstep0 .and. TOTE0==0 ) then  
+    ! to bootstrap leapfrog:
+    if (tl%nstep >= tl%nstep0 .and. TOTE0==0 ) then
        TOTE0=TOTE(2)
        do q=1,qsize
           Qmass0(q)=Qmass(q,1)
        enddo
        time0=time1
     endif
-       
+
 
   call t_stopf('prim_printstate')
   end subroutine prim_printstate
-   
-   
+
+
 
 subroutine prim_energy_halftimes(elem,hvcoord,tl,n,t_before_advance,nets,nete)
-! 
-!  called at the end of a timestep, before timelevel update.  
+!
+!  called at the end of a timestep, before timelevel update.
 !  Solution is known at two timelevels.  We originally tried to
 !  compute the energy at the midpoint between these levels, but now
 !  we compute the energy at:
 !
 !  t_before_advance==.true.     tl%n0    begining of timestep
-!  t_before_advance==.false.    tl%np1   completed timestep, before tl update  
+!  t_before_advance==.false.    tl%np1   completed timestep, before tl update
 !
 !  This routine is called 4 times:  for historical reasons they are out
-!  of sequence.  
+!  of sequence.
 !
 !    n=1:    after CAM forcing, before timestep
 !    n=2:    after timestep, including remap, before tl update
@@ -843,16 +843,16 @@ subroutine prim_energy_halftimes(elem,hvcoord,tl,n,t_before_advance,nets,nete)
 ! LF case we use staggered formulas:
 !  compute the energies at time half way between timelevels t1 and t2,
 !  using timelevels t1,t2.  store in location n of our elem()%accum%* variables
-!    
-!  in the Dry case, PE (and similar for IE) will be conserved exactly by Leapfrog, 
+!
+!  in the Dry case, PE (and similar for IE) will be conserved exactly by Leapfrog,
 !  if it is defined as:
 !
 !   PE(n+.5)  = .5*(  T(n+1) dp(n) + T(n) dp(n+1) )
 !
 !  KE cannot be exactly conserved with Leapfrog.  but we still use:
-!  
+!
 !   KE(n+.5) = .5*(  .5 u(n+1)^2 dp(n) +  .5 u(n)^2 dp(n+1) )
-!  
+!
 
     use kinds, only : real_kind
     use dimensions_mod, only : np, np, nlev,nlevp
@@ -874,9 +874,9 @@ subroutine prim_energy_halftimes(elem,hvcoord,tl,n,t_before_advance,nets,nete)
     real (kind=real_kind), dimension(np,np)  :: suml,suml2,v1,v2
     real (kind=real_kind), dimension(np,np,nlev)  :: sumlk, suml2k
     real (kind=real_kind) :: phi(np,np,nlev)
-    real (kind=real_kind) :: phi_i(np,np,nlevp)  
+    real (kind=real_kind) :: phi_i(np,np,nlevp)
     real (kind=real_kind) :: pnh(np,np,nlev)   ! nh nonhyrdo pressure
-    real (kind=real_kind) :: dpnh_dp_i(np,np,nlevp) 
+    real (kind=real_kind) :: dpnh_dp_i(np,np,nlevp)
     real (kind=real_kind) :: exner(np,np,nlev)  ! exner nh pressure
     real (kind=real_kind) :: pnh_i(np,np,nlevp)  ! pressure on intefaces
 
@@ -885,7 +885,7 @@ subroutine prim_energy_halftimes(elem,hvcoord,tl,n,t_before_advance,nets,nete)
 
     if (t_before_advance) then
        t1=tl%n0
-       call TimeLevel_Qdp( tl, qsplit, t1_qdp) !get n0 level into t2_qdp 
+       call TimeLevel_Qdp( tl, qsplit, t1_qdp) !get n0 level into t2_qdp
     else
        t1=tl%np1
        call TimeLevel_Qdp(tl, qsplit, tmp, t1_qdp) !get np1 into t2_qdp
@@ -896,7 +896,7 @@ subroutine prim_energy_halftimes(elem,hvcoord,tl,n,t_before_advance,nets,nete)
             elem(ie)%state%phinh_i(:,:,:,t1),pnh,exner,dpnh_dp_i,pnh_i,'prim_state_mod')
        call get_phi(elem(ie),phi,phi_i,hvcoord,t1)
 
-   
+
        !   KE   .5 dp/dn U^2
        do k=1,nlev
           E = ( elem(ie)%state%v(:,:,1,k,t1)**2 +  &
@@ -924,38 +924,38 @@ subroutine prim_energy_halftimes(elem,hvcoord,tl,n,t_before_advance,nets,nete)
           suml = suml + phi(:,:,k)*dpt1(:,:,k)
        enddo
        elem(ie)%accum%PEner(:,:,n)=suml(:,:)
-       
+
 
     !  IE = c_p^* dp/deta T - pnh dphi/deta  + ptop phi_top
        suml=0
        suml2=0
        do k=1,nlev
           suml(:,:)=suml(:,:)+&
-                Cp*elem(ie)%state%vtheta_dp(:,:,k,t1)*exner(:,:,k) 
+                Cp*elem(ie)%state%vtheta_dp(:,:,k,t1)*exner(:,:,k)
           suml2(:,:) = suml2(:,:)+(phi_i(:,:,k+1)-phi_i(:,:,k))*pnh(:,:,k)
        enddo
        elem(ie)%accum%IEner(:,:,n)=suml(:,:) + suml2(:,:) +&
             pnh_i(:,:,1)* phi_i(:,:,1)
 
        enddo
-    
+
 end subroutine prim_energy_halftimes
-    
-!=======================================================================================================! 
-  
+
+!=======================================================================================================!
+
 
 subroutine prim_diag_scalars(elem,hvcoord,tl,n,t_before_advance,nets,nete)
-! 
+!
 !  called at the end of a timestep, before timelevel update.  Solution known at
-!  timelevel nm1,n0,np1.  
+!  timelevel nm1,n0,np1.
 !
 !  This routine is called twice:  n=1:    t1=nm1, t2=n0
 !                                 n=2:    t1=n0, t2=np1
-! 
+!
 !  in all cases:
 !     Q1mass(n) = Qdp(t2)    (or:  Q(t2)*dp(t2) )
-! 
-!  We also compute 
+!
+!  We also compute
 !     Qmass(n)  = .5*(  Q(t2) dp(t1)  Q(t1) dp(t2) )       Leapfrog, concentration formulation
 !     Qmass(n)  = .5*(  Qdp(t1) + Qdp(t2) )                Leapfrog, conservation formulation
 !     Qmass(n)  =  Qdp(t2)                                 RK2, conservation formulation
@@ -969,7 +969,7 @@ subroutine prim_diag_scalars(elem,hvcoord,tl,n,t_before_advance,nets,nete)
     integer :: t1,n,nets,nete
     type (element_t)     , intent(inout), target :: elem(:)
     type (hvcoord_t)                  :: hvcoord
-    
+
     integer :: ie,k,q
     real (kind=real_kind), dimension(np,np)  :: ps         ! pressure
     real (kind=real_kind), dimension(np,np)  :: dp         ! delta pressure
@@ -981,7 +981,7 @@ subroutine prim_diag_scalars(elem,hvcoord,tl,n,t_before_advance,nets,nete)
 
     if (t_before_advance) then
        t1=tl%n0
-       call TimeLevel_Qdp( tl, qsplit, t1_qdp) !get n0 level into t2_qdp 
+       call TimeLevel_Qdp( tl, qsplit, t1_qdp) !get n0 level into t2_qdp
     else
        t1=tl%np1
        call TimeLevel_Qdp(tl, qsplit, tmp, t1_qdp) !get np1 into t2_qdp (don't need tmp)
@@ -997,7 +997,7 @@ subroutine prim_diag_scalars(elem,hvcoord,tl,n,t_before_advance,nets,nete)
           elem(ie)%accum%Qvar(:,:,q,n)=suml(:,:)
        enddo
     enddo
-    
+
     do ie=nets,nete
        do q=1,qsize
           suml=0
@@ -1008,7 +1008,7 @@ subroutine prim_diag_scalars(elem,hvcoord,tl,n,t_before_advance,nets,nete)
           elem(ie)%accum%Qmass(:,:,q,n)=suml(:,:)
        enddo
     enddo
- 
+
 
 end subroutine prim_diag_scalars
 
@@ -1021,8 +1021,8 @@ subroutine extremumLevelHelper(res,field,operation,first,klev)
    real (kind=real_kind), intent(inout) :: res(1:2) ! extremum and level where it happened
    character(len=*),      intent(in)    :: operation
    logical,               intent(in)    :: first
+   integer,               intent(in)    :: klev
    real (kind=real_kind), intent(in)    :: field(np,np,klev)
-   integer,               intent(in)    :: klev 
 
    real (kind=real_kind)                :: val
    integer                              :: location(3)
@@ -1086,7 +1086,7 @@ subroutine findExtremumWithLevel(elem,res,which,operation,n0,hybrid,hvcoord,nets
        res(2) = -1
        if( operation == 'min' ) res(1) =  BIGVAL
        if( operation == 'max' ) res(1) = -BIGVAL
-          
+
        !decide size of the column
        ksize=-1
        if( which == 'u' .or.  which == 'v' .or. which == 'vth' .or. which == 'dp' ) ksize=nlev
@@ -1094,7 +1094,7 @@ subroutine findExtremumWithLevel(elem,res,which,operation,n0,hybrid,hvcoord,nets
        if( which == 'w_i' ) ksize=nlevp
 
        if( ksize < 1) call abortmp('unset ksize in routine findExtremumWithLevel()')
-   
+
        ! find max or min
        do ie=nets,nete
 
@@ -1124,16 +1124,16 @@ subroutine findExtremumWithLevel(elem,res,which,operation,n0,hybrid,hvcoord,nets
                 location = MINLOC(field(:,:,1:ksize))
                 res(2)   = location(3)
                 res(1)   = val
-             endif 
+             endif
           elseif ( operation == 'max' )then
              val = MAXVAL(field(:,:,1:ksize))
              if( val > res(1) ) then
                 location = MAXLOC(field(:,:,1:ksize))
                 res(2)   = location(3)
-                res(1)   = val          
+                res(1)   = val
              endif
           endif
-       enddo !ie 
+       enddo !ie
 
     endif ! processed
 

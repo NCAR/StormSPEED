@@ -3,7 +3,7 @@
 #endif
 module parallel_mod
   ! ---------------------------
-  use kinds, only : real_kind, int_kind, iulog
+  use kinds, only : real_kind, real4_kind, int_kind, iulog
   ! ---------------------------
   use dimensions_mod, only : nmpi_per_node, nlev, qsize_d
 !
@@ -36,7 +36,7 @@ module parallel_mod
   integer,      public, allocatable    :: Rrequest(:)
   integer,      public, allocatable    :: Srequest(:)
 
-  real(kind=4), public,allocatable :: FrameWeight(:)
+  real(kind=real4_kind), public,allocatable :: FrameWeight(:)
   integer,      public,allocatable :: FrameIndex(:)
   integer,      public,allocatable :: FrameCount(:)
 
@@ -60,8 +60,8 @@ module parallel_mod
   type (parallel_t)    :: par              ! parallel structure for distributed memory programming
 #endif
   integer, parameter :: nrepro_vars=MAX(12,nlev*qsize_d)
-  real(kind=8), public, allocatable :: global_shared_buf(:,:)
-  real(kind=8), public :: global_shared_sum(nrepro_vars)
+  real(kind=real_kind), public, allocatable :: global_shared_buf(:,:)
+  real(kind=real_kind), public :: global_shared_sum(nrepro_vars)
 
   ! ===================================================
   ! Module Interfaces

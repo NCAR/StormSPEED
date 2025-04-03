@@ -14,7 +14,7 @@ module sort_mod
        sortints
 
 contains
-  
+
   subroutine sortints(a)
     integer, intent(inout) :: a(:,:)
 
@@ -39,8 +39,8 @@ contains
        end subroutine qsort
     end interface
 
-    integer (kind=c_int), target, intent(inout) :: a(nrow,ncol)
     integer, intent(in) :: nrow, ncol
+    integer (kind=c_int), target, intent(inout) :: a(nrow,ncol)
     type (c_ptr) :: a_ptr
     integer (kind=c_size_t) :: r_s, c_s
 

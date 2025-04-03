@@ -19,15 +19,15 @@ module thread_mod
   implicit none
   private
 
-  integer, public,TARGET :: max_num_threads=1 ! maximum number of OpenMP threads
+  integer, public,TARGET :: max_num_threads ! maximum number of OpenMP threads
   integer, public :: tracer_num_threads
-  integer, public,TARGET :: horz_num_threads, vert_num_threads
+  integer, public,TARGET :: horz_num_threads , vert_num_threads
 
-  integer, public, pointer :: NThreads=>max_num_threads   ! total number of threads
-                                ! standalone HOMME: from namelist
-                                ! in CAM: set by driver
-  integer, public,pointer :: hthreads=>horz_num_threads   ! computed based on nthreads, vthreads,nelemd
-  integer, public,pointer :: vthreads => vert_num_threads   ! not used unless set in namelist
+  integer, public, pointer :: NThreads   ! total number of threads
+                                         ! standalone HOMME: from namelist
+                                         ! in CAM: set by driver
+  integer, public,pointer :: hthreads    ! computed based on nthreads, vthreads,nelemd
+  integer, public,pointer :: vthreads    ! not used unless set in namelist
 
 !jt  integer, public :: vthreads = 1   ! not used unless set in namelist
 
@@ -76,6 +76,9 @@ contains
 
   subroutine initomp
     max_num_threads = 1
+    NThreads=>max_num_threads
+    hthreads=>horz_num_threads
+    vthreads => vert_num_threads
     if (masterproc) then
       write(iulog,*) "INITOMP: INFO: openmp not activated"
     end if
@@ -86,6 +89,9 @@ contains
     !$OMP PARALLEL
     max_num_threads = omp_get_num_threads()
     !$OMP END PARALLEL
+    NThreads=>max_num_threads
+    hthreads=>horz_num_threads
+    vthreads => vert_num_threads
     if (masterproc) then
       write(iulog,*) "INITOMP: INFO: number of OpenMP threads = ", max_num_threads
     end if

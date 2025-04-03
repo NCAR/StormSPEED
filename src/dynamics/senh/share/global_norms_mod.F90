@@ -78,7 +78,7 @@ contains
                 J_tmp(ie) = J_tmp(ie) + da*h(i,j,ie)
              end do
           end do
-       end do       
+       end do
     do ie=nets,nete
       global_shared_buf(ie,1) = J_tmp(ie)
     enddo
@@ -96,7 +96,7 @@ contains
   ! ================================
   ! test_global_integral:
   !
-  ! test that the global integral of 
+  ! test that the global integral of
   ! the area of the sphere is 1.
   !
   ! ================================
@@ -106,7 +106,7 @@ contains
     use hybrid_mod,  only : hybrid_t
     use element_mod, only : element_t
     use dimensions_mod, only : np,ne, nelem, nelemd
-    use mesh_mod,     only : MeshUseMeshFile          
+    use mesh_mod,     only : MeshUseMeshFile
 
     use reduction_mod, only : ParallelMin,ParallelMax
     use physical_constants, only : scale_factor,dd_pi
@@ -154,7 +154,7 @@ contains
     avg_min_dx=0_real_kind
 
     do ie=nets,nete
-       
+
        elem(ie)%area = sum(elem(ie)%spheremp(:,:))
        min_area=min(min_area,elem(ie)%area)
        max_area=max(max_area,elem(ie)%area)
@@ -191,14 +191,14 @@ contains
     avg_min_dx = global_shared_sum(2)/dble(nelem)
 
     ! Physical units for area
-    min_area = min_area*scale_factor*scale_factor/1000000_real_kind
-    max_area = max_area*scale_factor*scale_factor/1000000_real_kind
-    avg_area = avg_area*scale_factor*scale_factor/1000000_real_kind
+    min_area = min_area*scale_factor*scale_factor/1000000._real_kind
+    max_area = max_area*scale_factor*scale_factor/1000000._real_kind
+    avg_area = avg_area*scale_factor*scale_factor/1000000._real_kind
 
 
     ! for an equation du/dt = i c u, leapfrog is stable for |c u dt| < 1
-    ! Consider a gravity wave at the equator, c=340m/s  
-    ! u = exp(i kmax x/ a ) with x = longitude,  and kmax =  pi a / dx, 
+    ! Consider a gravity wave at the equator, c=340m/s
+    ! u = exp(i kmax x/ a ) with x = longitude,  and kmax =  pi a / dx,
     ! u = exp(i pi x / dx ),   so du/dt = c du/dx becomes du/dt = i c pi/dx u
     ! stable for dt < dx/(c*pi)
     ! CAM 26 level AMIP simulation: max gravity wave speed 341.75 m/s
@@ -243,7 +243,7 @@ contains
 !
 !   estimate various CFL limits
 !   also, for variable resolution viscosity coefficient, make sure
-!   worse viscosity CFL (given by dtnu) is not violated by reducing 
+!   worse viscosity CFL (given by dtnu) is not violated by reducing
 !   viscosity coefficient in regions where CFL is violated
 !
     use kinds,       only : real_kind
@@ -261,7 +261,7 @@ contains
                             hypervis_scaling, dcmip16_mu,dcmip16_mu_s,dcmip16_mu_q
     use control_mod, only : tstep_type
     use parallel_mod, only : abortmp, global_shared_buf, global_shared_sum
-    use edgetype_mod, only : EdgeBuffer_t 
+    use edgetype_mod, only : EdgeBuffer_t
     use edge_mod, only : initedgebuffer, FreeEdgeBuffer, edgeVpack, edgeVunpack
     use bndry_mod, only : bndry_exchangeV
     use time_mod, only : tstep
@@ -269,7 +269,7 @@ contains
     type(element_t)      , intent(inout) :: elem(:)
     integer              , intent(in) :: nets,nete
     type (hybrid_t)      , intent(in) :: hybrid
-    real (kind=real_kind), intent(in) :: dtnu  
+    real (kind=real_kind), intent(in) :: dtnu
 
     ! Element statisics
     real (kind=real_kind) :: min_max_dx,max_unif_dx   ! used for normalizing scalar HV
@@ -404,7 +404,7 @@ contains
 
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!    
+!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
      if (hybrid%masterthread) then
@@ -430,11 +430,11 @@ contains
              write(iulog,'(a,f10.2,a)') "Stability: nu_vor hyperviscosity dt < S *", 1/(nu*normDinv_hypervis),'s'
 #ifdef MODEL_THETA_L
              nu_div_actual = nu_div
-#else             
+#else
              ! bug in preqx nu_div implimentation:
              ! we apply nu_ration=(nu_div/nu) in laplace, so it is applied 2x
-             ! making the effective nu_div = nu * (nu_div/nu)**2 
-             ! should be fixed - but need all CAM defaults adjusted, 
+             ! making the effective nu_div = nu * (nu_div/nu)**2
+             ! should be fixed - but need all CAM defaults adjusted,
              nu_div_actual = nu_div**2/nu
 #endif
              write(iulog,'(a,f10.2,a)') "Stability: nu_div hyperviscosity dt < S *",&
@@ -476,7 +476,7 @@ contains
     use hybrid_mod, only : hybrid_t
     use reduction_mod, only : red_max, pmax_mt
 
-    integer              , intent(in) :: npts,nets,nete     
+    integer              , intent(in) :: npts,nets,nete
     real (kind=real_kind), intent(in) :: h(npts,npts,nets:nete)
     type (hybrid_t)      , intent(in) :: hybrid
 
@@ -512,7 +512,7 @@ contains
     real (kind=real_kind), intent(in) :: h(npts,npts,nets:nete)  ! computed soln
     real (kind=real_kind), intent(in) :: ht(npts,npts,nets:nete) ! true soln
     type (hybrid_t)      , intent(in) :: hybrid
-    real (kind=real_kind)             :: l1     
+    real (kind=real_kind)             :: l1
 
     ! Local variables
 
@@ -556,7 +556,7 @@ contains
     real (kind=real_kind), intent(in) :: v(npts,npts,2,nets:nete)  ! computed soln
     real (kind=real_kind), intent(in) :: vt(npts,npts,2,nets:nete) ! true soln
     type (hybrid_t)      , intent(in) :: hybrid
-    real (kind=real_kind)             :: l1     
+    real (kind=real_kind)             :: l1
 
     ! Local variables
 
@@ -616,12 +616,12 @@ contains
     use element_mod, only : element_t
     use hybrid_mod, only : hybrid_t
 
-    type(element_t), intent(in) :: elem(:)	
+    type(element_t), intent(in) :: elem(:)
     integer              , intent(in) :: npts,nets,nete
     real (kind=real_kind), intent(in) :: h(npts,npts,nets:nete)  ! computed soln
     real (kind=real_kind), intent(in) :: ht(npts,npts,nets:nete) ! true soln
     type (hybrid_t)      , intent(in) :: hybrid
-    real (kind=real_kind)             :: l2   
+    real (kind=real_kind)             :: l2
 
     ! Local variables
 
@@ -726,7 +726,7 @@ contains
     real (kind=real_kind), intent(in) :: h(npts,npts,nets:nete)  ! computed soln
     real (kind=real_kind), intent(in) :: ht(npts,npts,nets:nete) ! true soln
     type (hybrid_t)      , intent(in) :: hybrid
-    real (kind=real_kind)             :: linf    
+    real (kind=real_kind)             :: linf
 
     ! Local variables
 
@@ -766,12 +766,12 @@ contains
     use hybrid_mod, only : hybrid_t
     use element_mod, only : element_t
 
-    type(element_t)      , intent(in), target :: elem(:) 
+    type(element_t)      , intent(in), target :: elem(:)
     integer              , intent(in) :: npts,nets,nete
     real (kind=real_kind), intent(in) :: v(npts,npts,2,nets:nete)  ! computed soln
     real (kind=real_kind), intent(in) :: vt(npts,npts,2,nets:nete) ! true soln
     type (hybrid_t)      , intent(in) :: hybrid
-    real (kind=real_kind)             :: linf     
+    real (kind=real_kind)             :: linf
 
     ! Local variables
 
@@ -858,7 +858,7 @@ contains
           endif
        enddo
     enddo
-#endif    
+#endif
 
 ! Repro_sum contains its own OpenMP, so only one thread should call it (AAM)
     call repro_sum(global_shared_buf, global_shared_sum, nsize_use, nelemd, nvars, commid=comm)

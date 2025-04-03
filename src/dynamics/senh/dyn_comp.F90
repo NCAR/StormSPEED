@@ -34,7 +34,7 @@ use shr_kind_mod,            only: r8 => shr_kind_r8, shr_kind_cl
 use shr_const_mod,           only: SHR_CONST_PI
 use shr_sys_mod,             only: shr_sys_flush
 use spmd_utils,              only: iam, npes_cam => npes, masterproc
-use thread_mod,              only: nthreads, hthreads, vthreads, omp_get_max_threads, omp_get_thread_num
+use thread_mod,              only:  hthreads, vthreads, omp_get_max_threads, omp_get_thread_num, initomp
 use time_mod,                only: nsplit,tstep
 use time_manager,            only: is_first_step
 
@@ -476,6 +476,7 @@ subroutine dyn_readnl(NLFileName)
 
  !jt initialize nh dycore
  par = initmp(se_npes)
+ call initomp()
 
  !!XXgoldyXX: v For future CSLAM/physgrid commit
  !    ! Next, read CSLAM nl
@@ -1925,6 +1926,8 @@ end function dyn_field_exists
 
 subroutine read_dyn_field_2d(fieldname, fh, dimname, buffer)
 
+   use infnan, only: isnan
+
    ! Dummy arguments
    character(len=*),  intent(in)    :: fieldname
    type(file_desc_t), intent(inout) :: fh
@@ -1954,6 +1957,8 @@ end subroutine read_dyn_field_2d
 !========================================================================================
 
 subroutine read_dyn_field_3d(fieldname, fh, dimname, buffer)
+
+   use infnan, only: isnan
 
    ! Dummy arguments
    character(len=*),  intent(in)    :: fieldname

@@ -3,10 +3,10 @@
 #endif
 
 module metis_mod
-  use kinds, only : iulog
+  use kinds, only : iulog, real4_kind
   use parallel_mod, only : abortmp
   implicit none
-  private 
+  private
   integer, parameter :: VertexWeight = 1000
   integer, parameter :: EdgeWeight = 1000
 
@@ -16,7 +16,7 @@ module metis_mod
   private :: PrintMeshGraph
   private :: genLocal2Global
   private :: sort
-contains 
+contains
 
   subroutine genmetispart(GridEdge, GridVertex)
     use gridgraph_mod, only : GridVertex_t, GridEdge_t, freegraph, createsubgridgraph, printgridvertex
@@ -25,7 +25,7 @@ contains
     use dimensions_mod , only : nmpi_per_node, npart, nnodes, nelem
     use control_mod, only:  partmethod
     use params_mod, only : wrecursive
-    
+
     implicit none
 
     type (GridVertex_t), intent(inout) :: GridVertex(:)
@@ -39,8 +39,8 @@ contains
 
     type (GridVertex_t), allocatable   :: SubVertex(:)
 
-    real(kind=4), allocatable   :: tpwgts(:)
-    real(kind=4)                :: tmp
+    real(kind=real4_kind), allocatable   :: tpwgts(:)
+    real(kind=real4_kind)                :: tmp
 
     integer(kind=int_kind), allocatable          :: part(:)
     integer, allocatable          :: part_nl(:),local2global_nl(:)
@@ -57,8 +57,8 @@ contains
     integer                       :: partitionmethod,numpartitions
     integer                       :: nodes_per_frame
     logical , parameter           :: Debug = .true.
-    real (kind=4)                 :: dummy(1) 
-    nelem_edge = SIZE(GridEdge) 
+    real (kind=real4_kind)                 :: dummy(1)
+    nelem_edge = SIZE(GridEdge)
 
     print *, "nelem = ", nelem
     print *, "nelem_edge = ", nelem_edge
@@ -80,8 +80,8 @@ contains
     if(Debug) write(iulog,*)'genmetispart: point #2'
 
     ! ====================================================
-    ! Some cruff from the Weighted partitioning 
-    ! experimentation... Remove soon 
+    ! Some cruff from the Weighted partitioning
+    ! experimentation... Remove soon
     ! ====================================================
     do i=1,npart
        tpwgts(i) = i
@@ -98,14 +98,14 @@ contains
     wgtflag    = 3     ! Weights on the edges and vertices
     numflag    = 1     ! Use Fortran based numbering
 
-    if(npart > 1) then 
+    if(npart > 1) then
 
-       if (PartitionForNodes) then 
+       if (PartitionForNodes) then
           numPartitions   = nnodes
-          PartitionMethod = partmethod 
+          PartitionMethod = partmethod
        else
           numPartitions   = npart
-          PartitionMethod = partmethod 
+          PartitionMethod = partmethod
        endif
        !===========================================
        !  Generate the METIS partitioning
@@ -118,21 +118,21 @@ contains
                numPartitions,FrameWeight,options,edgecut,part)
        else
           ! FrameWeight has not been allocated in this case, so replace
-          ! with dummy argument: 
+          ! with dummy argument:
           call PartitionGraph(PartitionMethod,nelem,xadj,adjncy, &
                vwgt,adjwgt,wgtflag,numflag, &
                numPartitions,dummy,options,edgecut,part)
        endif
        if(Debug) write(iulog,*)'genmetispart: point #5'
        ! ===============================
-       !  Do not partitiion for nodes 
+       !  Do not partitiion for nodes
        ! ===============================
        !     PartitionForNodes=.FALSE.
-       if(PartitionForNodes)  then 
+       if(PartitionForNodes)  then
           ! =========================================
-          ! Partition the graph on each compute node 
+          ! Partition the graph on each compute node
           ! =========================================
-          if(nmpi_per_node .ne. 1 ) then 
+          if(nmpi_per_node .ne. 1 ) then
 
              do ip = 1,nelem
                 part(ip) = nmpi_per_node*(part(ip)-1) + 1
@@ -141,7 +141,7 @@ contains
              if(Debug) write(iulog,*)'genmetispart: point #14'
 
              ! ====================
-             ! Loop over each node 
+             ! Loop over each node
              ! ====================
              do in = 1,nnodes
 
@@ -149,7 +149,7 @@ contains
                 nelem_nl = COUNT(part .eq. newPartition)
 
                 ! ===================================================
-                ! Allocate all the memory for node level partitioning 
+                ! Allocate all the memory for node level partitioning
                 ! ===================================================
 
                 allocate(local2global_nl(nelem_nl))
@@ -176,7 +176,7 @@ contains
 
                 if(Debug) write(iulog,*)'genmetispart: point #17'
                 ! ======================================================
-                ! Create a set of the Vertices that represent a subgraph 
+                ! Create a set of the Vertices that represent a subgraph
                 ! ======================================================
                 if(Debug) write(iulog,*)'genmetispart: local2global_nl',local2global_nl
                 if(Debug) call PrintGridVertex(GridVertex)
@@ -192,7 +192,7 @@ contains
 
                 !debug     call PrintMetisgraph(xadj_nl,adjncy_nl,adjwgt_nl)
                 ! =======================
-                ! Partition the subgraph 
+                ! Partition the subgraph
                 ! =======================
                 if(iam .eq. 1) write(6,100) nelem_nl,partmethod,nmpi_per_node
                 call PartitionGraph(partmethod,nelem_nl,xadj_nl,adjncy_nl, &
@@ -200,9 +200,9 @@ contains
                      nmpi_per_node,tpwgts,options,edgecut,part_nl)
                 if(Debug) write(iulog,*)'genmetispart: point #19'
 
-                ! ========================================================= 
-                ! Apply the node partitioning the the overall partitioning 
-                ! ========================================================= 
+                ! =========================================================
+                ! Apply the node partitioning the the overall partitioning
+                ! =========================================================
                 do i=1,nelem_nl
                    ig = local2global_nl(i)
                    part(ig) = part(ig) + (part_nl(i)-1)
@@ -227,28 +227,28 @@ contains
              enddo
 
 
-          endif  ! if node based partitioning 
+          endif  ! if node based partitioning
 
-       endif   ! if multilevel 
+       endif   ! if multilevel
 
     else   ! else no partitioning needed
        !======================================================================
-       ! It appears that Metis will set part(:) = 2 if nnodes == 1, 
+       ! It appears that Metis will set part(:) = 2 if nnodes == 1,
        ! which messes stuff up, so set it myself
        !======================================================================
-       part(:)=1 
+       part(:)=1
     endif
 
     if(Debug) write(iulog,*)'genmetispart: point #22'
     ! ===========================================
-    !  Add the partitioning information into the 
+    !  Add the partitioning information into the
     !    Grid Vertex and Grid Edge structures
     ! ===========================================
 
     GridVertex(:)%processor_number = part
     if(Debug) write(iulog,*)'genmetispart: point #23'
     !=================================================
-    !  Output the partitioning information 
+    !  Output the partitioning information
     !=================================================
 #if 0
 
@@ -294,7 +294,7 @@ contains
 
   subroutine genLocal2Global(local2Global,part,newP)
 
-    implicit none 
+    implicit none
 
     integer,intent(inout)      :: local2Global(:)
     integer,intent(in)         :: part(:)
@@ -305,7 +305,7 @@ contains
     nelem = SIZE(part)
     ii = 1
     do i=1,nelem
-       if( part(i) .eq. newP) then 
+       if( part(i) .eq. newP) then
           local2global(ii) = i
           ii = ii + 1
        endif
@@ -322,7 +322,7 @@ contains
     integer                               :: xadj(:),adjncy(:)
     integer                               :: vwgt(:),adjwgt(:)
     integer                               :: wgtflag,numflag,edgecut
-    real(kind=4)                          :: tpwgts(:)
+    real(kind=real4_kind)                          :: tpwgts(:)
     integer                               :: options(5)
     integer                               :: npart
     integer                               :: part(:)
@@ -330,16 +330,16 @@ contains
 
 #ifdef _USEMETIS
 
-    if (partmethod .eq. KWAY) then 
+    if (partmethod .eq. KWAY) then
        call metis_partgraphkway(nelem,xadj,adjncy, &
             vwgt,adjwgt,wgtflag,numflag,npart,options,edgecut,part)
-    else if (partmethod .eq. RECURSIVE) then  
+    else if (partmethod .eq. RECURSIVE) then
        call METIS_PartGraphRecursive(nelem,xadj,adjncy, &
             vwgt,adjwgt,wgtflag,numflag,npart,options,edgecut,part)
-    else if (partmethod .eq. WRECURSIVE) then  
+    else if (partmethod .eq. WRECURSIVE) then
        call METIS_WPartGraphRecursive(nelem,xadj,adjncy, &
             vwgt,adjwgt,wgtflag,numflag,npart,tpwgts,options,edgecut,part)
-    else if (partmethod .eq. VOLUME) then  
+    else if (partmethod .eq. VOLUME) then
        call METIS_PartGraphVKway(nelem,xadj,adjncy, &
             vwgt,adjwgt,wgtflag,numflag,npart,options,edgecut,part)
     endif
@@ -379,12 +379,12 @@ contains
 
 
        do j=1,num_neighbors
-          cnt = GridVertex(i)%nbrs_ptr(j+1) -  GridVertex(i)%nbrs_ptr(j) 
-          start =  GridVertex(i)%nbrs_ptr(j) 
+          cnt = GridVertex(i)%nbrs_ptr(j+1) -  GridVertex(i)%nbrs_ptr(j)
+          start =  GridVertex(i)%nbrs_ptr(j)
           print *, "j,cnt,start = ", j, cnt, start
           do k=0, cnt-1
              print *, "k,wgt = ", k, GridVertex(i)%nbrs_wgt(start+k)
-             if(GridVertex(i)%nbrs_wgt(start+k) .gt. 0) then 
+             if(GridVertex(i)%nbrs_wgt(start+k) .gt. 0) then
                 degree = degree + 1
                 !adjncy(ii+degree-1)   = GridVertex(i)%nbrs(start+k)
                 neigh_list(degree)    = GridVertex(i)%nbrs(start+k)
@@ -396,14 +396,14 @@ contains
        if (degree > max_neigh) call abortmp( "number of neighbors found exceeds expected max")
 
        call sort(degree,neigh_list,sort_indices)
-       !degree       = COUNT(GridVertex(i)%nbrs_wgt(:) .gt. 0) 
+       !degree       = COUNT(GridVertex(i)%nbrs_wgt(:) .gt. 0)
        ! Copy the sorted adjncy list in
        do j=1,degree
           adjncy(ii+j-1) = neigh_list(sort_indices(j))
           adjwgt(ii+j-1) = neigh_wgt(sort_indices(j))
        enddo
        print *, "degree = ", degree
-       !print *, "wgts = ", GridVertex(i)%nbrs_wgt(:) 
+       !print *, "wgts = ", GridVertex(i)%nbrs_wgt(:)
        ii           = ii + degree
     enddo
     xadj(nelem+1)     = ii
@@ -431,7 +431,7 @@ contains
     if(Debug) write(iulog,*)'sort: point #1'
     nct=0
     do i=1,n
-       if(list(i) .eq. 0) then 
+       if(list(i) .eq. 0) then
           msk(i)=.FALSE.
        else
           nct = nct + 1
@@ -444,10 +444,10 @@ contains
     do i=1,nct
        if(Debug) write(iulog,*)'sort: point #3'
 
-       !     pgf90 Rel 3.1-4i:  minloc() with mask is buggy   
+       !     pgf90 Rel 3.1-4i:  minloc() with mask is buggy
        !     iloc = minloc(list,dim=1,mask=msk)
        lmin=lmax
-       iloc=-1      
+       iloc=-1
        do ii=1,n
           if (msk(ii) .and. list(ii)<= lmin) iloc=ii
        enddo
