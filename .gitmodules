@@ -144,14 +144,14 @@ fxDONOTUSEurl = https://github.com/ESCOMP/mizuRoute
 [submodule "ccs_config"]
 path = ccs_config
 url = https://github.com/sjsprecious/ccs_config_cesm.git 
-fxtag = 21794d5 
+fxtag = afdaf62 
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/sjsprecious/ccs_config_cesm.git 
 
 [submodule "cime"]
 path = cime
 url = https://github.com/sjsprecious/cime.git 
-fxtag = 1304e648
+fxtag = 444f2b36b 
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/sjsprecious/cime.git
 
