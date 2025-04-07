@@ -1,4 +1,4 @@
-
+[submodule "chem_proc"]
 	path = chem_proc
 	url = https://github.com/ESCOMP/CHEM_PREPROCESSOR.git
         fxrequired = AlwaysRequired
