@@ -1,4 +1,4 @@
-[submodule "chem_proc"]
+
 	path = chem_proc
 	url = https://github.com/ESCOMP/CHEM_PREPROCESSOR.git
         fxrequired = AlwaysRequired
@@ -143,24 +143,24 @@ fxDONOTUSEurl = https://github.com/ESCOMP/mizuRoute
 
 [submodule "ccs_config"]
 path = ccs_config
-url = https://github.com/jtruesdal/ccs_config_cesm.git
-fxtag = ccs_config_cesm1.0.35.nh.01
+url = https://github.com/sjsprecious/ccs_config_cesm.git 
+fxtag = af242fb 
 fxrequired = ToplevelRequired
-fxDONOTUSEurl = https://github.com/jtruesdal/ccs_config_cesm.git
+fxDONOTUSEurl = https://github.com/sjsprecious/ccs_config_cesm.git 
 
 [submodule "cime"]
 path = cime
-url = https://github.com/ESMCI/cime
-fxtag = cime6.1.81
+url = https://github.com/sjsprecious/cime.git 
+fxtag = 1304e648
 fxrequired = ToplevelRequired
-fxDONOTUSEurl = https://github.com/ESMCI/cime
+fxDONOTUSEurl = https://github.com/sjsprecious/cime.git
 
 [submodule "cmeps"]
 path = components/cmeps
-url = https://github.com/jtruesdal/CMEPS.git
-fxtag = cmeps1.0.42.nh.01
+url = https://github.com/ESCOMP/CMEPS.git
+fxtag = cmeps1.0.39
 fxrequired = ToplevelRequired
-fxDONOTUSEurl = https://github.com/jtruesdal/CMEPS.git
+fxDONOTUSEurl = https://github.com/ESCOMP/CMEPS.git
 
 [submodule "cdeps"]
 path = components/cdeps
