@@ -344,9 +344,6 @@ def _build_cam(caseroot, libroot, bldroot):
 
         if user_incldir:
             cmd += " USER_INCLDIR={}".format(user_incldir)
-
-        if cam_dycore == "se" and cam_target in ["theta-l", "theta-l_kokkos"]:
-            cmd += " KOKKOS_CMAKE=yes "
             
         rc, out, err = run_cmd(cmd)
         logger.info("%s: \n\n output:\n %s \n\n err:\n\n%s\n", cmd, out, err)
