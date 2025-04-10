@@ -150,10 +150,10 @@ fxDONOTUSEurl = https://github.com/sjsprecious/ccs_config_cesm.git
 
 [submodule "cime"]
 path = cime
-url = https://github.com/sjsprecious/cime.git 
-fxtag = 0a443b848
+url = https://github.com/ESMCI/cime.git
+fxtag = cime6.1.89
 fxrequired = ToplevelRequired
-fxDONOTUSEurl = https://github.com/sjsprecious/cime.git
+fxDONOTUSEurl = https://github.com/ESMCI/cime.git
 
 [submodule "cmeps"]
 path = components/cmeps
