@@ -20,6 +20,7 @@ use dyn_tests_utils,         only: vcoord=>vc_moist_pressure, vc_moist_pressure
 use edge_mod,                only: edgevpack_nlyr, edgevunpack_nlyr, edge_g
 use element_mod,             only: element_t
 use element_state,           only: elem_state_t
+use gllfvremap_mod,          only: gfr_fv_phys_to_dyn_topo
 use hybrid_mod,              only: hybrid_create, hybrid_t
 use inic_analytic,           only: analytic_ic_active, analytic_ic_set_ic
 use ncdio_atm,               only: infld
@@ -92,7 +93,7 @@ subroutine dyn_readnl(NLFileName)
   use spmd_utils,     only: masterproc, masterprocid, mpicom, npes
   use spmd_utils,     only: mpi_real8, mpi_integer, mpi_character, mpi_logical
   use control_mod,    only: hypervis_order, hypervis_subcycle, hypervis_scaling
-  use control_mod,    only: hypervis_subcycle_tom
+  use control_mod,    only: hypervis_subcycle_tom, planar_slice
   use control_mod,    only: hypervis_subcycle_q, integration, statefreq, runtype
   use control_mod,    only: nu, nu_div, nu_p, nu_q, nu_s, nu_top, qsplit, rsplit
   use control_mod,    only: vert_remap_q_alg, tstep_type, rk_stage_user
@@ -115,6 +116,9 @@ subroutine dyn_readnl(NLFileName)
   use constituents,   only: pcnst
   use params_mod,     only: SFCURVE, SPHERE_COORDS, Z2_NO_TASK_MAPPING
   use physical_constants, only: lx, ly
+  use physical_constants, only: scale_factor, scale_factor_inv, &
+                                domain_size, laplacian_rigid_factor, &
+                                DD_PI, rearth, rrearth
 !!XXgoldyXX: v For future CSLAM / physgrid commit
 !    use dp_grids,       only: fv_nphys, fv_nphys2, nphys_pts, write_phys_grid, phys_grid_file
 !!XXgoldyXX: ^ For future CSLAM / physgrid commit
@@ -157,6 +161,7 @@ subroutine dyn_readnl(NLFileName)
   ! Default values make se_qsplit and se_rsplit control the time steps.
   integer                         :: se_dt_remap_factor = -1, se_dt_tracer_factor = -1
   integer                         :: se_ftype
+  integer                         :: se_fv_nphys
   character(len=SHR_KIND_CL)      :: se_geometry            ! options: "sphere", "plane"
   integer                         :: se_hypervis_order      ! laplace**hypervis_order.  0=not used  1=regular viscosity, 2=grad**4
   !three types of hyper viscosity are supported right now:
@@ -232,7 +237,7 @@ subroutine dyn_readnl(NLFileName)
   !     3  CAAS
   !    20  QLT  with superlevels
   !    30  CAAS with superlevels
-  integer                         :: se_tstep
+  real (r8)                       :: se_tstep, dt_max
   integer                         :: se_tstep_type
 ! vert_remap_q_alg:   -1  PPM remap without monotone filter, used for some test cases
 !                      0  Zerroukat monotonic splines
@@ -263,6 +268,7 @@ subroutine dyn_readnl(NLFileName)
       se_dt_remap_factor,      &
       se_dt_tracer_factor,     &
       se_ftype,                & ! forcing type
+      se_fv_nphys,             &
       se_geometry,             &
       se_hypervis_order,       &
       se_hypervis_scaling,     &
@@ -401,6 +407,7 @@ subroutine dyn_readnl(NLFileName)
  call MPI_bcast(se_dt_remap_factor, 1, mpi_integer, masterprocid, mpicom, ierr)
  call MPI_bcast(se_dt_tracer_factor, 1, mpi_integer, masterprocid, mpicom, ierr)
  call MPI_bcast(se_ftype, 1, mpi_integer, masterprocid, mpicom, ierr)
+ call MPI_bcast(se_fv_nphys, 1, mpi_integer, masterprocid, mpicom, ierr)
  call MPI_bcast(se_geometry, SHR_KIND_CL,  mpi_character, masterprocid, mpicom, ierr)
  call MPI_bcast(se_hypervis_order, 1, mpi_integer, masterprocid, mpicom, ierr)
  call MPI_bcast(se_hypervis_scaling, 1, mpi_real8, masterprocid, mpicom, ierr)
@@ -442,7 +449,7 @@ subroutine dyn_readnl(NLFileName)
  call MPI_bcast(se_theta_hydrostatic_mode, 1, mpi_logical, masterprocid, mpicom, ierr)
  call MPI_bcast(se_topology, 1, mpi_integer, masterprocid, mpicom, ierr)
  call MPI_bcast(se_transport_alg, 1, mpi_integer, masterprocid, mpicom, ierr)
- call MPI_bcast(se_tstep, 1, mpi_integer, masterprocid, mpicom, ierr)
+ call MPI_bcast(se_tstep, 1, mpi_real8, masterprocid, mpicom, ierr)
  call MPI_bcast(se_tstep_type, 1, mpi_integer, masterprocid, mpicom, ierr)
  call MPI_bcast(se_vert_remap_q_alg, 1, mpi_integer, masterprocid, mpicom, ierr)
  call MPI_bcast(se_vert_remap_u_alg, 1, mpi_integer, masterprocid, mpicom, ierr)
@@ -457,93 +464,123 @@ subroutine dyn_readnl(NLFileName)
  call MPI_bcast(se_z2_map_method, 1, mpi_integer, masterprocid, mpicom, ierr)
 
 
-!!XXgoldyXX: v For future physgrid commit
-!    call MPI_bcast(fv_nphys, 1, mpi_integer, masterprocid, mpicom, ierr)
-!    call MPI_bcast(write_phys_grid, 80,  mpi_character, masterprocid, mpicom, ierr)
-!    call MPI_bcast(phys_grid_file,  256, mpi_character, masterprocid, mpicom, ierr)
-!    fv_nphys2 = fv_nphys * fv_nphys
-!    if (fv_nphys > 0) then
-!      nphys_pts = fv_nphys2
-!    else
-!      nphys_pts = npsq
-!    end if
-!!XXgoldyXX: ^ For future physgrid commit
-
  ! Initialize the SE structure that holds the MPI decomposition information
  if (se_npes <= 0) then
     se_npes = npes
  end if
 
- !jt initialize nh dycore
+!jt initialize nh dycore
  par = initmp(se_npes)
  call initomp()
-
- !!XXgoldyXX: v For future CSLAM/physgrid commit
- !    ! Next, read CSLAM nl
- !    se_tracer_transport_method = 'se_gll'
- !    se_cslam_ideal_test = 'off'
- !    se_cslam_test_type = 'boomerang'
- !    if (masterproc) then
- !      write(iulog, *) "dyn_readnl: reading CSLAM namelist..."
- !      unitn = getunit()
- !      open( unitn, file=trim(NLFileName), status='old' )
- !      call find_group_name(unitn, 'cslam_nl', status=ierr)
- !      if (ierr == 0) then
- !        read(unitn, cslam_nl, iostat=ierr)
- !        if (ierr /= 0) then
- !          call endrun('dyn_readnl: ERROR reading cslam namelist')
- !        end if
- !      end if
- !      close(unitn)
- !      call freeunit(unitn)
-
- !      ! Set and broadcast tracer transport type
- !      if (trim(se_tracer_transport_method) == 'se_gll') then
- !        tracer_transport_type = TRACERTRANSPORT_SE_GLL
- !        tracer_grid_type = TRACER_GRIDTYPE_GLL
- !#ifdef FVM_TRACERS
- !      else if (trim(se_tracer_transport_method) == 'cslam_fvm') then
- !        tracer_transport_type = TRACERTRANSPORT_LAGRANGIAN_FVM
- !        tracer_grid_type = TRACER_GRIDTYPE_FVM
- !      else if (trim(se_tracer_transport_method) == 'flux_form_cslam_fvm') then
- !        tracer_transport_type = TRACERTRANSPORT_FLUXFORM_FVM
- !        tracer_grid_type = TRACER_GRIDTYPE_FVM
- !#endif
- !      else
- !        call endrun('Unknown tracer transport method: '//trim(se_tracer_transport_method))
- !      end if
-
- !      ! Set and broadcast CSLAM options
- !      call fvm_get_test_type(se_cslam_ideal_test, cslam_test_type, fvm_ideal_test, fvm_test_type)
- !    end if
- !#ifdef SPMD
- !    ! Broadcast namelist variables
- !    call MPI_bcast(se_tracer_transport_type,1,mpi_integer,masterprocid,mpicom,ierr)
- !    call MPI_bcast(tracer_grid_type,1,mpi_integer,masterprocid,mpicom,ierr)
- !    call MPI_bcast(fvm_ideal_test,1,mpi_integer,masterprocid,mpicom,ierr)
- !    call MPI_bcast(fvm_test_type,1,mpi_integer,masterprocid,mpicom,ierr)
- !#endif
-
- !    ! Set and broadcast tracer transport type
- !    if (tracer_transport_type == TRACERTRANSPORT_SE_GLL) then
- !      qsize = pcnst
- !      ntrac = 0
- !    else if (tracer_transport_type == TRACERTRANSPORT_LAGRANGIAN_FVM) then
- !!phl      qsize = 1
- !      qsize = pcnst !add phl
- !      ntrac = pcnst
- !    else if (tracer_transport_type == TRACERTRANSPORT_FLUXFORM_FVM) then
- !      qsize = 1
- !      qsize = pcnst !add phl
- !      ntrac = pcnst
- !    else
- !      call endrun('Unknown tracer transport type')
- !    end if
- !!XXgoldyXX: ^ For future physgrid commit
 
  ! Set HOMME defaults
  call homme_set_defaults()
  ! Set HOMME variables not in CAM's namelist but with different CAM defaults
+
+!!$ ! use maximum available:
+!!$ if (NThreads == -1) then
+!!$#if defined(HORIZ_OPENMP) || defined (COLUMN_OPENMP)
+!!$    NThreads = omp_get_max_threads()
+!!$#else
+!!$    NThreads = 1
+!!$#endif
+!!$ endif
+!!$
+!!$ ! sanity check on thread count
+!!$ ! HOMME will run if if nthreads > max, but gptl will print out GB of warnings.
+!!$ if (NThreads > omp_get_max_threads()) then
+!!$    if(par%masterproc) print *, "Main:NThreads=",NThreads
+!!$    if(par%masterproc) print *, 'omp_get_max_threads() = ',OMP_get_max_threads()
+!!$    if(par%masterproc) print *, 'requested threads exceeds OMP_get_max_threads()'
+!!$    call endrun('stopping')
+!!$ endif
+!!$ call omp_set_num_threads(NThreads)
+
+ ! if user sets hypervis_subcycle=-1, then use automatic formula
+ if (se_hypervis_subcycle==-1) then
+    if (np==4 .and. se_topology == "cube") then
+       ! 1.25d23 worked out by testing, for nv==4
+       ! a little confusing:
+       ! u,v:  nu and hypervis_subcycle
+       ! T:    nu_s and hypervis_subcycle
+       ! Q:    nu and hypervis_subcycle_q
+       dt_max = 1.25e23_r8/(se_nu*se_ne**4.0_r8)
+       se_hypervis_subcycle_q = ceiling( se_tstep/dt_max )
+       se_hypervis_subcycle   = ceiling( se_tstep/dt_max )
+    else
+       call endrun('hypervis_subcycle auto determine only supported for nv==4 and topology==cube')
+    endif
+ endif
+
+ ! set defautl for dynamics remap
+ if (se_vert_remap_u_alg == -2) se_vert_remap_u_alg = se_vert_remap_q_alg
+
+ ! more thread error checks:
+#ifdef HORIZ_OPENMP
+ if(par%masterproc) write(iulog,*)'-DHORIZ_OPENMP enabled'
+#else
+ if(par%masterproc) write(iulog,*)'-DHORIZ_OPENMP disabled'
+#endif
+#ifdef COLUMN_OPENMP
+ if(par%masterproc) write(iulog,*)'-DCOLUMN_OPENMP enabled'
+#else
+ if(par%masterproc) write(iulog,*)'-DCOLUMN_OPENMP disabled'
+#endif
+
+ if (se_topology == "plane" .and. (se_mesh_file /= "/dev/null" .and. se_mesh_file /= "none")) then
+    call endrun("RRM grids not yet supported for plane")
+ end if
+
+ if (se_ne /=0 .or. se_ne_x /=0 .or. se_ne_y /=0) then
+    if (se_mesh_file /= "none" .and. se_mesh_file /= "/dev/null") then
+       write (*,*) "namelist_mod: se_mesh_file:",trim(se_mesh_file), &
+            " and ne/ne_x/ne_y:",se_ne,se_ne_x,se_ne_y," are both specified in the input file."
+       write (*,*) "Specify one or the other, but not both."
+       call endrun("Do not specify ne (or ne_x, ne_y) if using a mesh file input.")
+    end if
+ end if
+ if (par%masterproc) write (iulog,*) "SE_Mesh File:", trim(se_mesh_file)
+!!$ if (se_ne.eq.0 .and. se_ne_x .eq. 0 .and. se_ne_y .eq. 0) then
+!!$#ifndef HOMME_WITHOUT_PIOLIBRARY
+!!$    call set_mesh_dimensions()
+!!$    if (par%masterproc) write (iulog,*) "Opening Mesh File:", trim(mesh_file)
+!!$    call MeshOpen(mesh_file, par)
+!!$#else
+!!$    call endrun("Build is without PIO library, mesh runs (ne=0) are not supported.")
+!!$#endif
+!!$ end if
+ ! set map
+ if (se_cubed_sphere_map<0) then
+#if ( defined MODEL_THETA_C || defined MODEL_THETA_L )
+    se_cubed_sphere_map=2  ! theta model default = element local
+#else
+    se_cubed_sphere_map=0  ! default is equi-angle gnomonic
+#endif
+ endif
+ if (par%masterproc) write (iulog,*) "Reference element projection: se_cubed_sphere_map=",se_cubed_sphere_map
+
+ ! set geometric factors
+ ! Ideally this stuff moves into a separate sub routine
+ ! Along with all the other things that are test case specific (rearth/Omega scaling for small-earth experiments, etc.)
+ if (se_geometry == "sphere") then
+    scale_factor = rearth
+    scale_factor_inv = rrearth
+    domain_size = 4.0D0*DD_PI
+    laplacian_rigid_factor = rrearth
+ end if
+
+ ftype = se_ftype
+
+#ifdef _PRIM
+ if (se_limiter_option==8 .or. se_limiter_option==84 .or. se_limiter_option == 9) then
+    if (se_hypervis_subcycle_q/=1 .and. se_transport_alg == 0) then
+       call endrun('limiter 8,84,9 require hypervis_subcycle_q=1')
+    endif
+ endif
+ if (se_transport_alg == 0 .and. se_dt_remap_factor > 0 .and. se_dt_remap_factor < se_dt_tracer_factor) then
+    call endrun('Only SL transport supports vertical remap time step < tracer time step.')
+ end if
+#endif
 
  coord_transform_method = se_coord_transform_method
  cubed_sphere_map = se_cubed_sphere_map
@@ -551,6 +588,7 @@ subroutine dyn_readnl(NLFileName)
  dt_remap_factor = se_dt_remap_factor
  dt_tracer_factor = se_dt_tracer_factor
  ftype = se_ftype
+ fv_nphys = se_fv_nphys
  geometry = se_geometry
  hypervis_order = se_hypervis_order
  hypervis_scaling = se_hypervis_scaling
@@ -604,51 +642,9 @@ subroutine dyn_readnl(NLFileName)
 #endif
  z2_map_method = se_z2_map_method
 
-
-
-!jt partmethod               = SFCURVE
  npart                    = se_npes
- ! CAM requires forward-in-time  =z2_map_methodsubcycled dynamics
- ! RK2 3 stage tracers
-!jt rk_stage_user            =  3
-!jt topology                 = "cube"
- ! Finally, set the HOMME variables which have different names
- !jt   fine_ne                  = se_fine_ne
- !jt   statediag_numtrac        = MIN(se_statediag_numtrac,pcnst)
- !jt   hypervis_power           = se_hypervis_power
-!!$   if (hypervis_subcycle_sponge<0) then
-!!$     hypervis_subcycle_sponge = hypervis_subcycle
-!!$   else
-!!$     hypervis_subcycle_sponge = se_hypervis_subcycle_sponge
-!!$   end if
- !jt   max_hypervis_courant     = se_max_hypervis_courant
- !jt   refined_mesh             = se_refined_mesh
-!!$   sponge_del4_nu_fac       = se_sponge_del4_nu_fac
-!!$   sponge_del4_nu_div_fac   = se_sponge_del4_nu_div_fac
-!!$   sponge_del4_lev          = se_sponge_del4_lev
-!!$   vert_remap_uvTq_alg      = set_vert_remap(se_vert_remap_T, se_vert_remap_uvTq_alg)
-!!$   vert_remap_tracer_alg    = set_vert_remap(se_vert_remap_T, se_vert_remap_tracer_alg)
- !jt   fv_nphys                 = se_fv_nphys
-!!$   large_Courant_incr       = se_large_Courant_incr
-!!$   fvm_supercycling         = se_fvm_supercycling
-!!$   fvm_supercycling_jet     = se_fvm_supercycling_jet
-!!$   kmin_jet                 = se_kmin_jet
-!!$   kmax_jet                 = se_kmax_jet
- !jt   variable_nsplit          = .false.
- !jt   phys_dyn_cp              = se_phys_dyn_cp
- !jt   molecular_diff           = se_molecular_diff
-
-!!$   if (fv_nphys > 0) then
-!!$      ! Use finite volume physics grid and CSLAM for tracer advection
-!!$      nphys_pts = fv_nphys*fv_nphys
-!!$      qsize = thermodynamic_active_species_num ! number tracers advected by GLL
-!!$      ntrac = pcnst                    ! number tracers advected by CSLAM
-!!$   else
- ! Use GLL grid for physics and tracer advection
- !jt      nphys_pts = npsq
  qsize = pcnst
  ntrac = 0
-!!$   end if
 
  ! if restart or branch run
  if (.not. initial_run) then
@@ -668,7 +664,8 @@ subroutine dyn_readnl(NLFileName)
  call homme_postprocess_namelist(se_mesh_file, par)
 
  if (masterproc) then
-    write(iulog, '(a,i0)') 'dyn_readnl: se_ftype = ',se_ftype
+    write(iulog, '(a,i0)') 'dyn_readnl: se_cubed_sphere_map = ',cubed_sphere_map
+    write(iulog, '(a,i0)') 'dyn_readnl: se_ftype = ',ftype
     write(iulog, '(a,i0)') 'dyn_readnl: se_hypervis_order = ',se_hypervis_order
     write(iulog, '(a,i0)') 'dyn_readnl: se_hypervis_subcycle = ',se_hypervis_subcycle
     write(iulog, '(a,i0)') 'dyn_readnl: se_hypervis_subcycle_q = ',se_hypervis_subcycle_q
@@ -1043,10 +1040,10 @@ subroutine read_inidat(dyn_in)
     tmp = 0.0_r8
     qtmp = 0.0_r8
 
-    if (fv_nphys>0) then
-      nphys_sq = fv_nphys*fv_nphys
-      allocate(phis_tmp(nphys_sq,nelemd))
-    end if
+!!$    if (fv_nphys>0) then
+!!$      nphys_sq = fv_nphys*fv_nphys
+!!$      allocate(phis_tmp(nphys_sq,nelemd))
+!!$    end if
 
     if (par%dynproc) then
       if(elem(1)%idxP%NumUniquePts <=0 .or. elem(1)%idxP%NumUniquePts > np*np) then
@@ -1479,13 +1476,13 @@ subroutine read_inidat(dyn_in)
       end if
    end if
 
-   ! store Q values:
-   !
-   ! if CSLAM is NOT active then state%Qdp for all constituents
-   ! if CSLAM active then we only advect water vapor and condensate
-   ! loading tracers in state%qdp
-
-!!$   if (use_cslam) then
+!!$   ! store Q values:
+!!$   !
+!!$   ! if CSLAM is NOT active then state%Qdp for all constituents
+!!$   ! if CSLAM active then we only advect water vapor and condensate
+!!$   ! loading tracers in state%qdp
+!!$
+!!$   if (fv_nphys > 0) then
 !!$      do ie = 1, nelemd
 !!$         do nq = 1, thermodynamic_active_species_num
 !!$            m_cnst = thermodynamic_active_species_idx(nq)
@@ -1500,20 +1497,20 @@ subroutine read_inidat(dyn_in)
 !!$         end do
 !!$      end do
 !!$   else
-      do ie = 1, nelemd
-         do m_cnst = 1, qsize
-            do k = 1, nlev
-               do j = 1, np
-                  do i = 1, np
-                     elem(ie)%state%Qdp(i,j,k,m_cnst,:)=&
-                        elem(ie)%state%dp3d(i,j,k,1)*qtmp(i,j,k,ie,m_cnst)
-                  end do
-               end do
-            end do
-         end do
-      end do
+!!$      do ie = 1, nelemd
+!!$         do m_cnst = 1, qsize
+!!$            do k = 1, nlev
+!!$               do j = 1, np
+!!$                  do i = 1, np
+!!$                     elem(ie)%state%Qdp(i,j,k,m_cnst,:)=&
+!!$                        elem(ie)%state%dp3d(i,j,k,1)*qtmp(i,j,k,ie,m_cnst)
+!!$                  end do
+!!$               end do
+!!$            end do
+!!$         end do
+!!$      end do
 !!$   end if
-
+!!$
 
    !$omp parallel do private(ie, ps, t, m_cnst)
    do ie=1,nelemd
@@ -1532,16 +1529,250 @@ subroutine read_inidat(dyn_in)
    deallocate(tmp)
    deallocate(tmp_point)
    deallocate(qtmp)
-   if (fv_nphys>0) then
-      deallocate(phis_tmp)
-   end if
+!!$   if (fv_nphys>0) then
+!!$      deallocate(phis_tmp)
+!!$   end if
 
  end subroutine read_inidat
+!========================================================================================
+
+subroutine set_phis(dyn_in)
+
+   ! Set PHIS according to the following rules.
+   !
+   ! 1) If a topo file is specified use it.  This option has highest precedence.
+   ! 2) If not using topo file, but analytic_ic option is on, use analytic phis.
+   ! 3) Set phis = 0.0.
+   !
+   ! If using the physics grid then the topo file will be on that grid since its
+   ! contents are primarily for the physics parameterizations, and the values of
+   ! PHIS should be consistent with the values of sub-grid variability (e.g., SGH)
+   ! which are computed on the physics grid.  In this case phis on the physics grid
+   ! will be interpolated to the GLL grid.
+
+
+   ! Arguments
+   type (dyn_import_t), target, intent(inout) :: dyn_in   ! dynamics import
+
+   ! local variables
+   type(file_desc_t), pointer       :: fh_topo
+
+   type(element_t), pointer         :: elem(:)
+
+   real(r8), allocatable            :: phis_tmp(:,:)      ! (npsp,nelemd)
+   real(r8), allocatable            :: phis_phys_tmp(:,:) ! (fv_nphys**2,nelemd)
+
+   integer                          :: i, ie, indx, j, kptr
+   integer                          :: ierr, pio_errtype
+
+   character(len=max_fieldname_len) :: fieldname
+   character(len=max_fieldname_len) :: fieldname_gll
+   character(len=max_hcoordname_len):: grid_name
+   integer                          :: dims(2)
+   integer                          :: dyn_cols
+   integer                          :: ncol_did
+   integer                          :: ncol_size
+
+   integer(iMap), pointer           :: ldof(:)            ! Basic (2D) grid dof
+   logical,  allocatable            :: pmask(:)           ! (npsq*nelemd) unique columns
+
+   ! Variables for analytic initial conditions
+   integer,  allocatable            :: glob_ind(:)
+   logical,  allocatable            :: pmask_phys(:)
+   real(r8), pointer                :: latvals_deg(:)
+   real(r8), pointer                :: lonvals_deg(:)
+   real(r8), allocatable            :: latvals(:)
+   real(r8), allocatable            :: lonvals(:)
+   real(r8), allocatable            :: latvals_phys(:)
+   real(r8), allocatable            :: lonvals_phys(:)
+
+   integer                          :: nlev_tot
+   character(len=*), parameter      :: sub='set_phis'
+   !----------------------------------------------------------------------------
+
+   fh_topo => topo_file_get_id()
+
+   if (iam < par%nprocs) then
+      elem => dyn_in%elem
+   else
+      nullify(elem)
+   end if
+
+   allocate(phis_tmp(npsq,nelemd))
+   phis_tmp = 0.0_r8
+
+   if (fv_nphys > 0) then
+      allocate(phis_phys_tmp(fv_nphys**2,nelemd))
+      phis_phys_tmp = 0.0_r8
+!!$      do ie=1,nelemd
+!!$        elem(ie)%sub_elem_mass_flux=0.0_r8
+!!$#ifdef waccm_debug
+!!$        dyn_in%fvm(ie)%CSLAM_gamma = 0.0_r8
+!!$#endif
+!!$      end do
+   end if
+
+   ! Set mask to indicate which columns are active in GLL grid.
+   nullify(ldof)
+   call cam_grid_get_gcid(cam_grid_id('GLL'), ldof)
+   allocate(pmask(npsq*nelemd))
+   pmask(:) = (ldof /= 0)
+   deallocate(ldof)
+
+   if (associated(fh_topo)) then
+
+      ! Set PIO to return error flags.
+      call pio_seterrorhandling(fh_topo, PIO_BCAST_ERROR, pio_errtype)
+
+      ! Set name of grid object which will be used to read data from file
+      ! into internal data structure via PIO.
+!!$      if (single_column) then
+!!$         grid_name = 'SCM'
+!!$      else
+         if (fv_nphys == 0) then
+            grid_name = 'GLL'
+         else
+            grid_name = 'physgrid_d'
+         end if
+!!$      end if
+
+      ! Get number of global columns from the grid object and check that
+      ! it matches the file data.
+      call cam_grid_dimensions(grid_name, dims)
+      dyn_cols = dims(1)
+
+      ! The dimension of the unstructured grid in the TOPO file is 'ncol'.
+      ierr = pio_inq_dimid(fh_topo, 'ncol', ncol_did)
+      if (ierr /= PIO_NOERR) then
+         call endrun(sub//': dimension ncol not found in bnd_topo file')
+      end if
+      ierr = pio_inq_dimlen(fh_topo, ncol_did, ncol_size)
+!!$      if (ncol_size /= dyn_cols .and. .not. single_column) then
+      if (ncol_size /= dyn_cols) then
+         if (masterproc) then
+            write(iulog,*) sub//': ncol_size=', ncol_size, ' : dyn_cols=', dyn_cols
+         end if
+         call endrun(sub//': ncol size in bnd_topo file does not match grid definition')
+      end if
+
+      fieldname = 'PHIS'
+      fieldname_gll = 'PHIS_gll'
+
+!jt      if (use_cslam.and.dyn_field_exists(fh_topo, trim(fieldname_gll),required=.false.)) then
+      if (fv_nphys > 0.and.dyn_field_exists(fh_topo, trim(fieldname_gll),required=.false.)) then
+         !
+         ! If physgrid it is recommended to read in PHIS on the GLL grid and then
+         ! map to the physgrid in d_p_coupling
+         !
+         ! This requires a topo file with PHIS_gll on it ...
+         !
+         if (masterproc) then
+            write(iulog, *) "Reading in PHIS on GLL grid (mapped to physgrid in d_p_coupling)"
+         end if
+         call read_dyn_var(fieldname_gll, fh_topo, 'ncol_gll', phis_tmp)
+      else if (dyn_field_exists(fh_topo, trim(fieldname))) then
+         if (fv_nphys <= 0) then
+            if (masterproc) then
+               write(iulog, *) "Reading in PHIS"
+            end if
+            call read_dyn_var(fieldname, fh_topo, 'ncol', phis_tmp)
+         else
+            !
+            ! For backwards compatibility we allow reading in PHIS on the physgrid
+            ! which is then mapped to the GLL grid and back to the physgrid in d_p_coupling
+            ! (the latter is to avoid noise in derived quantities such as PSL)
+            !
+            if (masterproc) then
+               write(iulog, *) "Reading in PHIS on physgrid"
+               write(iulog, *) "Recommended to read in PHIS on GLL grid"
+            end if
+            call read_phys_field_2d(fieldname, fh_topo, 'ncol', phis_phys_tmp)
+            call gfr_fv_phys_to_dyn_topo(par, dom_mt, elem, phis_phys_tmp)
+
+!jt            call map_p2his_from_physgrid_to_gll(dyn_in%fvm, elem, phis_phys_tmp, phis_tmp, pmask)
+            deallocate(phis_phys_tmp)
+         end if
+      else
+         call endrun(sub//': Could not find PHIS field on input datafile')
+      end if
+
+      ! Put the error handling back the way it was
+      call pio_seterrorhandling(fh_topo, pio_errtype)
+
+   else if (analytic_ic_active() .and. (iam < par%nprocs)) then
+
+      ! lat/lon needed in radians
+      latvals_deg => cam_grid_get_latvals(cam_grid_id('GLL'))
+      lonvals_deg => cam_grid_get_lonvals(cam_grid_id('GLL'))
+      allocate(latvals(np*np*nelemd))
+      allocate(lonvals(np*np*nelemd))
+      latvals(:) = latvals_deg(:)*deg2rad
+      lonvals(:) = lonvals_deg(:)*deg2rad
+
+      allocate(glob_ind(npsq*nelemd))
+      j = 1
+      do ie = 1, nelemd
+         do i = 1, npsq
+            ! Create a global(ish) column index
+            glob_ind(j) = elem(ie)%GlobalId
+            j = j + 1
+         end do
+      end do
+      call analytic_ic_set_ic(vcoord, latvals, lonvals, glob_ind, &
+                              PHIS_OUT=phis_tmp, mask=pmask(:))
+      deallocate(glob_ind)
+
+    end if
+
+   deallocate(pmask)
+
+   ! Set PHIS in element objects
+   do ie = 1, nelemd
+      elem(ie)%state%phis = 0.0_r8
+      indx = 1
+      do j = 1, np
+         do i = 1, np
+            elem(ie)%state%phis(i,j) = phis_tmp(indx, ie)
+            indx = indx + 1
+         end do
+      end do
+   end do
+   deallocate(phis_tmp)
+
+   nlev_tot=1
+   ! boundary exchange to update the redundent columns in the element objects
+   do ie = 1, nelemd
+      kptr = 0
+      call edgeVpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%state%phis,1,kptr,nlev_tot)
+   end do
+   if(iam < par%nprocs) then
+      call bndry_exchangeV(par,edge_g)
+   end if
+   do ie = 1, nelemd
+      kptr = 0
+      call edgeVunpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%state%phis,1,kptr,nlev_tot)
+   end do
+
+!!$   ! boundary exchange to update the redundent columns in the element objects
+!!$   do ie = 1, nelemd
+!!$      kptr = 0
+!!$      call edgeVpack(edgebuf, elem(ie)%state%phis, 1, kptr, ie)
+!!$   end do
+!!$   if(iam < par%nprocs) then
+!!$      call bndry_exchange(par, edgebuf, location=sub)
+!!$   end if
+!!$   do ie = 1, nelemd
+!!$      kptr = 0
+!!$      call edgeVunpack(edgebuf, elem(ie)%state%phis,1,kptr,ie)
+!!$   end do
+
+end subroutine set_phis
+
 
 !=============================================================================================
 !========================================================================================
 
-subroutine set_phis(dyn_in)
+subroutine set_phis_old(dyn_in)
 
    ! Set PHIS according to the following rules.
    !
@@ -1772,7 +2003,7 @@ subroutine set_phis(dyn_in)
       call edgeVunpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%state%phis,1,kptr,nlev_tot)
    end do
 
-end subroutine set_phis
+ end subroutine set_phis_old
 
 !========================================================================================
 

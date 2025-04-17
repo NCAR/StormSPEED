@@ -1,20 +1,12 @@
 module dimensions_mod
   use shr_kind_mod, only: r8=>shr_kind_r8
-#ifdef FVM_TRACERS
-  use constituents, only: ntrac_d=>pcnst ! _EXTERNAL
-#else
   use constituents, only: qsize_d=>pcnst ! _EXTERNAL
-#endif
 
   implicit none
   private
 
 ! set MAX number of tracers.  actual number of tracers is a run time argument
-#ifdef FVM_TRACERS
-  integer, parameter         :: qsize_d =10 ! SE tracers (currently SE supports 10 condensate loading tracers)
-#else
   integer, parameter         :: ntrac_d = 0 ! No fvm tracers if CSLAM is off
-#endif
 
   !
   ! The variables below hold indices of water vapor and condensate loading tracers as well as
