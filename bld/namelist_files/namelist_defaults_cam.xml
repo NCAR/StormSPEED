@@ -3360,6 +3360,8 @@
 <se_vthreads se_dyn_target="theta-l"                  > 1 </se_vthreads>
 
 <se_cubed_sphere_map                                  > 0 </se_cubed_sphere_map>
+<se_cubed_sphere_map se_dyn_target="theta-l"          > 2 </se_cubed_sphere_map>
+<se_cubed_sphere_map se_dyn_target="theta-l" npg="0"  > 0 </se_cubed_sphere_map>
 
 <se_dt_remap_factor  se_dyn_target="theta-l"      >   2 </se_dt_remap_factor>
 <se_dt_tracer_factor  se_dyn_target="theta-l"     >   6 </se_dt_tracer_factor>
