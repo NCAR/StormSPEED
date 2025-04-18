@@ -144,7 +144,7 @@ fxDONOTUSEurl = https://github.com/ESCOMP/mizuRoute
 [submodule "ccs_config"]
 path = ccs_config
 url = https://github.com/jtruesdal/ccs_config_cesm.git 
-fxtag = ccs_config_cesm1.0.29_nh.02
+fxtag = ccs_config_cesm1.0.29_nh.03
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/jtruesdal/ccs_config_cesm.git 
 
