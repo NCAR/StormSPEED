@@ -222,6 +222,6 @@ fxDONOTUSEurl = https://github.com/NCAR/CUPiD.git
 path = src/dynamics/senh/homme
 url = https://github.com/E3SM-Project/E3SM.git
 fxrequired = AlwaysRequired
-fxsparse = .homme_sparse_checkout
+fxsparse = ../.homme_sparse_checkout
 fxtag = cee08a3
 fxDONOTUSEurl = https://github.com/E3SM-Project/E3SM.git
