@@ -205,8 +205,8 @@ fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/ESCOMP/FMS_interface
 
 [submodule "kokkos"]
-	path = libraries/kokkos
-	url = https://github.com/E3SM-Project/kokkos
+path = libraries/kokkos
+url = https://github.com/E3SM-Project/kokkos
 fxtag = 25d6b33
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/E3SM-Project/kokkos
@@ -218,3 +218,10 @@ fxtag = v0.1.4
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/NCAR/CUPiD.git
 
+[submodule "homme"]
+path = src/dynamics/senh/homme
+url = https://github.com/E3SM-Project/E3SM.git
+fxrequired = AlwaysRequired
+fxsparse = .homme_sparse_checkout
+fxtag = cee08a3
+fxDONOTUSEurl = https://github.com/E3SM-Project/E3SM.git

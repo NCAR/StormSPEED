@@ -1,0 +1,26 @@
+components/homme/src/preqx
+components/homme/src/theta-l
+components/homme/src/theta-l_kokkos
+components/homme/src/checksum_mod.F90
+components/homme/src/common_io_mod.F90
+components/homme/src/common_movie_mod.F90
+components/homme/src/derived_type_mod.F90
+components/homme/src/implicit_mod.F90
+components/homme/src/interp_movie_mod.F90
+components/homme/src/interpolate_driver_mod.F90
+components/homme/src/linear_algebra_mod.F90
+components/homme/src/netcdf_io_mod.F90
+components/homme/src/pio_io_mod.F90
+components/homme/src/precon_mod.F90
+components/homme/src/precon_type_mod.F90
+components/homme/src/prim_main.F90
+components/homme/src/prim_movie_mod.F90
+components/homme/src/prim_restart_mod.F90
+components/homme/src/bug fix in theta_restart_mod.F90
+components/homme/src/rebind.c
+components/homme/src/repro_sum_mod.F90
+components/homme/src/repro_sum_x86.c
+components/homme/src/restart_io_mod.F90
+components/homme/src/surfaces_mod.F90
+components/homme/src/test_mod.F90
+components/homme/src/theta_restart_mod.F90
