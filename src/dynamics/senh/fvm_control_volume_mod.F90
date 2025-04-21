@@ -1,3 +1,4 @@
+#ifdef CAM
 #ifdef HAVE_CONFIG_H
 #include "config.h"
 #endif
@@ -229,12 +230,6 @@ contains
         fvm%norm_elem_coord(2,i,j) = elem%corners(1)%y+(j-0.5_r8)*fvm%dalpha
       end do
     end do
-
-    !
-    ! overwrite areas for consistency with SE areas (that are O(10E-5) incorrect)
-    !
-!    tmp = 1.0_r8
-!    call subcell_integration(tmp, np, nc, elem%metdet,fvm%area_sphere)
     !
     ! do the same for physics grid
     !
@@ -309,3 +304,4 @@ contains
     end do
   end subroutine allocate_physgrid_vars
 end module fvm_control_volume_mod
+#endif

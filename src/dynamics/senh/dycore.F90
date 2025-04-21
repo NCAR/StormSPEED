@@ -15,7 +15,7 @@ logical function dycore_is (name)
 
    dycore_is = .false.
    if (name == 'unstructured' .or. name == 'UNSTRUCTURED' .or. &
-      name == 'se' .or. name == 'SE') then
+      name == 'senh' .or. name == 'SENH') then
       dycore_is = .true.
    end if
 

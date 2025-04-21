@@ -1,3 +1,4 @@
+#ifdef CAM
 !MODULE FVM_ANALYTIC_MOD--------------------------------------------CE-for FVM!
 ! AUTHOR: CHRISTOPH ERATH, 17.October 2011                                    !
 ! This module contains all analytical terms for fvm                           !
@@ -151,7 +152,6 @@ CONTAINS
     end if
   end subroutine compute_halo_vars
 
-
   ! ----------------------------------------------------------------------------------!
   !SUBROUTINE MOMENT_ONSPHERE-----------------------------------------------CE-for FVM!
   ! AUTHOR: CHRISTOPH ERATH, 20.July 2011                                             !
@@ -181,8 +181,6 @@ CONTAINS
     integer             , dimension(num_area               ), parameter :: num_seg=2
     REAL(KIND=r8), dimension(irecons,num_area):: weights
     real (kind=r8), dimension(nc+1) :: x, y
-
-
     real (kind=r8), dimension(ngpc):: gsweights, gspts
     !
     ! initialize quadrature weights for get_high_order_weights_over_areas
@@ -272,7 +270,6 @@ CONTAINS
     end select
   end subroutine moment_onsphere
 
-
   ! ----------------------------------------------------------------------------------!
   !SUBROUTINES I_00, I_01, I_20, I_02, I11----------------------------------CE-for FVM!
   ! AUTHOR: CHRISTOPH ERATH, 17.October 2011                                          !
@@ -350,7 +347,6 @@ CONTAINS
   end function I_11
   !END SUBROUTINES I_00, I_01, I_20, I_02, I11------------------------------CE-for FVM!
 
-
   real (kind=r8) function F_00(x_in,y_in)
     implicit none
     real (kind=r8), intent(in) :: x_in,y_in
@@ -422,9 +418,6 @@ CONTAINS
 
     F_11 =-x/(SQRT(1.0_r8+x*x+y*y))
   end function F_11
-
-
-
   !
   ! matrix version of reconstruct_cubic_onface
   !
@@ -440,7 +433,6 @@ CONTAINS
     real (kind=r8), dimension(4,1:irecons-1,1-nhe:nc+nhe,1-nhe:nc+nhe), intent(out):: vertex_recons_weights
     real (kind=r8), dimension(3,1-nhe:nc+nhe,1-nhe:nc+nhe)        , intent(out):: recons_metrics
     real (kind=r8), dimension(3,1-nhe:nc+nhe,1-nhe:nc+nhe)        , intent(out):: recons_metrics_integral
-
     !
     integer  :: i, j, count, m, n
     real (kind=r8) :: coef,tmp,cartx,carty
@@ -531,9 +523,6 @@ CONTAINS
                spherecentroid(5,i,j)
         end do
       end do
-
-
-
       !
       ! pre-compute variables for reconstruction
       !
@@ -606,7 +595,6 @@ CONTAINS
     end select
   end subroutine compute_reconstruct_matrix
 
-
   subroutine get_high_order_weights_over_areas(x,dx,num_seg,num_seg_max,num_area,weights,ngpc,gsweights, gspts,irecons)
     implicit none
     integer                                                 , intent(in)    :: num_area, num_seg_max, irecons
@@ -669,7 +657,6 @@ CONTAINS
     end do
   end subroutine get_high_order_weights_over_areas
 
-
   !********************************************************************************
   !
   ! Gauss-Legendre quadrature
@@ -724,8 +711,6 @@ CONTAINS
 
   end subroutine gauss_points
 
-
-
 subroutine init_flux_orient(flux_orient,ifct,nc,nhc,cubeboundary,faceno)
   implicit none
   integer              , intent(in)  :: cubeboundary,faceno,nc,nhc
@@ -742,7 +727,6 @@ subroutine init_flux_orient(flux_orient,ifct,nc,nhc,cubeboundary,faceno)
   flux_orient (2,:,:) = 0.0_r8
   ifct(:,:) = 1
   if (cubeboundary>0) then
-
      !
      ! cshift (permute) value needed to be applied to vertex number so that they match orientation
      ! of the interior of the panel
@@ -791,10 +775,6 @@ subroutine init_flux_orient(flux_orient,ifct,nc,nhc,cubeboundary,faceno)
    end if
 
  end subroutine init_flux_orient
-
-!
-!
-!
 
 ! ----------------------------------------------------------------------------------!
 !SUBROUTINE CREATE_INTERPOLATIION_POINTS----------------------------------CE-for FVM!
@@ -1045,15 +1025,9 @@ subroutine init_flux_orient(flux_orient,ifct,nc,nhc,cubeboundary,faceno)
 
   end if
 
-
 end subroutine create_interpolation_points
 
-
-
-
 !END SUBROUTINE CREATE_INTERPOLATION_POINTS-------------------------------CE-for FVM!
-
-
 
 ! ----------------------------------------------------------------------------------!
 !SUBROUTINE INTERPOLATION_POINT-------------------------------------------CE-for FVM!
@@ -1212,3 +1186,4 @@ subroutine get_equispace_weights(dx, x, w,ns)
 end subroutine get_equispace_weights
 
 end module fvm_analytic_mod
+#endif
