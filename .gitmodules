@@ -218,10 +218,10 @@ fxtag = v0.1.4
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/NCAR/CUPiD.git
 
-[submodule "homme"]
-path = src/dynamics/senh/homme
+[submodule "senh/dycore"]
+path = src/dynamics/senh/dycore
 url = https://github.com/E3SM-Project/E3SM.git
 fxrequired = AlwaysRequired
-fxsparse = ../.homme_sparse_checkout
+fxsparse = ../.e3sm_sparse_checkout
 fxtag = cee08a3
 fxDONOTUSEurl = https://github.com/E3SM-Project/E3SM.git
