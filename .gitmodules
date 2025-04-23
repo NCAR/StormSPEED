@@ -143,17 +143,17 @@ fxDONOTUSEurl = https://github.com/ESCOMP/mizuRoute
 
 [submodule "ccs_config"]
 path = ccs_config
-url = https://github.com/jtruesdal/ccs_config_cesm.git 
-fxtag = ccs_config_cesm1.0.29_nh.03
+url = https://github.com/sjsprecious/ccs_config_cesm.git 
+fxtag = 75fafab
 fxrequired = ToplevelRequired
-fxDONOTUSEurl = https://github.com/jtruesdal/ccs_config_cesm.git 
+fxDONOTUSEurl = https://github.com/sjsprecious/ccs_config_cesm.git
 
 [submodule "cime"]
 path = cime
-url = https://github.com/jtruesdal/cime
-fxtag = cime6.1.72_nh.02
+url = https://github.com/ESMCI/cime.git 
+fxtag = cime6.1.91 
 fxrequired = ToplevelRequired
-fxDONOTUSEurl = https://github.com/jtruesdal/cime
+fxDONOTUSEurl = https://github.com/ESMCI/cime.git
 
 [submodule "cmeps"]
 path = components/cmeps
@@ -207,7 +207,7 @@ fxDONOTUSEurl = https://github.com/ESCOMP/FMS_interface
 [submodule "kokkos"]
 path = libraries/kokkos
 url = https://github.com/E3SM-Project/kokkos
-fxtag = 25d6b33
+fxtag = 6a19eb9 
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/E3SM-Project/kokkos
 
