@@ -4,9 +4,9 @@
 ! This module contains all analytical terms for fvm                           !
 !-----------------------------------------------------------------------------!
 module fvm_analytic_mod
-  use shr_kind_mod,   only: r8=>shr_kind_r8
-  use control_mod,    only : north, south, east, west, neast, nwest, seast, swest
-  use cam_abortutils, only: endrun
+  use shr_kind_mod,    only : r8=>shr_kind_r8
+  use control_mod_cam, only : north, south, east, west, neast, nwest, seast, swest
+  use cam_abortutils,  only : endrun
 
   implicit none
   private
@@ -21,9 +21,9 @@ CONTAINS
 
   subroutine compute_basic_coordinate_vars(elem,&
        nc,irecons,dalpha,dbeta,vtx_cart,center_cart,area_sphere,spherecentroid)
-    use coordinate_systems_mod, only: cart2spherical
-    use element_mod,            only: element_t
-    use coordinate_systems_mod, only: spherical_polar_t
+    use coordinate_systems_mod, only : cart2spherical
+    use element_mod_cam,        only : element_t
+    use coordinate_systems_mod, only : spherical_polar_t
 
     type (element_t),         intent(in ) :: elem
     integer,                  intent(in)  :: nc,irecons
@@ -76,8 +76,6 @@ CONTAINS
 
   subroutine compute_halo_vars(faceno,cubeboundary,nc,nhc,nhe,&
        jx_min,jx_max,jy_min,jy_max,flux_orient, ifct, rot_matrix)
-    use control_mod, only : north, south, east, west, neast, nwest, seast, swest
-
     integer,          intent(in)  :: faceno,nc,nhc,nhe,cubeboundary
 
     integer,          intent(out) :: jx_min(3),jx_max(3),jy_min(3),jy_max(3)
@@ -165,7 +163,7 @@ CONTAINS
   !         centroid  ... x,y,x^2,y^2,xy                                              !
   !-----------------------------------------------------------------------------------!
   subroutine moment_onsphere(nc,irecons,area,vtx_cart,lanalytic,spherecentroid)
-    use dimensions_mod, only: ngpc
+    use dimensions_mod_cam, only : ngpc
 
     integer, intent(in)  :: nc,irecons
     real (kind=r8), dimension(nc,nc)                              , intent(out) :: area
@@ -424,7 +422,7 @@ CONTAINS
   subroutine compute_reconstruct_matrix(nc,nhe,nhc,irecons,dalpha,dbeta,spherecentroid,vtx_cart,&
        centroid_stretch,vertex_recons_weights,recons_metrics,recons_metrics_integral)
     implicit none
-    integer              , intent(in) :: nc,nhe,irecons,nhc
+    integer       , intent(in) :: nc,nhe,irecons,nhc
     real (kind=r8), intent(in) :: dalpha,dbeta
     real (kind=r8), dimension(irecons-1,1-nhc:nc+nhc,1-nhc:nc+nhc), intent(in) :: spherecentroid
     real (kind=r8), dimension(4,2,1-nhc:nc+nhc,1-nhc:nc+nhc)      , intent(in) :: vtx_cart
@@ -796,10 +794,9 @@ subroutine init_flux_orient(flux_orient,ifct,nc,nhc,cubeboundary,faceno)
   subroutine create_interpolation_points(elem,&
        nc,nhc,nhr,ns,nh,cubeboundary,&
        dalpha,dbeta,ibase,halo_interp_weight)
-    use element_mod           , only: element_t
-    use coordinate_systems_mod, only: cartesian2D_t
-    use control_mod           , only: north, south, east, west, neast, nwest, seast, swest
-    use cube_mod              , only: cube_xstart, cube_xend, cube_ystart, cube_yend
+    use element_mod_cam           , only : element_t
+    use coordinate_systems_mod    , only : cartesian2D_t
+    use cube_mod_cam              , only : cube_xstart, cube_xend, cube_ystart, cube_yend
 
     implicit none
     type (element_t), intent(in)     :: elem

@@ -2,10 +2,10 @@
 !
 module namelist_mod_cam
    use namelist_mod
-   use control_mod, only : &
-         multilevel,        &
-         tasknum,           & ! used dg model in AIX machine
-         remapfreq            ! number of steps per remapping call
+   use control_mod_cam, only : &
+            multilevel,        &
+            tasknum,           & ! used dg model in AIX machine
+            remapfreq            ! number of steps per remapping call
 
    public :: homme_set_defaults
    public :: homme_postprocess_namelist
@@ -28,20 +28,20 @@ module namelist_mod_cam
       tasknum             =-1
       nu_top              = 0
       ne                  = 0
-
+      
    end subroutine homme_set_defaults
 
    subroutine homme_postprocess_namelist(mesh_file, par)
-      use mesh_mod,        only: MeshOpen
-      use dimensions_mod,  only: ntrac, ne, ne_x, ne_y
-      use time_mod,        only: tstep, nsplit
-      use control_mod,     only: nu, nu_div, nu_p, nu_s, nu_q, rsplit,qsplit, &
-                                 vert_remap_q_alg, vert_remap_u_alg
-      use control_mod,     only: dt_remap_factor, dt_tracer_factor, tstep_type, rsplit, qsplit
-      use control_mod,     only: integration, restartfile,timestep_make_subcycle_parameters_consistent, &
-                                 hypervis_subcycle_q, transport_alg, limiter_option, prescribed_wind
+      use mesh_mod,           only : MeshOpen
+      use dimensions_mod_cam, only : ntrac, ne, ne_x, ne_y
+      use time_mod,           only : tstep, nsplit
+      use control_mod_cam,    only : nu, nu_div, nu_p, nu_s, nu_q, rsplit,qsplit, &
+                                     vert_remap_q_alg, vert_remap_u_alg, &
+                                     dt_remap_factor, dt_tracer_factor, tstep_type, rsplit, qsplit, &
+                                     integration, restartfile,timestep_make_subcycle_parameters_consistent, &
+                                     hypervis_subcycle_q, transport_alg, limiter_option, prescribed_wind
       use physical_constants, only : scale_factor, scale_factor_inv, domain_size, laplacian_rigid_factor, &
-                                    dd_pi, rrearth, rearth
+                                     dd_pi, rrearth, rearth
 
       ! Dummy arguments
       character(len=*),  intent(in) :: mesh_file

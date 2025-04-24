@@ -31,7 +31,7 @@ contains
     par2%comm       = par1%comm
     par2%masterproc = par1%masterproc
     par2%dynproc    = par1%dynproc
-
+    
   end subroutine copy_par
 
 end module parallel_mod_cam

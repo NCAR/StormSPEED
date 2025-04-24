@@ -13,10 +13,10 @@
 module fvm_control_volume_mod
   use shr_kind_mod,           only: r8=>shr_kind_r8
   use coordinate_systems_mod, only: spherical_polar_t
-  use element_mod,            only: element_t
-  use dimensions_mod,         only: nc, nhe, nlev, ntrac_d, qsize_d,ne, np, nhr, ns, nhc
-  use dimensions_mod,         only: fv_nphys, nhe_phys, nhr_phys, ns_phys, nhc_phys,fv_nphys
-  use dimensions_mod,         only: irecons_tracer
+  use element_mod_cam,        only: element_t
+  use dimensions_mod_cam,     only: nc, nhe, nlev, ntrac_d, qsize_d,ne, np, nhr, ns, nhc, &
+                                    fv_nphys, nhe_phys, nhr_phys, ns_phys, nhc_phys, &
+                                    irecons_tracer
   use cam_abortutils,         only: endrun
 
   implicit none
@@ -256,9 +256,9 @@ contains
 
 
   subroutine allocate_physgrid_vars(fvm,par)
-    use cam_logfile   , only : iulog
-    use parallel_mod  , only : parallel_t
-    use dimensions_mod, only : nelemd
+    use cam_logfile       , only : iulog
+    use parallel_mod_cam  , only : parallel_t
+    use dimensions_mod_cam, only : nelemd
     type (fvm_struct), intent(inout) :: fvm(:)
     type (parallel_t), intent(in)    :: par
     integer :: ie

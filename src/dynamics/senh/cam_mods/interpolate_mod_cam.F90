@@ -2,7 +2,7 @@
 !
 module interpolate_mod_cam
    use interpolate_mod
-   use cube_mod,               only : dmap_cam 
+   use cube_mod_cam,           only : dmap_cam 
    use string_utils,           only : int2str
    use cam_abortutils,         only : endrun
 
@@ -93,7 +93,7 @@ contains
    ! Note that it is possible the given element contains none of the interpolation points
    ! =======================================
    subroutine interpolate_scalar2d(interpdata,fld_cube,nsize,nhalo,fld, fillvalue)
-      use dimensions_mod, only: npsq, fv_nphys,nc
+      use dimensions_mod_cam, only : npsq, fv_nphys,nc
       integer,             intent(in) ::  nsize,nhalo
       real (kind=real_kind),      intent(in) ::  fld_cube(1-nhalo:nsize+nhalo,1-nhalo:nsize+nhalo) ! cube field
       real (kind=real_kind),      intent(out)::  fld(:)          ! field at new grid lat,lon coordinates
@@ -150,7 +150,7 @@ contains
    end subroutine interpolate_scalar2d
 
    subroutine interpolate_scalar3d(interpdata,fld_cube,nsize,nhalo,nlev,fld, fillvalue)
-      use dimensions_mod, only: npsq, fv_nphys,nc
+      use dimensions_mod_cam, only : npsq, fv_nphys,nc
       integer ,            intent(in)  ::  nsize, nhalo, nlev
       real (kind=real_kind),      intent(in)  ::  fld_cube(1-nhalo:nsize+nhalo,1-nhalo:nsize+nhalo,nlev) ! cube field
       real (kind=real_kind),      intent(out) ::  fld(:,:)          ! field at new grid lat,lon coordinates
@@ -226,7 +226,7 @@ contains
    subroutine interpolate_vector3d(interpdata,elem,fld_cube,npts,nlev,fld,input_coords, fillvalue)
       implicit none
       type (interpdata_t),intent(in)       ::  interpdata
-      type (element_t), intent(in)         :: elem
+      type (element_t), intent(in)         ::  elem
       integer, intent(in)                  ::  npts, nlev
       real (kind=real_kind), intent(in)    ::  fld_cube(npts,npts,2,nlev) ! vector field
       real (kind=real_kind), intent(out)   ::  fld(:,:,:)          ! field at new grid lat,lon coordinates
@@ -307,8 +307,8 @@ contains
    end subroutine interpolate_vector3d
 
    subroutine vec_latlon_to_contra(elem,nphys,nhalo,nlev,fld,fvm)
-      use fvm_control_volume_mod, only: fvm_struct
-      use dimensions_mod,         only: fv_nphys
+      use fvm_control_volume_mod, only : fvm_struct
+      use dimensions_mod_cam,     only : fv_nphys
       integer      , intent(in)   :: nphys,nhalo,nlev
       real(kind=real_kind), intent(inout):: fld(1-nhalo:nphys+nhalo,1-nhalo:nphys+nhalo,2,nlev)
       type (element_t), intent(in)           :: elem
