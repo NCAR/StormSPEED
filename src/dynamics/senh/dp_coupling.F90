@@ -3,31 +3,31 @@
 ! dynamics - physics coupling module
 !-------------------------------------------------------------------------------
 module dp_coupling
-  use air_composition, only:  rairv
-  use bndry_mod,      only: bndry_exchangeV
-  use cam_abortutils, only: endrun
-  use cam_logfile,    only: iulog
-  use constituents,   only: pcnst, cnst_name
-  use cam_history,    only: outfld, write_inithist, hist_fld_active
-  use dimensions_mod, only: np, npsq, nelemd, nlev, fv_nphys
-  use dof_mod,        only: UniquePoints, PutUniquePoints
-  use dyn_comp,       only: dyn_export_t, dyn_import_t
-  use dyn_grid,       only: TimeLevel, hvcoord, dom_mt
-  use element_ops,    only: get_temperature
-  use element_mod,    only: element_t
-  use kinds,          only: real_kind, int_kind
-  use physics_types,  only: physics_state, physics_tend
-  use phys_grid,      only: get_ncols_p, get_gcol_all_p
-  use phys_grid,      only: get_dyn_col_p, columns_on_task, get_chunk_info_p
-  use ppgrid,         only: begchunk, endchunk, pcols, pver, pverp
-  use perf_mod,       only: t_startf, t_stopf, t_barrierf
-  use parallel_mod,   only: par
-  use shr_kind_mod,   only: r8=>shr_kind_r8
-  use spmd_dyn,       only: local_dp_map, block_buf_nrecs, chunk_buf_nrecs
-  use spmd_utils,     only: mpicom, iam
-  use qneg_module,    only: qneg3
-  use thread_mod,     only: max_num_threads
-!jt  use iop_data_mod,   only: single_column
+  use air_composition,    only:  rairv
+  use bndry_mod,          only: bndry_exchangeV
+  use cam_abortutils,     only: endrun
+  use cam_logfile,        only: iulog
+  use constituents,       only: pcnst, cnst_name
+  use cam_history,        only: outfld, write_inithist, hist_fld_active
+  use dimensions_mod_cam, only: np, npsq, nelemd, nlev, fv_nphys
+  use dof_mod,            only: UniquePoints, PutUniquePoints
+  use dyn_comp,           only: dyn_export_t, dyn_import_t
+  use dyn_grid,           only: TimeLevel, hvcoord, dom_mt
+  use element_ops,        only: get_temperature
+  use element_mod_cam,    only: element_t
+  use kinds,              only: real_kind, int_kind
+  use physics_types,      only: physics_state, physics_tend
+  use phys_grid,          only: get_ncols_p, get_gcol_all_p
+  use phys_grid,          only: get_dyn_col_p, columns_on_task, get_chunk_info_p
+  use ppgrid,             only: begchunk, endchunk, pcols, pver, pverp
+  use perf_mod,           only: t_startf, t_stopf, t_barrierf
+  use parallel_mod_cam,   only: par
+  use shr_kind_mod,       only: r8=>shr_kind_r8
+  use spmd_dyn,           only: local_dp_map, block_buf_nrecs, chunk_buf_nrecs
+  use spmd_utils,         only: mpicom, iam
+  use qneg_module,        only: qneg3
+  use thread_mod_cam,     only: max_num_threads
+
   private
   public :: d_p_coupling, p_d_coupling
 !===============================================================================
@@ -255,7 +255,7 @@ CONTAINS
   subroutine p_d_coupling(phys_state, phys_tend,  dyn_in)
     use shr_vmath_mod, only: shr_vmath_log
     use cam_control_mod, only : adiabatic
-    use control_mod,             only: ftype
+    use control_mod_cam,         only: ftype
     use edge_mod,                only: edge_g, edgeVpack_nlyr, edgeVunpack_nlyr
     use gllfvremap_mod,          only: gfr_fv_phys_to_dyn
     use time_manager,            only: get_step_size

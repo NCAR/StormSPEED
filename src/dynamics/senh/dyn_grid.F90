@@ -44,10 +44,10 @@ use pio,                    only: pio_internal_error, pio_inq_dimlen
 
 use domain_mod,             only: domain1d_t
 
-use dimensions_mod,         only: globaluniquecols, nelem, nelemd, nelemdmax
-use dimensions_mod,         only: ne, np, npsq, fv_nphys, nlev, ntrac
-use element_mod,            only: element_t
-use hybvcoord_mod,          only: hvcoord_t, set_layer_locations
+use dimensions_mod_cam,     only: globaluniquecols, nelem, nelemd, nelemdmax, &
+                                  ne, np, npsq, fv_nphys, nlev, ntrac
+use element_mod_cam,        only: element_t
+use hybvcoord_mod_cam,      only: hvcoord_t, set_layer_locations
 use prim_driver_mod,        only: prim_init1
 use time_mod,               only: TimeLevel_t
 
@@ -119,9 +119,9 @@ subroutine dyn_grid_init()
    use ref_pres,       only: ref_pres_init
    use time_manager,   only: get_nstep, get_step_size
 
-   use thread_mod,     only: nthreads
-   use parallel_mod,   only: par
-   use control_mod,    only: qsplit, rsplit, dt_remap_factor, dt_tracer_factor, &
+   use thread_mod_cam,   only: nthreads
+   use parallel_mod_cam, only: par
+   use control_mod_cam,  only: qsplit, rsplit, dt_remap_factor, dt_tracer_factor, &
                              timestep_make_eam_parameters_consistent
    use time_mod,       only: tstep, nsplit
 
@@ -799,8 +799,8 @@ subroutine get_dyn_grid_info(hdim1_d, hdim2_d, num_lev,                       &
   !=================================================================================================
   !
   integer function get_dyn_grid_parm(name) result(ival)
-    use pmgrid,          only: beglat, endlat, plat, plon, plev, plevp
-    use interpolate_mod, only: get_interp_parameter
+    use pmgrid,              only: beglat, endlat, plat, plon, plev, plevp
+    use interpolate_mod_cam, only: get_interp_parameter
     !------------------------------Arguments------------------------------------
     character(len=*), intent(in) :: name
     !---------------------------------------------------------------------------

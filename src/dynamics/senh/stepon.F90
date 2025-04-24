@@ -20,14 +20,14 @@ module stepon
    use perf_mod,       only: t_startf, t_stopf, t_barrierf
    use time_manager,   only: get_step_size, is_first_restart_step
 ! from SE
-   use derivative_mod, only: derivinit, derivative_t
-   use viscosity_mod, only : compute_zeta_C0, compute_div_C0
-   use quadrature_mod, only: gauss, gausslobatto, quadrature_t
-   use edge_mod,       only: edge_g, edgeVpack_nlyr, edgeVunpack_nlyr
-   use parallel_mod,   only : par
+   use derivative_mod_cam, only : derivinit, derivative_t
+   use viscosity_mod,      only : compute_zeta_C0, compute_div_C0
+   use quadrature_mod,     only : gauss, gausslobatto, quadrature_t
+   use edge_mod,           only : edge_g, edgeVpack_nlyr, edgeVunpack_nlyr
+   use parallel_mod_cam,   only : par
 !!$   use iop_data_mod,   only: use_iop, doiopupdate, single_column, dp_crm, &
 !!$                             setiopupdate, setiopupdate_init, readiopdata
-   use element_mod,    only: element_t
+   use element_mod_cam,    only : element_t
    use element_ops,    only: get_field, get_field_i
    use shr_const_mod,       only: SHR_CONST_PI
    use se_iop_intr_mod, only: iop_broadcast
@@ -80,7 +80,7 @@ CONTAINS
 subroutine stepon_init(dyn_in, dyn_out )
 ! !USES:
   use control_mod,            only: smooth_phis_numcycle
-  use dimensions_mod,         only: nlev, nelemd, npsq
+  use dimensions_mod_cam,     only: nlev, nelemd, npsq
   use cam_history,            only: addfld, add_default, horiz_only
   use cam_history,            only: register_vector_field
   use gravity_waves_sources,  only: gws_init
@@ -184,7 +184,7 @@ subroutine stepon_run1( dtime_out, phys_state, phys_tend,               &
   use dp_coupling, only: d_p_coupling
   use time_mod,    only: tstep      ! dynamics timestep
   use time_manager, only: is_last_step, is_first_step
-  use control_mod, only: ftype
+  use control_mod_cam, only: ftype
   use physics_buffer, only : physics_buffer_desc
   use hycoef,      only: hyam, hybm
   use se_iop_intr_mod, only: iop_setfield, iop_setinitial
@@ -255,18 +255,18 @@ subroutine stepon_run1( dtime_out, phys_state, phys_tend,               &
 end subroutine stepon_run1
 
 subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
-   use bndry_mod,      only: bndry_exchangeV
-   use dimensions_mod,  only: nlev, nlevp, nelemd, np, npsq, fv_nphys
-   use dyn_grid,        only: TimeLevel, hvcoord
-   use dp_coupling,    only: p_d_coupling
-   use parallel_mod,   only: par
-   use time_mod,        only: tstep, TimeLevel_Qdp   !  dynamics typestep
-   use control_mod,     only: ftype, qsplit
-   use hycoef,          only: hyai, hybi
-   use cam_history,     only: outfld, hist_fld_active
-   use prim_driver_base,only: applyCAMforcing_tracers
-   use prim_advance_mod,only: applyCAMforcing_dynamics
-   use element_ops,     only: get_temperature
+   use bndry_mod,          only: bndry_exchangeV
+   use dimensions_mod_cam, only: nlev, nlevp, nelemd, np, npsq, fv_nphys
+   use dyn_grid,           only: TimeLevel, hvcoord
+   use dp_coupling,        only: p_d_coupling
+   use parallel_mod_cam,   only: par
+   use time_mod,           only: tstep, TimeLevel_Qdp   !  dynamics typestep
+   use control_mod_cam,    only: ftype, qsplit
+   use hycoef,             only: hyai, hybi
+   use cam_history,        only: outfld, hist_fld_active
+   use prim_driver_base,   only: applyCAMforcing_tracers
+   use prim_advance_mod,   only: applyCAMforcing_dynamics
+   use element_ops,        only: get_temperature
 
    type(physics_state), intent(inout) :: phys_state(begchunk:endchunk)
    type(physics_tend), intent(inout) :: phys_tend(begchunk:endchunk)
@@ -531,7 +531,7 @@ subroutine stepon_run3(dtime, cam_out, phys_state, dyn_in, dyn_out)
    use dyn_comp,    only: dyn_run
    use time_mod,    only: tstep
    use hycoef,      only: hyam, hybm
-   use dimensions_mod, only: nlev, nelemd, np, npsq
+   use dimensions_mod_cam, only: nlev, nelemd, np, npsq
    use se_iop_intr_mod, only: iop_setfield, iop_setinitial
    use dyn_grid,    only: TimeLevel
    use cam_history,     only: outfld
@@ -653,10 +653,10 @@ end subroutine stepon_run3
 !
 ! !INTERFACE:
 subroutine stepon_final(dyn_in, dyn_out)
-  use dyn_grid,         only: fv_physgrid_final
-  use dimensions_mod,   only: fv_nphys
-  use cam_logfile, only: iulog
-  use prim_driver_mod,only: prim_finalize
+  use dyn_grid,           only: fv_physgrid_final
+  use dimensions_mod_cam, only: fv_nphys
+  use cam_logfile,        only: iulog
+  use prim_driver_mod,    only: prim_finalize
 ! !PARAMETERS:
   ! WARNING: intent(out) here means that pointers in dyn_in and dyn_out
   ! are nullified. Unless this memory is released in some other routine,

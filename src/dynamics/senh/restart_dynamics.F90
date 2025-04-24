@@ -13,7 +13,7 @@ module restart_dynamics
 
 use shr_kind_mod,     only: r8 => shr_kind_r8
 use spmd_utils,       only: iam, masterproc
-use control_mod,      only: theta_hydrostatic_mode
+use control_mod_cam,  only: theta_hydrostatic_mode
 
 use constituents,     only: cnst_name, pcnst
 !jtuse dyn_grid,         only: timelevel, fvm, elem, edgebuf
@@ -43,14 +43,14 @@ use infnan,           only: isnan
 use cam_logfile,      only: iulog
 use cam_abortutils,   only: endrun
 
-use parallel_mod,     only: par
-use thread_mod,       only: horz_num_threads
-use dimensions_mod,   only: np, npsq, ne, nlev, qsize, nelemd, nc, ntrac, nlevp
-use dof_mod,          only: UniquePoints
-use element_mod,      only: element_t
-use time_mod,         only: tstep, TimeLevel_Qdp
-use edge_mod,         only : edgevpack_nlyr, edgevunpack_nlyr, edge_g
-use bndry_mod,        only: bndry_exchangeV
+use parallel_mod_cam,   only: par
+use thread_mod_cam,     only: horz_num_threads
+use dimensions_mod_cam, only: np, npsq, ne, nlev, qsize, nelemd, nc, ntrac, nlevp
+use dof_mod,            only: UniquePoints
+use element_mod_cam,    only: element_t
+use time_mod,           only: tstep, TimeLevel_Qdp
+use edge_mod,           only : edgevpack_nlyr, edgevunpack_nlyr, edge_g
+use bndry_mod,          only: bndry_exchangeV
 
 use fvm_control_volume_mod, only: fvm_struct
 
@@ -186,7 +186,7 @@ end subroutine init_restart_dynamics
 !=========================================================================================
 
 subroutine write_restart_dynamics(File, dyn_out)
-  use control_mod,      only: qsplit
+   use control_mod_cam,      only: qsplit
    type(file_desc_t), intent(inout) :: File
    type(dyn_export_t), intent(in)   :: dyn_out
 
@@ -678,7 +678,7 @@ end subroutine write_restart_dynamics
 !=========================================================================================
 
 subroutine read_restart_dynamics(File, dyn_in, dyn_out)
-  use control_mod,      only: qsplit
+   use control_mod_cam,      only: qsplit
    ! arguments
    type(File_desc_t), intent(inout) :: File
    type(dyn_import_t), intent(out)  :: dyn_in

@@ -26,8 +26,8 @@ contains
     use cam_history,            only: outfld, hist_fld_active
     use time_manager,           only: get_step_size
     use constituents,           only: tottnam,pcnst
-    use dimensions_mod,         only: nc,np,nlev,ntrac
-    use element_mod,            only: element_t
+    use dimensions_mod_cam,     only: nc,np,nlev,ntrac
+    use element_mod_cam,        only: element_t
 !jt    use fvm_control_volume_mod, only: fvm_struct
     implicit none
 
