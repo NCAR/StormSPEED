@@ -2258,12 +2258,14 @@ sub write_filepath
        print $fh "$camsrcdir/src/dynamics/se/dycore\n";
     }
     if($se_dyn_target eq 'preqx') {
+	   print $fh "$camsrcdir/src/dynamics/senh/cam_mods\n";
        print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share\n";
        print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/preqx\n";
        print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/preqx/share\n";
     }
     if($se_dyn_target eq 'theta-l') {
        print $fh "$KOKKOSROOT/include\n";
+	   print $fh "$camsrcdir/src/dynamics/senh/cam_mods\n";
        print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share\n";
        print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share/compose\n";
        print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/theta-l\n";
@@ -2271,6 +2273,7 @@ sub write_filepath
     }
     if ($se_dyn_target eq 'theta-l_kokkos') {
 	   print $fh "$KOKKOSROOT/include\n";
+	   print $fh "$camsrcdir/src/dynamics/senh/cam_mods\n";
 	   print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share\n";
        print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share/compose\n";
        print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share/cxx\n";
