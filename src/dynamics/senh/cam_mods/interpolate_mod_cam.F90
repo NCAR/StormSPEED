@@ -12,7 +12,6 @@ module interpolate_mod_cam
    use cam_abortutils,         only : endrun
 
    implicit none
-   private
    save
 
    interface interpolate_scalar
