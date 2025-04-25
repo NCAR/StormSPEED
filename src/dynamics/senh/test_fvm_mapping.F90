@@ -4,7 +4,7 @@ module test_fvm_mapping
   use cam_history,            only: outfld
   use physconst,              only: pi
   use dimensions_mod_cam,     only: np, nelemd, nlev, npsq, ntrac
-  use element_mod_cam,        only: element_t
+  use element_mod,        only: element_t
   implicit none
   private
 

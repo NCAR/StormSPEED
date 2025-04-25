@@ -46,8 +46,8 @@ use domain_mod,             only: domain1d_t
 
 use dimensions_mod_cam,     only: globaluniquecols, nelem, nelemd, nelemdmax, &
                                   ne, np, npsq, fv_nphys, nlev, ntrac
-use element_mod_cam,        only: element_t
-use hybvcoord_mod_cam,      only: hvcoord_t, set_layer_locations
+use element_mod,            only: element_t
+use hybvcoord_mod,          only: hvcoord_t, set_layer_locations
 use prim_driver_mod,        only: prim_init1
 use time_mod,               only: TimeLevel_t
 

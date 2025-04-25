@@ -13,7 +13,7 @@
 module fvm_control_volume_mod
   use shr_kind_mod,           only: r8=>shr_kind_r8
   use coordinate_systems_mod, only: spherical_polar_t
-  use element_mod_cam,        only: element_t
+  use element_mod,        only: element_t
   use dimensions_mod_cam,     only: nc, nhe, nlev, ntrac_d, qsize_d,ne, np, nhr, ns, nhc, &
                                     fv_nphys, nhe_phys, nhr_phys, ns_phys, nhc_phys, &
                                     irecons_tracer

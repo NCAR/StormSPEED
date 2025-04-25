@@ -2,7 +2,7 @@ module gravity_waves_sources
   use derivative_mod,     only : derivative_t
   use dimensions_mod_cam, only : np,nlev
   use edgetype_mod,       only : EdgeBuffer_t
-  use element_mod_cam,    only : element_t
+  use element_mod,    only : element_t
   use hybrid_mod_cam,     only : hybrid_t
   use kinds,              only : real_kind
   use shr_kind_mod,       only : r8 => shr_kind_r8
@@ -42,7 +42,7 @@ CONTAINS
     use dimensions_mod_cam, only : npsq, nelemd, fv_nphys
     use dof_mod, only            : UniquePoints
     use dyn_grid, only           : dom_mt
-    use hybrid_mod_cam, only     : hybrid_create
+    use hybrid_mod_cam, only     : hybrid_create_cam
     use parallel_mod_cam, only   : par
     use ppgrid, only             : pver
     use thread_mod_cam, only     : omp_get_thread_num
@@ -63,7 +63,7 @@ CONTAINS
     ithr=omp_get_thread_num()
     nets=dom_mt(ithr)%start
     nete=dom_mt(ithr)%end
-    hybrid = hybrid_create(par,ithr,hthreads)
+    hybrid = hybrid_create_cam(par,ithr,hthreads)
     allocate(frontgf_thr(nphys,nphys,nlev,nets:nete))
     allocate(frontga_thr(nphys,nphys,nlev,nets:nete))
     call compute_frontogenesis(frontgf_thr,frontga_thr,tl,elem,hybrid,nets,nete,nphys)

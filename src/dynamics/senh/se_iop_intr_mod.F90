@@ -12,7 +12,7 @@ module se_iop_intr_mod
 !
 !----------------------------------------------------------
 
-use element_mod_cam, only: element_t
+use element_mod, only: element_t
 !jt use iop_data_mod
 use constituents, only: cnst_get_ind, pcnst
 use dimensions_mod_cam, only: nelemd, np
@@ -238,8 +238,8 @@ subroutine apply_iop_forcing(elem,hvcoord,hybrid,tl,n,t_before_advance,nets,nete
   use kinds, only : real_kind
   use dimensions_mod_cam, only : np, np, nlev, npsq
   use control_mod_cam, only : use_cpstar, qsplit
-  use hybvcoord_mod_cam, only : hvcoord_t
-  use element_mod_cam, only : element_t
+  use hybvcoord_mod, only : hvcoord_t
+  use element_mod, only : element_t
   use physical_constants, only : Cp, Rgas, cpwater_vapor
   use time_mod
   use hybrid_mod_cam, only : hybrid_t
@@ -463,9 +463,9 @@ subroutine iop_domain_relaxation(elem,hvcoord,hybrid,t1,dp,nelemd_todo,np_todo,d
   use dimensions_mod_cam, only : np, np, nlev, npsq, nelem
   use parallel_mod_cam, only: global_shared_buf, global_shared_sum
   use global_norms_mod, only: wrap_repro_sum
-  use hybvcoord_mod_cam, only : hvcoord_t
+  use hybvcoord_mod, only : hvcoord_t
   use hybrid_mod_cam, only : hybrid_t
-  use element_mod_cam, only : element_t
+  use element_mod, only : element_t
   use time_mod
   use physical_constants, only : Cp, Rgas
 
@@ -614,9 +614,9 @@ subroutine iop_apply_coriolis(elem,t1,nelemd_todo,np_todo,dt)
   use dimensions_mod_cam, only : np, np, nlev, npsq, nelem
   use parallel_mod_cam, only: global_shared_buf, global_shared_sum
   use global_norms_mod, only: wrap_repro_sum
-  use hybvcoord_mod_cam, only : hvcoord_t
+  use hybvcoord_mod, only : hvcoord_t
   use hybrid_mod_cam, only : hybrid_t
-  use element_mod_cam, only : element_t
+  use element_mod, only : element_t
   use physical_constants, only : Cp, Rgas, DD_PI
   use shr_const_mod, only: shr_const_omega
 
@@ -662,9 +662,9 @@ subroutine crm_resolved_turb(elem,hvcoord,hybrid,t1,&
   use dimensions_mod_cam, only : np, np, nlev, nlevp, npsq, nelem
   use parallel_mod_cam, only: global_shared_buf, global_shared_sum
   use global_norms_mod, only: wrap_repro_sum
-  use hybvcoord_mod_cam, only : hvcoord_t
+  use hybvcoord_mod, only : hvcoord_t
   use hybrid_mod_cam, only : hybrid_t
-  use element_mod_cam, only : element_t
+  use element_mod, only : element_t
   use time_mod
   use physical_constants, only : Cp, Rgas
   use cam_history, only: outfld

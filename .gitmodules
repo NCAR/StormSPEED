@@ -223,5 +223,5 @@ path = src/dynamics/senh/dycore
 url = https://github.com/sjsprecious/E3SM.git
 fxrequired = AlwaysRequired
 fxsparse = ../.e3sm_sparse_checkout
-fxtag = a140c83
+fxtag = b6ba99f
 fxDONOTUSEurl = https://github.com/sjsprecious/E3SM.git

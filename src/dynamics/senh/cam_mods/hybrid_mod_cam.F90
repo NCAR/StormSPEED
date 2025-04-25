@@ -1,30 +1,18 @@
 ! Use this module rather than the dycore/components/homme/src/share/hybrid_mod.F90 module for a CAM-specific run
 !
 module hybrid_mod_cam
+  use hybrid_mod
   use parallel_mod_cam  , only : parallel_t, copy_par
   use thread_mod_cam    , only : omp_set_num_threads, omp_get_thread_num, &
                                  horz_num_threads, vert_num_threads, tracer_num_threads
   use dimensions_mod_cam, only : nlev, qsize, ntrac
 
   implicit none
-  private
 
   type, private :: hybrid_p
      integer :: ibeg, iend
      integer :: kbeg, kend
      integer :: qbeg, qend
-  end type
-
-  type, public :: hybrid_t
-     type (parallel_t) :: par
-     integer           :: ithr
-     integer           :: hthreads
-     integer           :: vthreads
-     integer           :: nthreads
-     integer           :: ibeg, iend
-     integer           :: kbeg, kend
-     integer           :: qbeg, qend
-     logical           :: masterthread
   end type
 
   integer, allocatable :: work_pool_horz(:,:)
@@ -37,7 +25,7 @@ module hybrid_mod_cam
   integer              :: region_num_threads
   character(len=64)    :: region_name
 
-  public :: hybrid_create
+  public :: hybrid_create_cam
 
   public  :: set_region_num_threads
   private :: set_loop_ranges
@@ -533,7 +521,7 @@ contains
 
   end subroutine create_work_pool
 
-  function hybrid_create(par,ithr,hthreads) result(hybrid)
+  function hybrid_create_cam(par,ithr,hthreads) result(hybrid)
   
     type (parallel_t), intent(in) :: par
     integer          , intent(in) :: ithr
@@ -545,11 +533,8 @@ contains
     else
         hybrid = config_thread_region(hybrid,'horizontal')
     end if
-    hybrid%par      = par      ! relies on parallel_mod copy constructor
-    hybrid%ithr     = ithr
-    hybrid%hthreads = hthreads
-    hybrid%masterthread = (par%masterproc .and. ithr==0)
+    hybrid = hybrid_create(par,ithr,hthreads)
 
-  end function hybrid_create 
+  end function hybrid_create_cam
 
 end module hybrid_mod_cam

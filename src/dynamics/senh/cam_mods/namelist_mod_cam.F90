@@ -6,7 +6,8 @@ module namelist_mod_cam
             multilevel,        &
             tasknum,           & ! used dg model in AIX machine
             remapfreq            ! number of steps per remapping call
-
+   use parallel_mod,    only : parallel_t, abortmp
+   use dimensions_mod,  only : set_mesh_dimensions
    public :: homme_set_defaults
    public :: homme_postprocess_namelist
 
@@ -50,10 +51,10 @@ module namelist_mod_cam
       ! Local variable
       character(len=*), parameter :: subname = 'HOMME_POSTPROCESS_NAMELIST: '
       integer                     :: ierr
-   #ifndef _USEMETIS
+#ifndef _USEMETIS
       ! override METIS options to SFCURVE
       if (partmethod>=0 .and. partmethod<=3) partmethod=SFCURVE
-   #endif
+#endif
       ! ========================
       ! if this is a restart run
       ! ========================
@@ -93,16 +94,16 @@ module namelist_mod_cam
       if (vert_remap_u_alg == -2) vert_remap_u_alg = vert_remap_q_alg
 
       ! more thread error checks:
-   #ifdef HORIZ_OPENMP
+#ifdef HORIZ_OPENMP
       if(par%masterproc) write(iulog,*)'-DHORIZ_OPENMP enabled'
-   #else
+#else
       if(par%masterproc) write(iulog,*)'-DHORIZ_OPENMP disabled'
-   #endif
-   #ifdef COLUMN_OPENMP
+#endif
+#ifdef COLUMN_OPENMP
       if(par%masterproc) write(iulog,*)'-DCOLUMN_OPENMP enabled'
-   #else
+#else
       if(par%masterproc) write(iulog,*)'-DCOLUMN_OPENMP disabled'
-   #endif
+#endif
 
       if (ne /=0 .or. ne_x /=0 .or. ne_y /=0) then
          if (mesh_file /= "none" .and. mesh_file /= "/dev/null") then
@@ -114,21 +115,21 @@ module namelist_mod_cam
       end if
       if (par%masterproc) write (iulog,*) "Mesh File:", trim(mesh_file)
       if (ne.eq.0 .and. ne_x .eq. 0 .and. ne_y .eq. 0) then
-   #ifndef HOMME_WITHOUT_PIOLIBRARY
+#ifndef HOMME_WITHOUT_PIOLIBRARY
          call set_mesh_dimensions()
          if (par%masterproc) write (iulog,*) "Opening Mesh File:", trim(mesh_file)
          call MeshOpen(mesh_file, par)
-   #else
+#else
          call abortmp("Build is without PIO library, mesh runs (ne=0) are not supported.")
-   #endif
+#endif
       end if
       ! set map
       if (cubed_sphere_map<0) then
-   #if ( defined MODEL_THETA_C || defined MODEL_THETA_L )
+#if ( defined MODEL_THETA_C || defined MODEL_THETA_L )
          cubed_sphere_map=2  ! theta model default = element local
-   #else
+#else
          cubed_sphere_map=0  ! default is equi-angle gnomonic
-   #endif
+#endif
       endif
       if (ne.eq.0 .and. ne_x .eq. 0 .and. ne_y .eq. 0) cubed_sphere_map=2  ! must use element_local for var-res grids
       if (par%masterproc) write (iulog,*) "Reference element projection: cubed_sphere_map=",cubed_sphere_map
@@ -138,7 +139,7 @@ module namelist_mod_cam
       domain_size = 4.0D0*DD_PI
       laplacian_rigid_factor = rrearth
 
-   #ifdef _PRIM
+#ifdef _PRIM
       if (limiter_option==8 .or. limiter_option==84 .or. limiter_option == 9) then
          if (hypervis_subcycle_q/=1 .and. transport_alg == 0) then
             call abortmp('limiter 8,84,9 require hypervis_subcycle_q=1')
@@ -147,7 +148,7 @@ module namelist_mod_cam
       if (transport_alg == 0 .and. dt_remap_factor > 0 .and. dt_remap_factor < dt_tracer_factor) then
          call abortmp('Only SL transport supports vertical remap time step < tracer time step.')
       end if
-   #endif
+#endif
 
       if((prescribed_wind/=0).and.(prescribed_wind/=1))then
             call abortmp('prescribed_wind should be either 0 or 1')

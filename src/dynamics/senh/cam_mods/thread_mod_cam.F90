@@ -6,17 +6,10 @@ module thread_mod_cam
   use spmd_utils,             only: masterproc
 
   implicit none
-  private
 
   integer, public,  TARGET :: max_num_threads ! maximum number of OpenMP threads
   integer, public          :: tracer_num_threads
   integer, public,  TARGET :: horz_num_threads , vert_num_threads
-
-  integer, public, pointer :: NThreads   ! total number of threads
-                                         ! standalone HOMME: from namelist
-                                         ! in CAM: set by driver
-  integer, public, pointer :: hthreads   ! computed based on nthreads, vthreads,nelemd
-  integer, public, pointer :: vthreads   ! not used unless set in namelist
 
   public :: initomp
 
@@ -46,4 +39,4 @@ contains
   end subroutine initomp
 #endif
 
-end module thread_mod
+end module thread_mod_cam

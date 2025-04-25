@@ -20,17 +20,17 @@ module stepon
    use perf_mod,       only: t_startf, t_stopf, t_barrierf
    use time_manager,   only: get_step_size, is_first_restart_step
 ! from SE
-   use derivative_mod_cam, only : derivinit, derivative_t
+   use derivative_mod,     only : derivinit, derivative_t
    use viscosity_mod,      only : compute_zeta_C0, compute_div_C0
    use quadrature_mod,     only : gauss, gausslobatto, quadrature_t
    use edge_mod,           only : edge_g, edgeVpack_nlyr, edgeVunpack_nlyr
    use parallel_mod_cam,   only : par
 !!$   use iop_data_mod,   only: use_iop, doiopupdate, single_column, dp_crm, &
 !!$                             setiopupdate, setiopupdate_init, readiopdata
-   use element_mod_cam,    only : element_t
-   use element_ops,    only: get_field, get_field_i
-   use shr_const_mod,       only: SHR_CONST_PI
-   use se_iop_intr_mod, only: iop_broadcast
+   use element_mod,        only : element_t
+   use element_ops,        only : get_field, get_field_i
+   use shr_const_mod,      only : SHR_CONST_PI
+   use se_iop_intr_mod,    only : iop_broadcast
 
    implicit none
    private

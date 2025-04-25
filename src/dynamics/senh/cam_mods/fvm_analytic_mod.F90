@@ -22,7 +22,7 @@ CONTAINS
   subroutine compute_basic_coordinate_vars(elem,&
        nc,irecons,dalpha,dbeta,vtx_cart,center_cart,area_sphere,spherecentroid)
     use coordinate_systems_mod, only : cart2spherical
-    use element_mod_cam,        only : element_t
+    use element_mod,        only : element_t
     use coordinate_systems_mod, only : spherical_polar_t
 
     type (element_t),         intent(in ) :: elem
@@ -794,7 +794,7 @@ subroutine init_flux_orient(flux_orient,ifct,nc,nhc,cubeboundary,faceno)
   subroutine create_interpolation_points(elem,&
        nc,nhc,nhr,ns,nh,cubeboundary,&
        dalpha,dbeta,ibase,halo_interp_weight)
-    use element_mod_cam           , only : element_t
+    use element_mod           , only : element_t
     use coordinate_systems_mod    , only : cartesian2D_t
     use cube_mod_cam              , only : cube_xstart, cube_xend, cube_ystart, cube_yend
 

@@ -18,10 +18,10 @@ use dyn_grid,                only: timelevel, dom_mt, hvcoord, ini_grid_hdim_nam
 use dyn_grid,                only: get_horiz_grid_dim_d, dyn_decomp, ini_grid_name
 use dyn_tests_utils,         only: vcoord=>vc_moist_pressure, vc_moist_pressure
 use edge_mod,                only: edgevpack_nlyr, edgevunpack_nlyr, edge_g
-use element_mod_cam,         only: element_t
+use element_mod,         only: element_t
 use element_state,           only: elem_state_t
 use gllfvremap_mod,          only: gfr_fv_phys_to_dyn_topo
-use hybrid_mod_cam,          only: hybrid_create, hybrid_t
+use hybrid_mod_cam,          only: hybrid_create_cam, hybrid_t
 use inic_analytic,           only: analytic_ic_active, analytic_ic_set_ic
 use ncdio_atm,               only: infld
 use parallel_mod_cam,        only: par, initmp
@@ -806,7 +806,7 @@ subroutine dyn_init(dyn_in, dyn_out)
        ithr=omp_get_thread_num()
        nets=dom_mt(ithr)%start
        nete=dom_mt(ithr)%end
-       hybrid = hybrid_create(par,ithr,hthreads)
+       hybrid = hybrid_create_cam(par,ithr,hthreads)
 
 
 !!$       ! scale PS to achieve prescribed dry mass
@@ -848,7 +848,7 @@ end subroutine dyn_init
     use prim_driver_mod,    only: prim_run_subcycle
     use dimensions_mod_cam, only : nlev
     use time_mod,           only: tstep
-    use hybrid_mod_cam,     only: hybrid_create
+    use hybrid_mod_cam,     only: hybrid_create_cam
     implicit none
 
 
@@ -875,7 +875,7 @@ end subroutine dyn_init
        ithr=omp_get_thread_num()
        nets=dom_mt(ithr)%start
        nete=dom_mt(ithr)%end
-       hybrid = hybrid_create(par,ithr,hthreads)
+       hybrid = hybrid_create_cam(par,ithr,hthreads)
 
        do_prim_run = .true. ! Always do prim_run_subcycle
                             ! Unless turned off by SCM for specific cases
@@ -1466,7 +1466,7 @@ subroutine read_inidat(dyn_in)
    ithr=omp_get_thread_num()
    nets=dom_mt(ithr)%start
    nete=dom_mt(ithr)%end
-   hybrid = hybrid_create(par,ithr,hthreads)
+   hybrid = hybrid_create_cam(par,ithr,hthreads)
 
    ! If scale_dry_air_mass > 0.0 then scale dry air mass to scale_dry_air_mass global average dry pressure
    ! scale PS to achieve prescribed dry mass
