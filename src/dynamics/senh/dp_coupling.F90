@@ -14,7 +14,7 @@ module dp_coupling
   use dyn_comp,           only: dyn_export_t, dyn_import_t
   use dyn_grid,           only: TimeLevel, hvcoord, dom_mt
   use element_ops,        only: get_temperature
-  use element_mod,    only: element_t
+  use element_mod,        only: element_t
   use kinds,              only: real_kind, int_kind
   use physics_types,      only: physics_state, physics_tend
   use phys_grid,          only: get_ncols_p, get_gcol_all_p

@@ -4,14 +4,15 @@ module interpolate_mod_cam
    use interpolate_mod
    use element_mod,            only : element_t
    use kinds,                  only : real_kind
-   use dimensions_mod,         only : np
-   use control_mod,            only : cubed_sphere_map
+   use dimensions_mod_cam,     only : np
+   use control_mod_cam,        only : cubed_sphere_map
    use coordinate_systems_mod, only : cartesian2d_t
    use cube_mod_cam,           only : dmap_cam 
    use string_utils,           only : int2str
    use cam_abortutils,         only : endrun
 
    implicit none
+   private
    save
 
    interface interpolate_scalar

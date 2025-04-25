@@ -5,7 +5,7 @@ module cube_mod_cam
    use cube_mod
    use kinds,                  only : real_kind
    use coordinate_systems_mod, only : cartesian3D_t, cartesian2d_t
-   use parallel_mod,           only : abortmp
+   use parallel_mod_cam,       only : abortmp
 
    public :: Dmap_cam
 

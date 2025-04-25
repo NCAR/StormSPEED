@@ -79,7 +79,7 @@ CONTAINS
 ! !INTERFACE:
 subroutine stepon_init(dyn_in, dyn_out )
 ! !USES:
-  use control_mod,            only: smooth_phis_numcycle
+  use control_mod_cam,        only: smooth_phis_numcycle
   use dimensions_mod_cam,     only: nlev, nelemd, npsq
   use cam_history,            only: addfld, add_default, horiz_only
   use cam_history,            only: register_vector_field

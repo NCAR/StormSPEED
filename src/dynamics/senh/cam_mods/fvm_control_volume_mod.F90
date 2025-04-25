@@ -13,7 +13,7 @@
 module fvm_control_volume_mod
   use shr_kind_mod,           only: r8=>shr_kind_r8
   use coordinate_systems_mod, only: spherical_polar_t
-  use element_mod,        only: element_t
+  use element_mod,            only: element_t
   use dimensions_mod_cam,     only: nc, nhe, nlev, ntrac_d, qsize_d,ne, np, nhr, ns, nhc, &
                                     fv_nphys, nhe_phys, nhr_phys, ns_phys, nhc_phys, &
                                     irecons_tracer
@@ -230,6 +230,12 @@ contains
         fvm%norm_elem_coord(2,i,j) = elem%corners(1)%y+(j-0.5_r8)*fvm%dalpha
       end do
     end do
+
+    !
+    ! overwrite areas for consistency with SE areas (that are O(10E-5) incorrect)
+    !
+!    tmp = 1.0_r8
+!    call subcell_integration(tmp, np, nc, elem%metdet,fvm%area_sphere)
     !
     ! do the same for physics grid
     !

@@ -206,7 +206,7 @@ CONTAINS
     use parallel_mod_cam,    only: par
     use thread_mod_cam,      only: horz_num_threads
     use cam_grid_support, only: cam_grid_id
-    use hybrid_mod_cam,       only: hybrid_t, config_thread_region, get_loop_ranges
+    use hybrid_mod_cam,      only: hybrid_t, config_thread_region, get_loop_ranges
 
     type(file_desc_t), intent(inout) :: File
     type(var_desc_t) , intent(inout) :: varid

@@ -6,8 +6,8 @@ module namelist_mod_cam
             multilevel,        &
             tasknum,           & ! used dg model in AIX machine
             remapfreq            ! number of steps per remapping call
-   use parallel_mod,    only : parallel_t, abortmp
-   use dimensions_mod,  only : set_mesh_dimensions
+   use parallel_mod_cam,    only : parallel_t, abortmp
+   use dimensions_mod_cam,  only : set_mesh_dimensions
    public :: homme_set_defaults
    public :: homme_postprocess_namelist
 

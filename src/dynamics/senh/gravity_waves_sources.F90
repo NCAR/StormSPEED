@@ -2,7 +2,7 @@ module gravity_waves_sources
   use derivative_mod,     only : derivative_t
   use dimensions_mod_cam, only : np,nlev
   use edgetype_mod,       only : EdgeBuffer_t
-  use element_mod,    only : element_t
+  use element_mod,        only : element_t
   use hybrid_mod_cam,     only : hybrid_t
   use kinds,              only : real_kind
   use shr_kind_mod,       only : r8 => shr_kind_r8
