@@ -1950,7 +1950,7 @@
   </test>
 
   <!--  Test of the E3SM CAM-SE NonHydrostatic dycore with kokkos semilagrange tracer advection -->
-  <test compset="FKESSLER" grid="ne16_g17" name="ERS_Ln27_Vmct" testmods="cam/outfrq9s_thetal" supported="false">
+  <test compset="FKESSLER" grid="ne16_g17" name="ERS_Ln27" testmods="cam/outfrq9s_thetal" supported="false">
     <machines>
       <machine name="izumi" compiler="gnu" category="aux_cam"/>
       <machine name="izumi" compiler="intel" category="aux_cam"/>
@@ -1961,8 +1961,11 @@
       <machine name="izumi" compiler="nag" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
     </machines>
+    <options>
+      <option name="wallclock">00:59:00</option>
+    </options>
   </test>
-  <test compset="FKESSLER" grid="ne16_g17" name="ERS_Ln27_Vmct" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
+  <test compset="FKESSLER" grid="ne16_g17" name="ERS_Ln27" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
     <machines>
       <machine name="izumi" compiler="gnu" category="aux_cam"/>
       <machine name="izumi" compiler="intel" category="aux_cam"/>
@@ -1973,8 +1976,11 @@
       <machine name="izumi" compiler="nag" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
     </machines>
+    <options>
+      <option name="wallclock">00:59:00</option>
+    </options>
   </test>
-  <test compset="FKESSLER" grid="ne16_g17" name="ERP_Ln27_Vmct" testmods="cam/outfrq9s_thetal" supported="false">
+  <test compset="FKESSLER" grid="ne16_g17" name="ERP_Ln27" testmods="cam/outfrq9s_thetal" supported="false">
     <machines>
       <machine name="izumi" compiler="gnu" category="aux_cam"/>
       <machine name="izumi" compiler="intel" category="aux_cam"/>
@@ -1985,8 +1991,11 @@
       <machine name="izumi" compiler="nag" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
     </machines>
+    <options>
+      <option name="wallclock">00:59:00</option>
+    </options>
   </test>
-  <test compset="FKESSLER" grid="ne16_g17" name="ERP_Ln27_Vmct" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
+  <test compset="FKESSLER" grid="ne16_g17" name="ERP_Ln27" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
     <machines>
       <machine name="izumi" compiler="gnu" category="aux_cam"/>
       <machine name="izumi" compiler="intel" category="aux_cam"/>
@@ -1997,6 +2006,9 @@
       <machine name="izumi" compiler="nag" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
     </machines>
+    <options>
+      <option name="wallclock">00:59:00</option>
+    </options>
   </test>
   <!--  Test of CAM-chem component sets with Harmonized Emissions Component (HEMCO) -->
   <test compset="FCSD_HCO" grid="f09_f09_mg17" name="SMS_Lh12" testmods="cam/outfrq3h" supported="false">

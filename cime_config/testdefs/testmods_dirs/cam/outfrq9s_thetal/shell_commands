@@ -1,4 +1,5 @@
 ./xmlchange ROF_NCPL=\$ATM_NCPL
 ./xmlchange GLC_NCPL=\$ATM_NCPL
 ./xmlchange CAM_TARGET=theta-l
-./xmlchange PROJECT=none
+./xmlchange DOUT_S='FALSE'
+./xmlchange RESUBMIT=0
