@@ -2258,29 +2258,31 @@ sub write_filepath
        print $fh "$camsrcdir/src/dynamics/se/dycore\n";
     }
     if($se_dyn_target eq 'preqx') {
-       print $fh "$camsrcdir/src/dynamics/senh/share\n";
-       print $fh "$camsrcdir/src/dynamics/senh/preqx\n";
-       print $fh "$camsrcdir/src/dynamics/senh/preqx/share\n";
+	   print $fh "$camsrcdir/src/dynamics/senh/cam_mods\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/preqx\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/preqx/share\n";
     }
     if($se_dyn_target eq 'theta-l') {
        print $fh "$KOKKOSROOT/include\n";
-       print $fh "$camsrcdir/src/dynamics/senh/share\n";
-       print $fh "$camsrcdir/src/dynamics/senh/share/compose\n";
-       print $fh "$camsrcdir/src/dynamics/senh/theta-l\n";
-       print $fh "$camsrcdir/src/dynamics/senh/theta-l/share\n";
+	   print $fh "$camsrcdir/src/dynamics/senh/cam_mods\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share/compose\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/theta-l\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/theta-l/share\n";
     }
     if ($se_dyn_target eq 'theta-l_kokkos') {
 	   print $fh "$KOKKOSROOT/include\n";
-	   print $fh "$camsrcdir/src/dynamics/senh/share\n";
-       print $fh "$camsrcdir/src/dynamics/senh/share/compose\n";
-       print $fh "$camsrcdir/src/dynamics/senh/share/cxx\n";
-       print $fh "$camsrcdir/src/dynamics/senh/share/cxx/mpi\n";
-       print $fh "$camsrcdir/src/dynamics/senh/share/cxx/utilities\n";
-       print $fh "$camsrcdir/src/dynamics/senh/share/cxx/vector\n";
-       print $fh "$camsrcdir/src/dynamics/senh/theta-l_kokkos\n";
-       print $fh "$camsrcdir/src/dynamics/senh/theta-l_kokkos/cxx\n";
-       print $fh "$camsrcdir/src/dynamics/senh/theta-l\n";   # we need the dycore.F90 file for compilation
-       print $fh "$camsrcdir/src/dynamics/senh/theta-l/share\n";
+	   print $fh "$camsrcdir/src/dynamics/senh/cam_mods\n";
+	   print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share/compose\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share/cxx\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share/cxx/mpi\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share/cxx/utilities\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share/cxx/vector\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/theta-l_kokkos\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/theta-l_kokkos/cxx\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/theta-l_kokkos/share\n";
     }
     print $fh "$camsrcdir/src/dynamics/tests\n";
     if($inic_val) {

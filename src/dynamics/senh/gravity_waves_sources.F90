@@ -1,12 +1,12 @@
 module gravity_waves_sources
-  use derivative_mod, only : derivative_t
-  use dimensions_mod, only : np,nlev
-  use edgetype_mod, only       : EdgeBuffer_t
-  use element_mod, only    : element_t
-  use hybrid_mod, only     : hybrid_t
-  use kinds, only          : real_kind
-  use shr_kind_mod, only   : r8 => shr_kind_r8
-  use thread_mod, only   : hthreads
+  use derivative_mod,     only : derivative_t
+  use dimensions_mod_cam, only : np,nlev
+  use edgetype_mod,       only : EdgeBuffer_t
+  use element_mod,        only : element_t
+  use hybrid_mod_cam,     only : hybrid_t
+  use kinds,              only : real_kind
+  use shr_kind_mod,       only : r8 => shr_kind_r8
+  use thread_mod_cam,     only : hthreads
 
   implicit none
   private
@@ -26,9 +26,9 @@ module gravity_waves_sources
 CONTAINS
   !-------------------------------------------------------------------------------------------------
   subroutine gws_init(elem)
-    use hycoef, only         : hypi
-    use pmgrid, only         : plev
-    use parallel_mod, only    : par
+    use hycoef, only           : hypi
+    use pmgrid, only           : plev
+    use parallel_mod_cam, only : par
     implicit none
     type (element_t), intent(inout), dimension(:) :: elem
     !---------------------------------------------------------------------------
@@ -39,13 +39,13 @@ CONTAINS
   end subroutine gws_init
   !-------------------------------------------------------------------------------------------------
   subroutine gws_src_fnct(elem, tl, nphys, frontgf, frontga)
-    use dimensions_mod, only  : npsq, nelemd, fv_nphys
-    use dof_mod, only         : UniquePoints
-    use dyn_grid, only        : dom_mt
-    use hybrid_mod, only      : hybrid_create
-    use parallel_mod, only    : par
-    use ppgrid, only          : pver
-    use thread_mod, only      : omp_get_thread_num
+    use dimensions_mod_cam, only : npsq, nelemd, fv_nphys
+    use dof_mod, only            : UniquePoints
+    use dyn_grid, only           : dom_mt
+    use hybrid_mod_cam, only     : hybrid_create_cam
+    use parallel_mod_cam, only   : par
+    use ppgrid, only             : pver
+    use thread_mod_cam, only     : omp_get_thread_num
     implicit none
     type (element_t), intent(inout), dimension(:) :: elem
     integer, intent(in)          :: tl
@@ -63,7 +63,7 @@ CONTAINS
     ithr=omp_get_thread_num()
     nets=dom_mt(ithr)%start
     nete=dom_mt(ithr)%end
-    hybrid = hybrid_create(par,ithr,hthreads)
+    hybrid = hybrid_create_cam(par,ithr,hthreads)
     allocate(frontgf_thr(nphys,nphys,nlev,nets:nete))
     allocate(frontga_thr(nphys,nphys,nlev,nets:nete))
     call compute_frontogenesis(frontgf_thr,frontga_thr,tl,elem,hybrid,nets,nete,nphys)
@@ -111,9 +111,9 @@ CONTAINS
     use bndry_mod, only : bndry_exchangev
     use dyn_grid,           only: hvcoord
     use spmd_utils,         only: iam
-    use parallel_mod,       only: par
+    use parallel_mod_cam,   only: par
     use element_ops,        only: get_temperature
-    use dimensions_mod,     only: fv_nphys
+    use dimensions_mod_cam, only: fv_nphys
     use prim_driver_mod,    only: deriv1
     use element_ops,        only: get_temperature
     use gllfvremap_mod,     only: gfr_g2f_scalar, gfr_g2f_vector
