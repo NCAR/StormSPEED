@@ -2,12 +2,18 @@
 !
 module namelist_mod_cam
    use namelist_mod
+   use kinds,           only : iulog
    use control_mod_cam, only : &
             multilevel,        &
+            nu_top,            &
             tasknum,           & ! used dg model in AIX machine
+            runtype,           &
+            numnodes,          &
+            statefreq,         &
+            cubed_sphere_map,  &
             remapfreq            ! number of steps per remapping call
    use parallel_mod_cam,    only : parallel_t, abortmp
-   use dimensions_mod_cam,  only : set_mesh_dimensions
+   use dimensions_mod_cam,  only : set_mesh_dimensions, npart, ne
    public :: homme_set_defaults
    public :: homme_postprocess_namelist
 
@@ -29,7 +35,7 @@ module namelist_mod_cam
       tasknum             =-1
       nu_top              = 0
       ne                  = 0
-      
+
    end subroutine homme_set_defaults
 
    subroutine homme_postprocess_namelist(mesh_file, par)
@@ -40,7 +46,7 @@ module namelist_mod_cam
                                      vert_remap_q_alg, vert_remap_u_alg, &
                                      dt_remap_factor, dt_tracer_factor, tstep_type, rsplit, qsplit, &
                                      integration, restartfile,timestep_make_subcycle_parameters_consistent, &
-                                     hypervis_subcycle_q, transport_alg, limiter_option, prescribed_wind
+                                     hypervis_subcycle_q, transport_alg, limiter_option, prescribed_wind, partmethod
       use physical_constants, only : scale_factor, scale_factor_inv, domain_size, laplacian_rigid_factor, &
                                      dd_pi, rrearth, rearth
 

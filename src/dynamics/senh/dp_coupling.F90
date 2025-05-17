@@ -8,7 +8,6 @@ module dp_coupling
   use cam_abortutils,     only: endrun
   use cam_logfile,        only: iulog
   use constituents,       only: pcnst, cnst_name
-  use cam_history,        only: outfld, write_inithist, hist_fld_active
   use dimensions_mod_cam, only: np, npsq, nelemd, nlev, fv_nphys
   use dof_mod,            only: UniquePoints, PutUniquePoints
   use dyn_comp,           only: dyn_export_t, dyn_import_t
@@ -217,37 +216,6 @@ CONTAINS
       end do ! ilyr
     end do ! lchnk
 #endif
-
-   if (write_inithist() ) then
-      if (fv_nphys > 0) then
-
-        ncol_d = np*np
-        do ie = 1,nelemd
-          ncols = elem(ie)%idxP%NumUniquePts
-          call outfld('PS&IC',elem(ie)%state%ps_v(:,:,tl_f),  ncol_d,ie)
-          call outfld('U&IC', elem(ie)%state%V(:,:,1,:,tl_f), ncol_d,ie)
-          call outfld('V&IC', elem(ie)%state%V(:,:,2,:,tl_f), ncol_d,ie)
-          call get_temperature(elem(ie),temperature,hvcoord,tl_f)
-          call outfld('T&IC',temperature,ncol_d,ie)
-          do m = 1,pcnst
-            call outfld(trim(cnst_name(m))//'&IC',elem(ie)%state%Q(:,:,:,m), ncol_d,ie)
-          end do ! m
-        end do ! ie
-
-      else
-
-         do lchnk=begchunk,endchunk
-            call outfld('T&IC',phys_state(lchnk)%t,pcols,lchnk)
-            call outfld('U&IC',phys_state(lchnk)%u,pcols,lchnk)
-            call outfld('V&IC',phys_state(lchnk)%v,pcols,lchnk)
-            call outfld('PS&IC',phys_state(lchnk)%ps,pcols,lchnk)
-            do m=1,pcnst
-               call outfld(trim(cnst_name(m))//'&IC',phys_state(lchnk)%q(1,1,m), pcols,lchnk)
-            end do ! m
-         end do ! lchnk
-
-      end if ! fv_nphys > 0
-    end if ! write_inithist
 
   end subroutine d_p_coupling
   !=================================================================================================

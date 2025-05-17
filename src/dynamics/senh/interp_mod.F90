@@ -389,7 +389,8 @@ CONTAINS
     use cam_grid_support,    only: cam_grid_id
     use hybrid_mod_cam,      only: hybrid_t,config_thread_region, get_loop_ranges
     use control_mod_cam,     only: cubed_sphere_map
-    use cube_mod_cam,        only: dmap_cam
+!jt    use cube_mod_cam,        only: dmap_cam
+    use cube_mod,           only: dmap
 
     type(file_desc_t), intent(inout) :: File
     type(var_desc_t),  intent(inout) :: varidu, varidv
@@ -546,8 +547,10 @@ CONTAINS
       !
       do i=1,cam_interpolate(ie)%n_interp
         ! convert fld from contra->latlon
-        call dmap_cam(D,cam_interpolate(ie)%interp_xy(i)%x,cam_interpolate(ie)%interp_xy(i)%y,&
-             elem(ie)%corners3D,cubed_sphere_map,elem(ie)%corners,elem(ie)%u2qmap,elem(ie)%facenum)
+!jt        call dmap_cam(D,cam_interpolate(ie)%interp_xy(i)%x,cam_interpolate(ie)%interp_xy(i)%y,&
+!jt             elem(ie)%corners3D,cubed_sphere_map,elem(ie)%corners,elem(ie)%u2qmap,elem(ie)%facenum)
+        call dmap(D,cam_interpolate(ie)%interp_xy(i)%x,cam_interpolate(ie)%interp_xy(i)%y,&
+             elem(ie)%corners3D,cubed_sphere_map,elem(ie)%cartp,elem(ie)%facenum)
         ! convert fld from contra->latlon
         do k=1,numlev
           v1 = fldout(st+i-1,k,1)
