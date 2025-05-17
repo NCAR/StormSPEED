@@ -1808,9 +1808,6 @@ if ($dyn_pkg eq 'se') {
 
 	# Check to see if physics grid is being used
 	my $npg = $cfg_ref->get('npg');
-	if ($npg > 0) {
-	    $cfg_cppdefs .= " -DFVM_TRACERS";
-	}
 
 	if ($smp eq 'ON') {
 	    $cfg_cppdefs .= " -D_OPENMP";
@@ -1828,9 +1825,6 @@ if ($dyn_pkg eq 'se') {
 
 	# Check to see if physics grid is being used
 	my $npg = $cfg_ref->get('npg');
-	if ($npg > 0) {
-	    $cfg_cppdefs .= " -DFVM_TRACERS";
-	}
 
 	if ($smp eq 'ON') {
 	    $cfg_cppdefs .= " -D_OPENMP -DHORIZ_OPENMP";

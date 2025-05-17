@@ -755,7 +755,8 @@ subroutine dyn_init(dyn_in, dyn_out)
     use cam_instance,     only: inst_index
 !jt    use native_mapping,   only: create_native_mapping_files
     use cam_pio_utils,    only: clean_iodesc_list
-
+    use constituents,     only: pcnst
+    use dimensions_mod_cam,only: cnst_longname_gll, cnst_name_gll
     use prim_driver_mod,  only: prim_init2
     use parallel_mod_cam, only: par
     use control_mod_cam,  only: runtype
@@ -785,6 +786,10 @@ subroutine dyn_init(dyn_in, dyn_out)
 !jt   ! Create mapping files using SE basis functions if requested
 !jt   call create_native_mapping_files(par, elem, 'native')
 !jt   call create_native_mapping_files(par, elem, 'bilin')
+
+   ! allocate and set condenstate vars
+   allocate(cnst_name_gll(pcnst))     ! constituent names for gll tracers
+   allocate(cnst_longname_gll(pcnst)) ! long name of constituents for gll tracers
 
    call set_phis(dyn_in)
 
@@ -934,6 +939,11 @@ end subroutine dyn_final
 
 subroutine read_inidat(dyn_in)
 
+  use air_composition,    only: thermodynamic_active_species_num, thermodynamic_active_species_idx
+  use air_composition,    only: thermodynamic_active_species_idx_dycore
+  use air_composition,    only: thermodynamic_active_species_liq_idx,thermodynamic_active_species_ice_idx
+  use air_composition,    only: thermodynamic_active_species_liq_idx_dycore,thermodynamic_active_species_ice_idx_dycore
+  use air_composition,    only: thermodynamic_active_species_liq_num, thermodynamic_active_species_ice_num
   use aoa_tracers,             only: aoa_tracers_implements_cnst, aoa_tracers_init_cnst
   use constituents,            only: cnst_name, cnst_read_iv, qmin,cnst_is_a_water_species
   use cam_control_mod,         only: ideal_phys, aqua_planet
@@ -946,6 +956,8 @@ subroutine read_inidat(dyn_in)
   use clubb_intr,              only: clubb_implements_cnst, clubb_init_cnst
   use co2_cycle,               only: co2_implements_cnst, co2_init_cnst
   use const_init,              only: cnst_init_default
+  use constituents,            only: cnst_name, cnst_longname
+  use dimensions_mod_cam,      only: cnst_name_gll, cnst_longname_gll
   use dof_mod,                 only: putUniquePoints
   use edge_mod,                only : edgevpack_nlyr, edgevunpack_nlyr, edge_g
   use element_ops,             only: set_thermostate
@@ -1020,7 +1032,7 @@ subroutine read_inidat(dyn_in)
     integer,  allocatable            :: glob_ind(:)
     integer,  allocatable            :: m_ind(:)
     real(r8), allocatable            :: dbuf4(:,:,:,:)
-    integer :: ithr, nets, nete
+    integer :: ithr, nets, nete, m
 
     tl = 1
 
@@ -1040,16 +1052,32 @@ subroutine read_inidat(dyn_in)
     tmp = 0.0_r8
     qtmp = 0.0_r8
 
-!!$    if (fv_nphys>0) then
-!!$      nphys_sq = fv_nphys*fv_nphys
-!!$      allocate(phis_tmp(nphys_sq,nelemd))
-!!$    end if
+    do m=1,pcnst
+       if (m.le.thermodynamic_active_species_num) then
+          thermodynamic_active_species_idx_dycore(m) = thermodynamic_active_species_idx(m)
+       end if
+       cnst_name_gll    (m)                = cnst_name    (m)
+       cnst_longname_gll(m)                = cnst_longname(m)
+    end do
+
+    do m=1,thermodynamic_active_species_liq_num
+       thermodynamic_active_species_liq_idx_dycore(m) = thermodynamic_active_species_liq_idx(m)
+       if (masterproc) then
+          write(iulog,*) subname//": m,thermodynamic_active_species_idx_liq_dycore: ",m,thermodynamic_active_species_liq_idx_dycore(m)
+       end if
+    end do
+    do m=1,thermodynamic_active_species_ice_num
+       thermodynamic_active_species_ice_idx_dycore(m) = thermodynamic_active_species_ice_idx(m)
+       if (masterproc) then
+          write(iulog,*) subname//": m,thermodynamic_active_species_idx_ice_dycore: ",m,thermodynamic_active_species_ice_idx_dycore(m)
+       end if
+    end do
 
     if (par%dynproc) then
-      if(elem(1)%idxP%NumUniquePts <=0 .or. elem(1)%idxP%NumUniquePts > np*np) then
-         write(iulog,*)  elem(1)%idxP%NumUniquePts
-         call endrun(trim(subname)//': invalid idxP%NumUniquePts')
-      end if
+       if(elem(1)%idxP%NumUniquePts <=0 .or. elem(1)%idxP%NumUniquePts > np*np) then
+          write(iulog,*)  elem(1)%idxP%NumUniquePts
+          call endrun(trim(subname)//': invalid idxP%NumUniquePts')
+       end if
     end if
 
     ! Set mask to indicate which columns are active
