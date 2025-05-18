@@ -274,7 +274,8 @@ subroutine dyn_grid_init()
 
    ! Initialize FV physics grid variables
    if (fv_nphys > 0) then
-      call fv_physgrid_init()
+!jt      call fv_physgrid_init(check=2)
+      call fv_physgrid_init(check=2)
    end if
 
 #ifdef HAVE_MOAB
@@ -984,11 +985,11 @@ subroutine get_horiz_grid_d(nxy,clat_d_out,clon_d_out,area_d_out, &
 
   !===========================================================================
 
-  subroutine fv_physgrid_init()
+  subroutine fv_physgrid_init(check)
     use gllfvremap_mod,         only: gfr_init
     use parallel_mod,           only: par
-
-    call gfr_init(par, elem, fv_nphys)
+    integer, intent(in), optional :: check
+    call gfr_init(par, elem, fv_nphys, check=check)
   end subroutine fv_physgrid_init
   !
   !=================================================================================================

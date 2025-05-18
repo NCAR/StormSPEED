@@ -323,6 +323,7 @@ CONTAINS
    ! so do a simple sum (boundary exchange with no weights).
    ! For physics grid, we interpolated into all points, so do weighted average.
 
+   if(.not.par%dynproc) return
    call t_startf('p_d_coupling:bndry_exchange')
 
    nlev_tot=(3+pcnst)*nlev
@@ -369,18 +370,18 @@ CONTAINS
       kptr = 0
       ! fmtmp can be removed if theta and preqx model had the same size FM array
       fmtmp=dyn_in%elem(ie)%derived%FM(:,:,1,:)
-      call edgeVpack_nlyr(edge_g,dyn_in%elem(ie)%desc,fmtmp,nlev,kptr,nlev_tot)
+      call edgeVunpack_nlyr(edge_g,dyn_in%elem(ie)%desc,fmtmp,nlev,kptr,nlev_tot)
       kptr=kptr+nlev
 
       fmtmp=dyn_in%elem(ie)%derived%FM(:,:,2,:)
-      call edgeVpack_nlyr(edge_g,dyn_in%elem(ie)%desc,fmtmp,nlev,kptr,nlev_tot)
+      call edgeVunpack_nlyr(edge_g,dyn_in%elem(ie)%desc,fmtmp,nlev,kptr,nlev_tot)
       kptr=kptr+nlev
 
 
-      call edgeVpack_nlyr(edge_g,dyn_in%elem(ie)%desc,dyn_in%elem(ie)%derived%FT(:,:,:),nlev,kptr,nlev_tot)
+      call edgeVunpack_nlyr(edge_g,dyn_in%elem(ie)%desc,dyn_in%elem(ie)%derived%FT(:,:,:),nlev,kptr,nlev_tot)
       kptr=kptr+nlev
-!jt      call edgeVpack_nlyr(edge_g,dyn_in%elem(ie)%desc,dyn_in%elem(ie)%derived%FQ(:,:,:,:),nlev*qsize,kptr,nlev_tot)
-      call edgeVpack_nlyr(edge_g,dyn_in%elem(ie)%desc,dyn_in%elem(ie)%derived%FQ(:,:,:,:),nlev*pcnst,kptr,nlev_tot)
+!jt      call edgeVunpack_nlyr(edge_g,dyn_in%elem(ie)%desc,dyn_in%elem(ie)%derived%FQ(:,:,:,:),nlev*qsize,kptr,nlev_tot)
+      call edgeVunpack_nlyr(edge_g,dyn_in%elem(ie)%desc,dyn_in%elem(ie)%derived%FQ(:,:,:,:),nlev*pcnst,kptr,nlev_tot)
       if (fv_nphys > 0) then
          do k = 1, nlev
             dyn_in%elem(ie)%derived%FM(:,:,1,k) =                             &
