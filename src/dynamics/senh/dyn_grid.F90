@@ -275,7 +275,7 @@ subroutine dyn_grid_init()
    ! Initialize FV physics grid variables
    if (fv_nphys > 0) then
 !jt      call fv_physgrid_init(check=2)
-      call fv_physgrid_init(check=2)
+      call fv_physgrid_init()
    end if
 
 #ifdef HAVE_MOAB
