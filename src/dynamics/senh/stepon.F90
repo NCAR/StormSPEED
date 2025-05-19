@@ -273,7 +273,6 @@ subroutine stepon_run1( dtime_out, phys_state, phys_tend,               &
 end subroutine stepon_run1
 
 subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
-   use bndry_mod,          only: bndry_exchangeV
    use dimensions_mod_cam, only: nlev, nlevp, nelemd, np, npsq, fv_nphys
    use dyn_grid,           only: TimeLevel, hvcoord, dom_mt
    use dp_coupling,        only: p_d_coupling
@@ -371,10 +370,6 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
    if (ftype==1) then
       call applyCAMforcing_dynamics(dyn_in%elem,hvcoord,tl_f,dtime,1,nelemd)
       endif
-
-   call t_stopf('stepon_bndry_exch')
-
-
 
    ! Most output is done by physics.  We pass to the physics state variables
    ! at timelevel "tl_f".
