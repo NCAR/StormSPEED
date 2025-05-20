@@ -3172,6 +3172,8 @@
 
 <se_ftype> 2 </se_ftype>
 
+<se_hypervis_order                                    > 2 </se_hypervis_order>
+
 <se_large_Courant_incr        > .true.  </se_large_Courant_incr>
 
 <se_hypervis_scaling se_refined_mesh="1" hypervis_type="tensor" >3.22D0 </se_hypervis_scaling>
@@ -3205,6 +3207,7 @@
 <se_hypervis_subcycle_q se_dyn_target="cam" hgrid="ne16np4"                 >2 </se_hypervis_subcycle_q>
 <se_hypervis_subcycle_q se_dyn_target="preqx" hgrid="ne30np4"               >6 </se_hypervis_subcycle_q>
 <se_hypervis_subcycle_q se_dyn_target="theta-l"                             >6 </se_hypervis_subcycle_q>
+<se_hypervis_subcycle_q se_dyn_target="theta-l"  hgrid="ne16np4"      > 3 </se_hypervis_subcycle_q>
 
 <se_hypervis_subcycle_tom  se_dyn_target="theta-l"                > 1 </se_hypervis_subcycle_tom>
 <se_hypervis_subcycle_tom  se_dyn_target="preqx"                  > 0 </se_hypervis_subcycle_tom>
@@ -3251,7 +3254,9 @@
 <se_nu_top se_dyn_target="cam" waccm_phys="1"         > 1.0e6 </se_nu_top>
 <se_nu_top se_dyn_target="theta-l"                    > 2.5e5 </se_nu_top>
 <se_nu_top se_dyn_target="theta-l" hgrid="ne120np4"   > 1.e5 </se_nu_top>
-<se_nu_top se_dyn_target="preqx"                      > 2.5e5 </se_nu_top>
+<se_nu_top se_dyn_target="theta-l" hgrid="ne256np4"   > 4e4 </se_nu_top>
+<se_nu_top se_dyn_target="theta-l" hgrid="ne512np4"   > 2e4 </se_nu_top>
+<se_nu_top se_dyn_target="theta-l" hgrid="ne1024np4"  > 1e4 </se_nu_top>
 
 <se_molecular_diff               >  0.0 </se_molecular_diff>
 <se_molecular_diff waccmx="1"    >  1.0 </se_molecular_diff>
@@ -3306,6 +3311,11 @@
 <se_rsplit se_dyn_target="preqx" hgrid="ne0np4CONUS.ne30x8" waccm_phys="1"> 3 </se_rsplit>
 <se_rsplit se_dyn_target="theta-l"                                        > -1 </se_rsplit>
 
+<se_semi_lagrange_cdr_alg se_dyn_target="theta-l"               >  3 </se_semi_lagrange_cdr_alg>
+<se_semi_lagrange_cdr_check se_dyn_target="theta-l"             > .false. </se_semi_lagrange_cdr_check>
+<se_semi_lagrange_hv_q  se_dyn_target="theta-l"                 > 1 </se_semi_lagrange_hv_q>
+<se_semi_lagrange_nearest_point_lev se_dyn_target="theta-l"     > 256 </se_semi_lagrange_nearest_point_lev>
+
 <se_fvm_supercycling>-1</se_fvm_supercycling>
 <se_fvm_supercycling_jet>-1</se_fvm_supercycling_jet>
 <se_kmin_jet>-1</se_kmin_jet>
@@ -3313,15 +3323,20 @@
 
 <se_statediag_numtrac>3</se_statediag_numtrac>
 
-<se_statefreq> 1 </se_statefreq>
+<se_statefreq                                         > 0 </se_statefreq>
+<se_statefreq  se_dyn_target="theta-l"                > 1 </se_statefreq>
 
 <se_tstep_type se_dyn_target="cam"                    > 4 </se_tstep_type>
 <se_tstep_type se_dyn_target="theta-l"                > 9 </se_tstep_type>
 <se_tstep_type se_dyn_target="preqx"                  > 5 </se_tstep_type>
 
 <se_vert_remap_T        > thermal_energy_over_P </se_vert_remap_T>
-<se_vert_remap_uvTq_alg  > FV3_CS                </se_vert_remap_uvTq_alg>
+
 <se_vert_remap_tracer_alg> PPM_bc_linear_extrapolation </se_vert_remap_tracer_alg>
+
+<se_vert_remap_uvTq_alg  > FV3_CS                </se_vert_remap_uvTq_alg>
+
+<se_vthreads se_dyn_target="theta-l"                  > 1 </se_vthreads>
 
 <!-- Option to write SCRIP grid file -->
 <se_write_grid_file> no </se_write_grid_file>
@@ -3345,6 +3360,7 @@
 <se_partmethod se_dyn_target="theta-l"               > 4 </se_partmethod>
 <se_topology se_dyn_target="theta-l"                 > 'cube' </se_topology>
 
+<se_tstep se_dyn_target="theta-l"                    > 300 </se_tstep>
 <se_tstep se_dyn_target="theta-l" hgrid="ne3np4"     > 300 </se_tstep>
 <se_tstep se_dyn_target="theta-l" hgrid="ne5np4"     > 300 </se_tstep>
 <se_tstep se_dyn_target="theta-l" hgrid="ne16np4"    > 300 </se_tstep>
@@ -3370,8 +3386,6 @@
 <se_vthreads se_dyn_target="theta-l"                  > 1 </se_vthreads>
 
 <se_cubed_sphere_map                                  > 0 </se_cubed_sphere_map>
-<se_cubed_sphere_map se_dyn_target="theta-l"          > 2 </se_cubed_sphere_map>
-<se_cubed_sphere_map se_dyn_target="theta-l" npg="0"  > 0 </se_cubed_sphere_map>
 
 <se_dt_remap_factor  se_dyn_target="theta-l"      >   2 </se_dt_remap_factor>
 <se_dt_tracer_factor  se_dyn_target="theta-l"     >   6 </se_dt_tracer_factor>

@@ -1960,6 +1960,8 @@
       <machine name="izumi" compiler="intel" category="aux_cam_e3sm"/>
       <machine name="izumi" compiler="nag" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
     </machines>
     <options>
       <option name="wallclock">00:59:00</option>
@@ -1975,6 +1977,8 @@
       <machine name="izumi" compiler="intel" category="aux_cam_e3sm"/>
       <machine name="izumi" compiler="nag" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
     </machines>
     <options>
       <option name="wallclock">00:59:00</option>
@@ -1990,6 +1994,8 @@
       <machine name="izumi" compiler="intel" category="aux_cam_e3sm"/>
       <machine name="izumi" compiler="nag" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
     </machines>
     <options>
       <option name="wallclock">00:59:00</option>
@@ -2005,6 +2011,8 @@
       <machine name="izumi" compiler="intel" category="aux_cam_e3sm"/>
       <machine name="izumi" compiler="nag" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
     </machines>
     <options>
       <option name="wallclock">00:59:00</option>

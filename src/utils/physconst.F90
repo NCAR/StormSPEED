@@ -55,9 +55,11 @@ module physconst
    real(r8), public, parameter :: latvap      = shr_const_latvap     ! Latent heat of vaporization (J kg-1)
    real(r8), public, parameter :: pi          = shr_const_pi         ! 3.14...
   ! physical constants inherited from CAM
-  real (r8), public, parameter :: DD_PI =       shr_const_pi         ! 3.14...
-#ifndef NO_R16
-  real (r16), public, parameter :: QQ_PI = 3.141592653589793238462643383279_r16
+   real (r8), public, parameter :: DD_PI =       shr_const_pi         ! 3.14...
+#ifdef NO_R16
+   real (r8), public, parameter :: QQ_PI =       shr_const_pi         ! 3.14...
+#else
+   real (r16), public, parameter :: QQ_PI = 3.141592653589793238462643383279_r16
 #endif
 #ifdef planet_mars
    real(r8), public, parameter :: pstd        = 6.0E1_r8             ! Standard pressure (Pascals)
