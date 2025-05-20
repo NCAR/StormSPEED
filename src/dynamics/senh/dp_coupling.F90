@@ -3,28 +3,28 @@
 ! dynamics - physics coupling module
 !-------------------------------------------------------------------------------
 module dp_coupling
-  use air_composition,    only:  rairv
-  use bndry_mod,          only: bndry_exchangeV
-  use cam_abortutils,     only: endrun
-  use cam_logfile,        only: iulog
-  use constituents,       only: pcnst, cnst_name
+  use air_composition, only:  rairv
+  use bndry_mod,      only: bndry_exchangeV
+  use cam_abortutils, only: endrun
+  use cam_logfile,    only: iulog
+  use constituents,   only: pcnst, cnst_name
   use dimensions_mod_cam, only: np, npsq, nelemd, nlev, fv_nphys
-  use dof_mod,            only: UniquePoints, PutUniquePoints
-  use dyn_comp,           only: dyn_export_t, dyn_import_t
-  use dyn_grid,           only: TimeLevel, hvcoord, dom_mt
-  use element_ops,        only: get_temperature
-  use element_mod,        only: element_t
-  use kinds,              only: real_kind, int_kind
-  use physics_types,      only: physics_state, physics_tend
-  use phys_grid,          only: get_ncols_p, get_gcol_all_p
-  use phys_grid,          only: get_dyn_col_p, columns_on_task, get_chunk_info_p
-  use ppgrid,             only: begchunk, endchunk, pcols, pver, pverp
-  use perf_mod,           only: t_startf, t_stopf, t_barrierf
+  use dof_mod,        only: UniquePoints, PutUniquePoints
+  use dyn_comp,       only: dyn_export_t, dyn_import_t
+  use dyn_grid,       only: TimeLevel, hvcoord, dom_mt
+  use element_ops,    only: get_temperature
+  use element_mod,    only: element_t
+  use kinds,          only: real_kind, int_kind
+  use physics_types,  only: physics_state, physics_tend
+  use phys_grid,      only: get_ncols_p, get_gcol_all_p
+  use phys_grid,      only: get_dyn_col_p, columns_on_task, get_chunk_info_p
+  use ppgrid,         only: begchunk, endchunk, pcols, pver, pverp
+  use perf_mod,       only: t_startf, t_stopf, t_barrierf
   use parallel_mod_cam,   only: par
-  use shr_kind_mod,       only: r8=>shr_kind_r8
-  use spmd_dyn,           only: local_dp_map, block_buf_nrecs, chunk_buf_nrecs
-  use spmd_utils,         only: mpicom, iam
-  use qneg_module,        only: qneg3
+  use shr_kind_mod,   only: r8=>shr_kind_r8
+  use spmd_dyn,       only: local_dp_map, block_buf_nrecs, chunk_buf_nrecs
+  use spmd_utils,     only: mpicom, iam
+  use qneg_module,    only: qneg3
   use thread_mod_cam,     only: max_num_threads
 
   private
@@ -35,10 +35,10 @@ CONTAINS
 
 !===============================================================================
   subroutine d_p_coupling(phys_state, phys_tend,  pbuf2d, dyn_out)
-    use dyn_comp,              only: frontgf_idx, frontga_idx
+    use dyn_comp,              only: frontgf_idx, frontga_idx, vort4gw_idx
     use gllfvremap_mod,        only: gfr_dyn_to_fv_phys
-    use gravity_waves_sources, only: gws_src_fnct
-    use phys_control,          only: use_gw_front, use_gw_front_igw
+    use gravity_waves_sources, only: gws_src_fnct, compute_vorticity_4gw
+    use phys_control,           only: use_gw_front, use_gw_front_igw,  use_gw_movmtn_pbl
     use physics_buffer,        only: physics_buffer_desc, pbuf_get_chunk, &
                                      pbuf_get_field
     use shr_vmath_mod,         only: shr_vmath_exp
@@ -69,9 +69,16 @@ CONTAINS
     ! Frontogenesis
     real(r8), allocatable     :: frontgf(:,:,:) ! temporary arrays to hold frontogenesis
     real(r8), allocatable     :: frontga(:,:,:) !   function (frontgf) and angle (frontga)
+    real(r8), allocatable     :: frontgf_phys(:,:,:)
+    real(r8), allocatable     :: frontga_phys(:,:,:)
+
+    ! Vorticity
+    real (kind=r8),  allocatable :: vort4gw(:,:,:)      ! temp arrays to hold vorticity
+
     ! Pointers to pbuf
     real(r8), pointer         :: pbuf_frontgf(:,:)
     real(r8), pointer         :: pbuf_frontga(:,:)
+    real(r8), pointer         :: pbuf_vort4gw(:,:)
 
     integer                   :: ncols,i,j,ierr
     integer                   :: col_ind        ! index over columns
@@ -95,6 +102,7 @@ CONTAINS
     nullify(pbuf_chnk)
     nullify(pbuf_frontgf)
     nullify(pbuf_frontga)
+    nullify(pbuf_vort4gw)
 
     if (fv_nphys > 0) then
       nphys = fv_nphys
@@ -104,13 +112,14 @@ CONTAINS
     nphys_sq = nphys*nphys
 
     if (use_gw_front .or. use_gw_front_igw) then
-
        allocate(frontgf(nphys_sq,pver,nelemd), stat=ierr)
        if (ierr /= 0) call endrun("dp_coupling: Allocate of frontgf failed.")
-
        allocate(frontga(nphys_sq,pver,nelemd), stat=ierr)
        if (ierr /= 0) call endrun("dp_coupling: Allocate of frontga failed.")
-
+    end if
+    if (use_gw_movmtn_pbl) then
+       allocate(vort4gw(nphys_sq,pver,nelemd), stat=ierr)
+       if (ierr /= 0) call endrun("dp_coupling: Allocate of vort4gw failed.")
     end if
 
     if( par%dynproc) then
@@ -119,8 +128,10 @@ CONTAINS
 
        tl_f = TimeLevel%n0  ! time split physics (with forward-in-time RK)
 
-      if (use_gw_front .or. use_gw_front_igw) call gws_src_fnct(elem, tl_f, nphys, frontgf, frontga)
-
+       if (use_gw_front .or. use_gw_front_igw) call gws_src_fnct(elem, tl_f, nphys, frontgf, frontga)
+       if (use_gw_movmtn_pbl ) then
+          call compute_vorticity_4gw(vort4gw,tl_f,elem,nphys)
+      end if
       if (fv_nphys > 0) then
         !-----------------------------------------------------------------------
         ! Map dynamics state to FV physics grid
@@ -164,18 +175,25 @@ CONTAINS
           frontgf(:,:,:) = 0._r8
           frontga(:,:,:) = 0._r8
        end if
+       if (use_gw_movmtn_pbl) then
+          vort4gw(:,:,:) = 0._r8
+       end if
 
     end if ! par%dynproc
-
-    if (use_gw_front .or. use_gw_front_igw) then
-       call pbuf_get_field(pbuf_chnk, frontgf_idx, pbuf_frontgf)
-       call pbuf_get_field(pbuf_chnk, frontga_idx, pbuf_frontga)
-    end if
 
     !$omp parallel do num_threads(max_num_threads) private (col_ind, lchnk, icol, ie, blk_ind, ilyr, m)
     do col_ind = 1, columns_on_task
        call get_dyn_col_p(col_ind, ie, blk_ind)
        call get_chunk_info_p(col_ind, lchnk, icol)
+
+       pbuf_chnk => pbuf_get_chunk(pbuf2d, lchnk)
+       if (use_gw_front .or. use_gw_front_igw) then
+          call pbuf_get_field(pbuf_chnk, frontgf_idx, pbuf_frontgf)
+          call pbuf_get_field(pbuf_chnk, frontga_idx, pbuf_frontga)
+       end if
+       if (use_gw_movmtn_pbl) then
+          call pbuf_get_field(pbuf_chnk, vort4gw_idx, pbuf_vort4gw)
+       end if
        phys_state(lchnk)%ps(icol)=ps_tmp(blk_ind(1),ie)
        phys_state(lchnk)%phis(icol)=phis_tmp(blk_ind(1),ie)
        do ilyr=1,pver
@@ -188,6 +206,9 @@ CONTAINS
              pbuf_frontgf(icol,ilyr) = frontgf(blk_ind(1),ilyr,ie)
              pbuf_frontga(icol,ilyr) = frontga(blk_ind(1),ilyr,ie)
           endif
+          if (use_gw_movmtn_pbl) then
+             pbuf_vort4gw(icol, ilyr) = vort4gw(blk_ind(1), ilyr, ie)
+          end if
        end do ! ilyr
 
        do m=1,pcnst

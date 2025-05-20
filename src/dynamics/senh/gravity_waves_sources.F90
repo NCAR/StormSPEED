@@ -1,11 +1,11 @@
 module gravity_waves_sources
-  use derivative_mod,     only : derivative_t
+  use derivative_mod, only : derivative_t
   use dimensions_mod_cam, only : np,nlev
-  use edgetype_mod,       only : EdgeBuffer_t
-  use element_mod,        only : element_t
+  use edgetype_mod, only       : EdgeBuffer_t
+  use element_mod, only    : element_t
   use hybrid_mod_cam,     only : hybrid_t
-  use kinds,              only : real_kind
-  use shr_kind_mod,       only : r8 => shr_kind_r8
+  use kinds, only          : real_kind
+  use shr_kind_mod, only   : r8 => shr_kind_r8
   use thread_mod_cam,     only : hthreads
 
   implicit none
@@ -19,6 +19,7 @@ module gravity_waves_sources
 
   public  :: gws_src_fnct
   public  :: gws_init
+  public  :: compute_vorticity_4gw
   private :: compute_frontogenesis
 
   real(r8) :: psurf_ref
@@ -26,8 +27,8 @@ module gravity_waves_sources
 CONTAINS
   !-------------------------------------------------------------------------------------------------
   subroutine gws_init(elem)
-    use hycoef, only           : hypi
-    use pmgrid, only           : plev
+    use hycoef, only         : hypi
+    use pmgrid, only         : plev
     use parallel_mod_cam, only : par
     implicit none
     type (element_t), intent(inout), dimension(:) :: elem
@@ -40,11 +41,11 @@ CONTAINS
   !-------------------------------------------------------------------------------------------------
   subroutine gws_src_fnct(elem, tl, nphys, frontgf, frontga)
     use dimensions_mod_cam, only : npsq, nelemd, fv_nphys
-    use dof_mod, only            : UniquePoints
-    use dyn_grid, only           : dom_mt
+    use dof_mod, only         : UniquePoints
+    use dyn_grid, only        : dom_mt
     use hybrid_mod_cam, only     : hybrid_create_cam
     use parallel_mod_cam, only   : par
-    use ppgrid, only             : pver
+    use ppgrid, only          : pver
     use thread_mod_cam, only     : omp_get_thread_num
     implicit none
     type (element_t), intent(inout), dimension(:) :: elem
@@ -86,6 +87,84 @@ CONTAINS
     !$OMP END PARALLEL
 
   end subroutine gws_src_fnct
+
+  subroutine compute_vorticity_4gw(vort4gw,tl,elem,nphys)
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+  ! compute vorticity for use in gw params
+  !   F = ( curl ) [U,V]
+  !
+  ! Original by Peter Lauritzen, Julio Bacmeister*, Dec 2024
+  ! Patterned on 'compute_frontogenesis'
+  !
+  ! * corresponding/blame-able
+  !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    use derivative_mod, only: vorticity_sphere
+    use edge_mod,      only : edge_g, edgevpack_nlyr, edgevunpack_nlyr
+    use parallel_mod_cam,  only : par
+    use bndry_mod,     only : bndry_exchangev
+    use gllfvremap_mod, only: gfr_g2f_scalar
+    use prim_driver_mod,only: deriv1
+    use dimensions_mod_cam, only: fv_nphys
+    use hybrid_mod_cam, only    : hybrid_create
+    use thread_mod_cam, only    : omp_get_thread_num
+    use dyn_grid, only      : dom_mt
+    use dimensions_mod_cam, only  : nelemd
+    use dof_mod, only         : UniquePoints
+    type(element_t),    intent(in)            :: elem(:)
+    integer,            intent(in)            :: nphys
+    integer,            intent(in)            :: tl
+    real(r8),           intent(out)           :: vort4gw(nphys*nphys,nlev,nelemd)
+
+    ! local
+    type(hybrid_t) :: hybrid
+    real(r8) :: vort(fv_nphys*fv_nphys,nlev)
+    real(r8) :: vort_gll(np,np,nlev,nelemd)
+    integer  :: k,i,j,ie, nete, nets, ithr, ncols
+
+    ithr=omp_get_thread_num()
+    nets=dom_mt(ithr)%start
+    nete=dom_mt(ithr)%end
+    hybrid = hybrid_create(par,ithr,hthreads)
+
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! First calculate vorticity on GLL grid
+    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    ! set timelevel=1 fro velocities
+    do ie=nets,nete
+       do k=1,nlev
+          vort_gll(:,:,k,ie) = vorticity_sphere(elem(ie)%state%v(:,:,:,k,tl),deriv1,elem(ie))
+       end do
+       do k=1,nlev
+          vort_gll(:,:,k,ie) = vort_gll(:,:,k,ie)*elem(ie)%spheremp(:,:)
+       end do
+       ! pack
+       call edgeVpack_nlyr(edge_g, elem(ie)%desc, vort_gll(:,:,:,ie),nlev,0,3*nlev)
+    enddo
+    ! Boundary exchange
+    if (par%dynproc) call bndry_exchangeV(hybrid,edge_g)
+
+    do ie=nets,nete
+       call edgeVunpack_nlyr(edge_g, elem(ie)%desc,vort_gll(:,:,:,ie),nlev,0,3*nlev)
+       ! apply inverse mass matrix,
+       do k=1,nlev
+          vort_gll(:,:,k,ie) = vort_gll(:,:,k,ie)*elem(ie)%rspheremp(:,:)
+       end do
+
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       ! Now regrid from GLL to PhysGrid if necessary
+       ! otherwise just return vorticity on GLL grid
+       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+       if (fv_nphys>0) then
+          call gfr_g2f_scalar(ie, elem(ie)%metdet, vort_gll(:,:,:,ie), vort4gw(:,:,ie))
+       else
+          ncols = elem(ie)%idxP%NumUniquePts
+          call UniquePoints(elem(ie)%idxP, nlev, vort_gll(:,:,:,ie), vort4gw(1:ncols,:,ie))
+       end if
+    enddo
+
+
+  end subroutine compute_vorticity_4gw
+
   !-------------------------------------------------------------------------------------------------
   subroutine compute_frontogenesis(frontgf,frontga,tl,elem,hybrid,nets,nete,nphys)
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!

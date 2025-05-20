@@ -70,6 +70,7 @@ logical, public, protected :: write_restart_unstruct
 ! Frontogenesis indices
 integer, public :: frontgf_idx = -1
 integer, public :: frontga_idx = -1
+integer, public :: vort4gw_idx      = -1
 
 interface read_dyn_var
    module procedure read_dyn_field_2d
@@ -89,7 +90,7 @@ CONTAINS
 subroutine dyn_readnl(NLFileName)
   use namelist_utils, only: find_group_name
   use namelist_mod_cam, only: homme_set_defaults, homme_postprocess_namelist
-  use units,            only: getunit, freeunit
+  use units,          only: getunit, freeunit
   use spmd_utils,       only: masterproc, masterprocid, mpicom, npes, &
                               mpi_real8, mpi_integer, mpi_character, mpi_logical
   use control_mod_cam,  only: hypervis_order, hypervis_subcycle, hypervis_scaling, &
@@ -732,7 +733,7 @@ subroutine dyn_register()
 
    use physics_buffer,  only: pbuf_add_field, dtype_r8
    use ppgrid,          only: pcols, pver
-   use phys_control,    only: use_gw_front, use_gw_front_igw
+   use phys_control,    only: use_gw_front, use_gw_front_igw, use_gw_movmtn_pbl
 
    ! These fields are computed by the dycore and passed to the physics via the
    ! physics buffer.
@@ -742,6 +743,10 @@ subroutine dyn_register()
          frontgf_idx)
       call pbuf_add_field("FRONTGA", "global", dtype_r8, (/pcols,pver/), &
          frontga_idx)
+   end if
+   if (use_gw_movmtn_pbl) then
+      call pbuf_add_field("VORT4GW", "global", dtype_r8, (/pcols,pver/),       &
+         vort4gw_idx)
    end if
 
 end subroutine dyn_register
@@ -850,9 +855,9 @@ end subroutine dyn_init
 !jt    use iop_data_mod,     only: single_column, dp_crm, use_3dfrc
 !jt    use se_iop_intr_mod,  only: apply_iop_forcing
     use parallel_mod_cam,   only : par
-    use prim_driver_mod,    only: prim_run_subcycle
+    use prim_driver_mod,  only: prim_run_subcycle
     use dimensions_mod_cam, only : nlev
-    use time_mod,           only: tstep
+    use time_mod,         only: tstep
     use hybrid_mod_cam,     only: hybrid_create_cam
     implicit none
 
@@ -1074,10 +1079,10 @@ subroutine read_inidat(dyn_in)
     end do
 
     if (par%dynproc) then
-       if(elem(1)%idxP%NumUniquePts <=0 .or. elem(1)%idxP%NumUniquePts > np*np) then
-          write(iulog,*)  elem(1)%idxP%NumUniquePts
-          call endrun(trim(subname)//': invalid idxP%NumUniquePts')
-       end if
+      if(elem(1)%idxP%NumUniquePts <=0 .or. elem(1)%idxP%NumUniquePts > np*np) then
+         write(iulog,*)  elem(1)%idxP%NumUniquePts
+         call endrun(trim(subname)//': invalid idxP%NumUniquePts')
+      end if
     end if
 
     ! Set mask to indicate which columns are active
