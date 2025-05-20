@@ -2,6 +2,16 @@
 
 <namelist_defaults>
 
+<interpolate_output dyn="se"                    >.false.</interpolate_output>
+<interpolate_nlat  dyn="se"                    >0       </interpolate_nlat>
+<interpolate_nlon  dyn="se"                    >0       </interpolate_nlon>
+<interpolate_nlat  dyn="se"  hgrid="ne5np4"    >24      </interpolate_nlat>
+<interpolate_nlon  dyn="se"  hgrid="ne5np4"    >48      </interpolate_nlon>
+<interpolate_nlat  dyn="se"  hgrid="ne16np4"   >90      </interpolate_nlat>
+<interpolate_nlon  dyn="se"  hgrid="ne16np4"   >180     </interpolate_nlon>
+<interpolate_nlat  dyn="se"  hgrid="ne30np4"   >180     </interpolate_nlat>
+<interpolate_nlon  dyn="se"  hgrid="ne30np4"   >360     </interpolate_nlon>
+
 <!-- Timestep size (this is the atm coupling interval) -->
 <dtime dyn="fv"                    >1800</dtime>
 <dtime dyn="fv"    waccmx="1"      >300 </dtime>

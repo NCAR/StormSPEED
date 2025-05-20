@@ -4258,6 +4258,9 @@ if ($dyn =~ /se/) {
 		       se_vert_remap_q_alg
 		       se_vthreads
 		       se_z2_map_method
+		       interpolate_output
+		       interpolate_nlat
+		       interpolate_nlon
 	    );
 	# Add the collected vars
 	foreach my $var (@vars) {
@@ -4297,6 +4300,9 @@ if ($dyn =~ /se/) {
                   se_molecular_diff
 	          se_pgf_formulation
 	          se_dribble_in_rsplit_loop
+		  interpolate_output
+		  interpolate_nlat
+		  interpolate_nlon
         );
 
 

@@ -148,16 +148,6 @@ subroutine dyn_grid_init()
    ! Get file handle for initial file and first consistency check
    fh_ini => initial_file_get_id()
 
-   call pio_seterrorhandling(fh_ini, pio_bcast_error)
-   ierr = pio_inq_dimid(fh_ini, 'ncol', ncolid)
-   call pio_seterrorhandling(fh_ini, pio_internal_error)
-
-   if (ierr /= pio_noerr) then
-      call endrun(sub//': ERROR: initial dataset not on unstructured grid')
-   else
-      ierr = pio_inq_dimlen(fh_ini, ncolid, ncollen)
-   end if
-
    ! Initialize hybrid coordinate arrays
    call hycoef_init(fh_ini)
 
@@ -197,23 +187,11 @@ subroutine dyn_grid_init()
 
       call prim_init1(elem,par,dom_mt,TimeLevel)
 
-      ! globaluniquecols set by call to prim_init1
-      if (ncollen /= GlobalUniqueCols) then
-         write(iulog,*) sub//': ERROR: model parameters do not match initial dataset parameters'
-         write(iulog,*)'  Model Parameters:    globaluniquecols = ', globaluniquecols
-         write(iulog,*)'  Dataset Parameters:  ncol             = ', ncollen
-         call endrun(sub//': ERROR: model parameters do not match initial dataset parameters')
-      end if
-
-      neltmp(1) = nelemdmax
-      neltmp(2) = nelem
-      neltmp(3) = globaluniquecols
    else
       globaluniquecols = 0
+      ngcols_d = 0
       nelemd = 0
-      neltmp(1) = 0
-      neltmp(2) = 0
-      neltmp(3) = 0
+      nelemdmax = 0
    endif
 
    ! nelemdmax is computed on the dycore comm, we need it globally.
@@ -223,21 +201,6 @@ subroutine dyn_grid_init()
    call MPI_Allreduce(globaluniquecols, ngcols_d, 1, MPI_INTEGER, MPI_MAX, mpicom, ierr)
    ! All pes might not have the correct number of elements
    call MPI_Allreduce(nelem, nelem_d, 1, MPI_INTEGER, MPI_MAX, mpicom, ierr)
-
-
-   if (par%nprocs .lt. npes) then
-
-      ! Broadcast quantities to auxiliary processes
-      call mpi_bcast(neltmp, 3, mpi_integer, mstrid, mpicom, ierr)
-      if (ierr /= mpi_success) then
-         call endrun(sub//': FATAL: mpi_bcast: neltmp')
-      end if
-
-      if (iam .ge. par%nprocs) then
-         nelemdmax = neltmp(1)
-         nelem     = neltmp(2)
-      end if
-   end if
 
 !jt run by peter
 !!$   ! CAM code for Dynamics timestep
@@ -274,7 +237,6 @@ subroutine dyn_grid_init()
 
    ! Initialize FV physics grid variables
    if (fv_nphys > 0) then
-!jt      call fv_physgrid_init(check=2)
       call fv_physgrid_init()
    end if
 
