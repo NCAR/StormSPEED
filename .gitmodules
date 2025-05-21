@@ -220,8 +220,8 @@ fxDONOTUSEurl = https://github.com/NCAR/CUPiD.git
 
 [submodule "senh/dycore"]
 path = src/dynamics/senh/dycore
-url = https://github.com/sjsprecious/E3SM.git
+url = https://github.com/E3SM-Project/E3SM.git
 fxrequired = AlwaysRequired
 fxsparse = ../.e3sm_sparse_checkout
-fxtag = b6ba99f
-fxDONOTUSEurl = https://github.com/sjsprecious/E3SM.git
+fxtag = cec3bb6
+fxDONOTUSEurl = https://github.com/E3SM-Project/E3SM.git
