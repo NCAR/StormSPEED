@@ -3332,6 +3332,8 @@
 <se_statediag_numtrac>3</se_statediag_numtrac>
 
 <se_statefreq                                         > 0 </se_statefreq>
+<se_statefreq  se_dyn_target="theta-l"                > 488 </se_statefreq>
+<se_statefreq  se_dyn_target="preqx"                  > 488 </se_statefreq>
 
 <se_tstep_type se_dyn_target="cam"                    > 4 </se_tstep_type>
 <se_tstep_type se_dyn_target="theta-l"                > 9 </se_tstep_type>
