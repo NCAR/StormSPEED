@@ -38,6 +38,7 @@ use spmd_utils,              only: iam, npes_cam => npes, masterproc
 use thread_mod_cam,          only:  hthreads, vthreads, omp_get_max_threads, omp_get_thread_num, initomp
 use time_mod,                only: nsplit,tstep
 use time_manager,            only: is_first_step
+use shr_infnan_mod,          only: isnan => shr_infnan_isnan
 
 implicit none
 private

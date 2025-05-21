@@ -3170,11 +3170,10 @@
 <se_dribble_in_rsplit_loop                                           >    0</se_dribble_in_rsplit_loop>
 <se_dribble_in_rsplit_loop  hgrid="ne16np4" waccm_phys="1" waccmx="0">    1</se_dribble_in_rsplit_loop>
 
-<se_ftype> 2 </se_ftype>
+<se_hypervis_order                                            > 2 </se_hypervis_order>
 
-<se_hypervis_order                                    > 2 </se_hypervis_order>
-
-<se_large_Courant_incr        > .true.  </se_large_Courant_incr>
+<se_dt_remap_factor se_dyn_target="theta-l"                  >  2 </se_dt_remap_factor>
+<se_dt_remap_factor se_dyn_target="preqx"                    > -1 </se_dt_remap_factor>
 
 <se_hypervis_scaling se_refined_mesh="1" hypervis_type="tensor" >3.22D0 </se_hypervis_scaling>
 <se_hypervis_scaling se_dyn_target="preqx"                      >0.0D0 </se_hypervis_scaling>
@@ -3351,8 +3350,14 @@
 <se_lx se_dyn_target="theta-l"                        > 0.0 </se_lx>
 <se_ly se_dyn_target="theta-l"                        > 0.0 </se_ly>
 
-<se_ne se_dyn_target="theta-l" hgrid="ne30np4"        > 30 </se_ne>
-<se_ne se_dyn_target="theta-l" hgrid="ne16np4"        > 16 </se_ne>
+<se_max_hypervis_courant > 1.0e99 </se_max_hypervis_courant>
+<se_max_hypervis_courant se_refined_mesh="1" hypervis_type="scalar" > 1.9 </se_max_hypervis_courant>
+
+<se_mesh_file se_dyn_target="theta-l"          > '/dev/null' </se_mesh_file>
+<se_mesh_file se_dyn_target="preqx"            > '/dev/null' </se_mesh_file>
+
+<se_molecular_diff               >  0.0 </se_molecular_diff>
+<se_molecular_diff waccmx="1"    >  1.0 </se_molecular_diff>
 
 <se_ne_x se_dyn_target="theta-l"                      > 0 </se_ne_x>
 <se_ne_y se_dyn_target="theta-l"                      > 0 </se_ne_y>
@@ -3377,7 +3382,9 @@
 <se_theta_hydrostatic_mode se_dyn_target="theta-l"    > .false. </se_theta_hydrostatic_mode>
 <se_theta_hydrostatic_mode se_dyn_target="preqx"      > .true. </se_theta_hydrostatic_mode>
 
-<se_transport_alg se_dyn_target="theta-l"             > 12 </se_transport_alg>
+<se_topology  se_dyn_target="theta-l"                 > 'cube' </se_topology>
+
+<se_transport_alg se_dyn_ftarget="theta-l"             > 12 </se_transport_alg>
 <se_transport_alg se_dyn_target="preqx"               >  0 </se_transport_alg>
 
 <se_vert_remap_q_alg se_dyn_target="theta-l"          > 10 </se_vert_remap_q_alg>
@@ -3392,7 +3399,6 @@
 
 <se_dt_remap_factor  se_dyn_target="preqx"        > -1 </se_dt_remap_factor>
 <se_dt_tracer_factor se_dyn_target="preqx"        > -1 </se_dt_tracer_factor>
-
 
 <!-- ================================================================== -->
 <!-- Defaults for MPAS                                                  -->
