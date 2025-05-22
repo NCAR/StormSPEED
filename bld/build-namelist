@@ -3847,7 +3847,15 @@ if (!$simple_phys) {
     }
 
     if ($phys =~ /cam7/) {
-       add_default($nl, 'use_gw_movmtn_pbl',        'val'=>'.true.');
+	#
+	# moving mountains only supported by SE dycore
+	# (since vorticity needs to be passed to physics in dp_coupling)
+	#
+	if ( $dyn =~ /se/ ) {
+	    add_default($nl, 'use_gw_movmtn_pbl',        'val'=>'.true.');
+	} else {
+	    add_default($nl, 'use_gw_movmtn_pbl',        'val'=>'.false.');
+	}
     }
 
     my $use_gw_movmtn_pbl = $nl->get_value('use_gw_movmtn_pbl');
