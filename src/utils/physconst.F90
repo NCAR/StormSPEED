@@ -42,9 +42,9 @@ module physconst
    public :: physconst_readnl
 
    ! Constants based off share code or defined in physconst
-
+#ifndef NO_R16
    integer,parameter :: r16= selected_real_kind(24) ! 16 byte real
-
+#endif
    real(r8), public, parameter :: avogad      = shr_const_avogad     ! Avogadro's number (molecules kmole-1)
    real(r8), public, parameter :: boltz       = shr_const_boltz      ! Boltzman's constant (J K-1 molecule-1)
    real(r8), public, parameter :: cday        = shr_const_cday       ! sec in calendar day (seconds)
@@ -76,6 +76,7 @@ module physconst
 
    real(r8), public, parameter :: c0          = 2.99792458e8_r8      ! Speed of light in a vacuum (m s-1)
    real(r8), public, parameter :: planck      = 6.6260755e-34_r8     ! Planck's constant (J.s)
+   real(r8), public, parameter :: amu         = 1.66053886e-27_r8    ! Atomic Mass Unit (kg)
 
    ! Molecular weights (g mol-1)
    real(r8), public, parameter :: mwco2       =  44._r8             ! molecular weight co2

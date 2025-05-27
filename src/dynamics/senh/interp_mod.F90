@@ -1,13 +1,13 @@
 module interp_mod
   use shr_kind_mod,        only: r8 => shr_kind_r8, r4 => shr_kind_r4
-  use dimensions_mod,      only: nelemd, np, ne
-  use interpolate_mod,     only: interpdata_t
-  use interpolate_mod,     only: interp_lat => lat, interp_lon => lon
-  use interpolate_mod,     only: interp_gweight => gweight
+  use dimensions_mod_cam,  only: nelemd, np, ne
+  use interpolate_mod_cam, only: interpdata_t, &
+                                 interp_lat => lat, interp_lon => lon, &
+                                 interp_gweight => gweight
   use dyn_grid,            only: elem
   use spmd_utils,          only: iam
   use cam_history_support, only: fillvalue
-  use hybrid_mod,          only: hybrid_t, config_thread_region
+  use hybrid_mod_cam,      only: hybrid_t, config_thread_region
   use cam_abortutils,      only: endrun
 
   implicit none
@@ -48,10 +48,10 @@ CONTAINS
     use cam_grid_support,    only: horiz_coord_t, horiz_coord_create, iMap
     use cam_grid_support,    only: cam_grid_register, cam_grid_attribute_register
     use cam_grid_support,    only: max_hcoordname_len
-    use interpolate_mod,     only: get_interp_lat, get_interp_lon
-    use interpolate_mod,     only: get_interp_parameter, set_interp_parameter
-    use interpolate_mod,     only: get_interp_gweight, setup_latlon_interp
-    use parallel_mod,        only: par
+    use interpolate_mod_cam, only: get_interp_lat, get_interp_lon, &
+                                   get_interp_parameter, set_interp_parameter, &
+                                   get_interp_gweight, setup_latlon_interp
+    use parallel_mod_cam,    only: par
 
     ! Dummy arguments
     logical,             intent(inout) :: interp_ok
@@ -162,7 +162,7 @@ CONTAINS
 
   subroutine set_interp_hfile(hfilenum, interp_info)
     use cam_history_support, only: interp_info_t
-    use interpolate_mod,     only: set_interp_parameter
+    use interpolate_mod_cam, only: set_interp_parameter
 
     ! Dummy arguments
     integer,             intent(in)    :: hfilenum
@@ -187,26 +187,26 @@ CONTAINS
   end subroutine set_interp_hfile
 
   subroutine write_interpolated_scalar(File, varid, fld, numlev, data_type, decomp_type)
-    use pio,              only: file_desc_t, var_desc_t
-    use pio,              only: iosystem_desc_t
-    use pio,              only: pio_initdecomp, pio_freedecomp
-    use pio,              only: io_desc_t, pio_write_darray
-    use pio,              only: pio_real
-    use interpolate_mod,  only: interpolate_scalar
-    use cam_instance,     only: atm_id
-    use spmd_dyn,         only: local_dp_map
-    use ppgrid,           only: begchunk
-    use phys_grid,        only: get_dyn_col_p, columns_on_task, get_chunk_info_p
-    use dimensions_mod,   only: fv_nphys, nc, nhc, nhc_phys
-    use dof_mod,          only: PutUniquePoints
-    use interpolate_mod,  only: get_interp_parameter
-    use shr_pio_mod,      only: shr_pio_getiosys
-    use edge_mod,         only: edge_g, edgevpack_nlyr, edgevunpack_nlyr
-    use bndry_mod,        only: bndry_exchangeV
-    use parallel_mod,     only: par
-    use thread_mod,       only: horz_num_threads
+    use pio,                 only: file_desc_t, var_desc_t
+    use pio,                 only: iosystem_desc_t
+    use pio,                 only: pio_initdecomp, pio_freedecomp
+    use pio,                 only: io_desc_t, pio_write_darray
+    use pio,                 only: pio_real
+    use interpolate_mod_cam, only: interpolate_scalar
+    use cam_instance,        only: atm_id
+    use spmd_dyn,            only: local_dp_map
+    use ppgrid,              only: begchunk
+    use phys_grid,           only: get_dyn_col_p, columns_on_task, get_chunk_info_p
+    use dimensions_mod_cam,  only: fv_nphys, nc, nhc, nhc_phys
+    use dof_mod,             only: PutUniquePoints
+    use interpolate_mod_cam, only: get_interp_parameter
+    use shr_pio_mod,         only: shr_pio_getiosys
+    use edge_mod,            only: edge_g, edgevpack_nlyr, edgevunpack_nlyr
+    use bndry_mod,           only: bndry_exchangeV
+    use parallel_mod_cam,    only: par
+    use thread_mod_cam,      only: horz_num_threads
     use cam_grid_support, only: cam_grid_id
-    use hybrid_mod,       only: hybrid_t, config_thread_region, get_loop_ranges
+    use hybrid_mod_cam,      only: hybrid_t, config_thread_region, get_loop_ranges
 
     type(file_desc_t), intent(inout) :: File
     type(var_desc_t) , intent(inout) :: varid
@@ -368,28 +368,29 @@ CONTAINS
   end subroutine write_interpolated_scalar
 
   subroutine write_interpolated_vector(File, varidu, varidv, fldu, fldv, numlev, data_type, decomp_type)
-    use pio,              only: file_desc_t, var_desc_t
-    use pio,              only: iosystem_desc_t
-    use pio,              only: pio_initdecomp, pio_freedecomp
-    use pio,              only: io_desc_t, pio_write_darray
-    use pio,              only: pio_real
-    use cam_instance,     only: atm_id
-    use interpolate_mod,  only: interpolate_scalar, vec_latlon_to_contra,get_interp_parameter
-    use spmd_dyn,         only: local_dp_map
-    use ppgrid,           only: begchunk
-    use phys_grid,        only: get_dyn_col_p, columns_on_task, get_chunk_info_p
-    use dimensions_mod,   only: fv_nphys,nc,nhc,nhc_phys
-    use dof_mod,          only: PutUniquePoints
-    use shr_pio_mod,      only: shr_pio_getiosys
-    use edge_mod,         only: edgevpack_nlyr, edgevunpack_nlyr, edge_g
-    use edgetype_mod,     only: EdgeBuffer_t
-    use bndry_mod,        only: bndry_exchangeV
-    use parallel_mod,     only: par
-    use thread_mod,       only: horz_num_threads
-    use cam_grid_support, only: cam_grid_id
-    use hybrid_mod,       only: hybrid_t,config_thread_region, get_loop_ranges
-    use control_mod,      only: cubed_sphere_map
-    use cube_mod,         only: dmap_cam
+    use pio,                 only: file_desc_t, var_desc_t
+    use pio,                 only: iosystem_desc_t
+    use pio,                 only: pio_initdecomp, pio_freedecomp
+    use pio,                 only: io_desc_t, pio_write_darray
+    use pio,                 only: pio_real
+    use cam_instance,        only: atm_id
+    use interpolate_mod_cam, only: interpolate_scalar, vec_latlon_to_contra,get_interp_parameter
+    use spmd_dyn,            only: local_dp_map
+    use ppgrid,              only: begchunk
+    use phys_grid,           only: get_dyn_col_p, columns_on_task, get_chunk_info_p
+    use dimensions_mod_cam,  only: fv_nphys,nc,nhc,nhc_phys
+    use dof_mod,             only: PutUniquePoints
+    use shr_pio_mod,         only: shr_pio_getiosys
+    use edge_mod,            only: edgevpack_nlyr, edgevunpack_nlyr, edge_g
+    use edgetype_mod,        only: EdgeBuffer_t
+    use bndry_mod,           only: bndry_exchangeV
+    use parallel_mod_cam,    only: par
+    use thread_mod_cam,      only: horz_num_threads
+    use cam_grid_support,    only: cam_grid_id
+    use hybrid_mod_cam,      only: hybrid_t,config_thread_region, get_loop_ranges
+    use control_mod_cam,     only: cubed_sphere_map
+!jt    use cube_mod_cam,        only: dmap_cam
+    use cube_mod,           only: dmap
 
     type(file_desc_t), intent(inout) :: File
     type(var_desc_t),  intent(inout) :: varidu, varidv
@@ -546,8 +547,10 @@ CONTAINS
       !
       do i=1,cam_interpolate(ie)%n_interp
         ! convert fld from contra->latlon
-        call dmap_cam(D,cam_interpolate(ie)%interp_xy(i)%x,cam_interpolate(ie)%interp_xy(i)%y,&
-             elem(ie)%corners3D,cubed_sphere_map,elem(ie)%corners,elem(ie)%u2qmap,elem(ie)%facenum)
+!jt        call dmap_cam(D,cam_interpolate(ie)%interp_xy(i)%x,cam_interpolate(ie)%interp_xy(i)%y,&
+!jt             elem(ie)%corners3D,cubed_sphere_map,elem(ie)%corners,elem(ie)%u2qmap,elem(ie)%facenum)
+        call dmap(D,cam_interpolate(ie)%interp_xy(i)%x,cam_interpolate(ie)%interp_xy(i)%y,&
+             elem(ie)%corners3D,cubed_sphere_map,elem(ie)%cartp,elem(ie)%facenum)
         ! convert fld from contra->latlon
         do k=1,numlev
           v1 = fldout(st+i-1,k,1)

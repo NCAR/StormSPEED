@@ -20,17 +20,17 @@ module stepon
    use perf_mod,       only: t_startf, t_stopf, t_barrierf
    use time_manager,   only: get_step_size, is_first_restart_step
 ! from SE
-   use derivative_mod, only: derivinit, derivative_t
-   use viscosity_mod, only : compute_zeta_C0, compute_div_C0
-   use quadrature_mod, only: gauss, gausslobatto, quadrature_t
-   use edge_mod,       only: edge_g, edgeVpack_nlyr, edgeVunpack_nlyr
-   use parallel_mod,   only : par
+   use derivative_mod,     only : derivinit, derivative_t
+   use viscosity_mod,      only : compute_zeta_C0, compute_div_C0
+   use quadrature_mod,     only : gauss, gausslobatto, quadrature_t
+   use edge_mod,           only : edge_g, edgeVpack_nlyr, edgeVunpack_nlyr
+   use parallel_mod_cam,   only : par
 !!$   use iop_data_mod,   only: use_iop, doiopupdate, single_column, dp_crm, &
 !!$                             setiopupdate, setiopupdate_init, readiopdata
-   use element_mod,    only: element_t
-   use element_ops,    only: get_field, get_field_i
-   use shr_const_mod,       only: SHR_CONST_PI
-   use se_iop_intr_mod, only: iop_broadcast
+   use element_mod,        only : element_t
+   use element_ops,        only : get_field, get_field_i
+   use shr_const_mod,      only : SHR_CONST_PI
+   use se_iop_intr_mod,    only : iop_broadcast
 
    implicit none
    private
@@ -79,8 +79,9 @@ CONTAINS
 ! !INTERFACE:
 subroutine stepon_init(dyn_in, dyn_out )
 ! !USES:
-  use control_mod,            only: smooth_phis_numcycle
-  use dimensions_mod,         only: nlev, nelemd, npsq
+  use control_mod_cam,        only: smooth_phis_numcycle
+  use dimensions_mod_cam,     only: nlev, nelemd, npsq, qsize
+  use dimensions_mod_cam,     only: cnst_longname_gll, cnst_name_gll
   use cam_history,            only: addfld, add_default, horiz_only
   use cam_history,            only: register_vector_field
   use gravity_waves_sources,  only: gws_init
@@ -92,7 +93,7 @@ subroutine stepon_init(dyn_in, dyn_out )
   type (dyn_import_t), intent(inout) :: dyn_in  ! Dynamics import container
   type (dyn_export_t), intent(inout) :: dyn_out ! Dynamics export container
 
-  integer :: m
+  integer :: m, m_cnst
   character(len=max_fieldname_len) :: grid_name
 ! !DESCRIPTION:
 !
@@ -170,6 +171,22 @@ subroutine stepon_init(dyn_in, dyn_out )
   call addfld('DYN_Z3'   ,(/ 'ilev' /),'A', 'm',    'Geopotential Height (above sea level)', gridname='GLL')
   call addfld('DYN_MU'   ,(/ 'ilev' /),'A', 'Pa/Pa','dPNH/dPH',               gridname='GLL')
 
+   ! These fields on dynamics grid are output before the call to d_p_coupling.
+   do m_cnst = 1, qsize
+     call addfld(trim(cnst_name_gll(m_cnst))//'_gll',  (/ 'lev' /), 'I', 'kg/kg',   &
+          trim(cnst_longname_gll(m_cnst)), gridname='GLL')
+     call addfld(trim(cnst_name_gll(m_cnst))//'dp_gll',  (/ 'lev' /), 'I', 'kg/kg',   &
+          trim(cnst_longname_gll(m_cnst))//'*dp', gridname='GLL')
+   end do
+   call addfld('U_gll'     ,(/ 'lev' /), 'I', 'm/s ','U wind on gll grid',gridname='GLL')
+   call addfld('V_gll'     ,(/ 'lev' /), 'I', 'm/s ','V wind on gll grid',gridname='GLL')
+   call addfld('T_gll'     ,(/ 'lev' /), 'I', 'K '  ,'T on gll grid'     ,gridname='GLL')
+   call addfld('dp_ref_gll' ,(/ 'lev' /), 'I', '  '  ,'dp dry / dp_ref on gll grid'     ,gridname='GLL')
+   call addfld('PSDRY_gll' ,horiz_only , 'I', 'Pa ' ,'psdry on gll grid' ,gridname='GLL')
+   call addfld('PS_gll'    ,horiz_only , 'I', 'Pa ' ,'ps on gll grid'    ,gridname='GLL')
+   call addfld('PHIS_gll'  ,horiz_only , 'I', 'Pa ' ,'PHIS on gll grid'  ,gridname='GLL')
+
+
 end subroutine stepon_init
 
 !-----------------------------------------------------------------------
@@ -184,7 +201,7 @@ subroutine stepon_run1( dtime_out, phys_state, phys_tend,               &
   use dp_coupling, only: d_p_coupling
   use time_mod,    only: tstep      ! dynamics timestep
   use time_manager, only: is_last_step, is_first_step
-  use control_mod, only: ftype
+  use control_mod_cam, only: ftype
   use physics_buffer, only : physics_buffer_desc
   use hycoef,      only: hyam, hybm
   use se_iop_intr_mod, only: iop_setfield, iop_setinitial
@@ -212,6 +229,7 @@ subroutine stepon_run1( dtime_out, phys_state, phys_tend,               &
    if(par%dynproc) then
       if(tstep <= 0)  call endrun( 'bad tstep')
       if(dtime_out <= 0)  call endrun( 'bad dtime')
+      call diag_dynvar_ic(dyn_out%elem)
    end if
    !----------------------------------------------------------
    ! Move data into phys_state structure.
@@ -255,18 +273,17 @@ subroutine stepon_run1( dtime_out, phys_state, phys_tend,               &
 end subroutine stepon_run1
 
 subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
-   use bndry_mod,      only: bndry_exchangeV
-   use dimensions_mod,  only: nlev, nlevp, nelemd, np, npsq, fv_nphys
-   use dyn_grid,        only: TimeLevel, hvcoord
-   use dp_coupling,    only: p_d_coupling
-   use parallel_mod,   only: par
-   use time_mod,        only: tstep, TimeLevel_Qdp   !  dynamics typestep
-   use control_mod,     only: ftype, qsplit
-   use hycoef,          only: hyai, hybi
-   use cam_history,     only: outfld, hist_fld_active
-   use prim_driver_base,only: applyCAMforcing_tracers
-   use prim_advance_mod,only: applyCAMforcing_dynamics
-   use element_ops,     only: get_temperature
+   use dimensions_mod_cam, only: nlev, nlevp, nelemd, np, npsq, fv_nphys
+   use dyn_grid,           only: TimeLevel, hvcoord, dom_mt
+   use dp_coupling,        only: p_d_coupling
+   use parallel_mod_cam,   only: par
+   use time_mod,           only: tstep, TimeLevel_Qdp   !  dynamics typestep
+   use control_mod_cam,    only: ftype, qsplit
+   use hycoef,             only: hyai, hybi
+   use cam_history,        only: outfld, hist_fld_active
+   use prim_driver_base,   only: applyCAMforcing_tracers
+   use prim_advance_mod,   only: applyCAMforcing_dynamics
+   use element_ops,        only: get_temperature
 
    type(physics_state), intent(inout) :: phys_state(begchunk:endchunk)
    type(physics_tend), intent(inout) :: phys_tend(begchunk:endchunk)
@@ -297,82 +314,7 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
 
    if(.not.par%dynproc) return
 
-   call t_startf('stepon_bndry_exch')
-   ! do boundary exchange
-!jt   if (.not. single_column .or. dp_crm) then
    do ie=1,nelemd
-
-         if (fv_nphys>0) then
-            ! We need to apply mass matrix weighting when FV physics grid is used
-            do k = 1,nlev
-               dyn_in%elem(ie)%derived%FT(:,:,k)   = dyn_in%elem(ie)%derived%FT(:,:,k)   * dyn_in%elem(ie)%spheremp(:,:)
-               do m = 1,2
-                  dyn_in%elem(ie)%derived%FM(:,:,m,k) = dyn_in%elem(ie)%derived%FM(:,:,m,k) * dyn_in%elem(ie)%spheremp(:,:)
-               end do
-               do ic = 1,pcnst
-                  dyn_in%elem(ie)%derived%FQ(:,:,k,ic) = dyn_in%elem(ie)%derived%FQ(:,:,k,ic) * dyn_in%elem(ie)%spheremp(:,:)
-               end do
-            end do ! k = 1, nlev
-         end if ! fv_nphys>0
-
-      kptr=0
-         ! fmtmp can be removed if theta and preqx model had the same size FM array
-         fmtmp=dyn_in%elem(ie)%derived%FM(:,:,1,:)
-         call edgeVpack_nlyr(edge_g,dyn_in%elem(ie)%desc,fmtmp,nlev,kptr,nlev_tot)
-         kptr=kptr+nlev
-
-         fmtmp=dyn_in%elem(ie)%derived%FM(:,:,2,:)
-         call edgeVpack_nlyr(edge_g,dyn_in%elem(ie)%desc,fmtmp,nlev,kptr,nlev_tot)
-      kptr=kptr+nlev
-
-         call edgeVpack_nlyr(edge_g,dyn_in%elem(ie)%desc,dyn_in%elem(ie)%derived%FT(:,:,:),nlev,kptr,nlev_tot)
-         kptr=kptr+nlev
-         call edgeVpack_nlyr(edge_g,dyn_in%elem(ie)%desc,dyn_in%elem(ie)%derived%FQ(:,:,:,:),nlev*pcnst,kptr,nlev_tot)
-
-      end do ! ie
-!jt   endif ! single column check
-
-   call bndry_exchangeV(par, edge_g)
-
-   ! NOTE: rec2dt MUST be 1/dtime_out as computed above
-
-   rec2dt = 1._r8/dtime
-
-   do ie=1,nelemd
-
-!!$      if (.not. single_column .or. dp_crm) then
-
-      kptr=0
-
-         fmtmp=dyn_in%elem(ie)%derived%FM(:,:,1,:)
-         call edgeVunpack_nlyr(edge_g,dyn_in%elem(ie)%desc,fmtmp,nlev,kptr,nlev_tot)
-         dyn_in%elem(ie)%derived%FM(:,:,1,:)=fmtmp
-         kptr=kptr+nlev
-
-         fmtmp=dyn_in%elem(ie)%derived%FM(:,:,2,:)
-         call edgeVunpack_nlyr(edge_g,dyn_in%elem(ie)%desc,fmtmp,nlev,kptr,nlev_tot)
-         dyn_in%elem(ie)%derived%FM(:,:,2,:)=fmtmp
-         kptr=kptr+nlev
-
-         call edgeVunpack_nlyr(edge_g,dyn_in%elem(ie)%desc,dyn_in%elem(ie)%derived%FT(:,:,:),nlev,kptr,nlev_tot)
-      kptr=kptr+nlev
-
-         call edgeVunpack_nlyr(edge_g,dyn_in%elem(ie)%desc,dyn_in%elem(ie)%derived%FQ(:,:,:,:),nlev*pcnst,kptr,nlev_tot)
-
-         if (fv_nphys>0) then
-            ! We need to apply inverse mass matrix weighting when FV physics grid is used
-            do k = 1,nlev
-               dyn_in%elem(ie)%derived%FT(:,:,k)   = dyn_in%elem(ie)%derived%FT(:,:,k)   * dyn_in%elem(ie)%rspheremp(:,:)
-               do m = 1,2
-                  dyn_in%elem(ie)%derived%FM(:,:,m,k) = dyn_in%elem(ie)%derived%FM(:,:,m,k) * dyn_in%elem(ie)%rspheremp(:,:)
-               end do
-               do ic = 1,pcnst
-                  dyn_in%elem(ie)%derived%FQ(:,:,k,ic) = dyn_in%elem(ie)%derived%FQ(:,:,k,ic) * dyn_in%elem(ie)%rspheremp(:,:)
-               end do
-            end do ! k = 1, nlev
-         end if ! fv_nphys>0
-
-!!$      endif ! single_column check
 
       tl_f = TimeLevel%n0   ! timelevel which was adjusted by physics
 
@@ -429,10 +371,6 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
       call applyCAMforcing_dynamics(dyn_in%elem,hvcoord,tl_f,dtime,1,nelemd)
       endif
 
-   call t_stopf('stepon_bndry_exch')
-
-
-
    ! Most output is done by physics.  We pass to the physics state variables
    ! at timelevel "tl_f".
    ! we will output dycore variables here to ensure they are always at the same
@@ -488,27 +426,27 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
             end do
          end do
 
-         call outfld('FU',ftmp(:,:,1),npsq,ie)
-         call outfld('FV',ftmp(:,:,2),npsq,ie)
+         call outfld('FU',RESHAPE(ftmp(:,:,1), (/npsq/)),npsq,ie)
+         call outfld('FV',RESHAPE(ftmp(:,:,2), (/npsq/)),npsq,ie)
       end do
    endif
    endif
 
    do ie = 1,nelemd
       call get_temperature(dyn_in%elem(ie),temperature,hvcoord,tl_f)
-      call outfld('DYN_T'     ,temperature                            ,npsq,ie)
-      call outfld('DYN_Q'     ,dyn_in%elem(ie)%state%Q(:,:,:,1)       ,npsq,ie)
-      call outfld('DYN_U'     ,dyn_in%elem(ie)%state%V(:,:,1,:,tl_f)  ,npsq,ie)
-      call outfld('DYN_V'     ,dyn_in%elem(ie)%state%V(:,:,2,:,tl_f)  ,npsq,ie)
+      call outfld('DYN_T'     ,RESHAPE(temperature, (/npsq,nlev/))    ,npsq,ie)
+      call outfld('DYN_Q'     ,RESHAPE(dyn_in%elem(ie)%state%Q(:,:,:,1), (/npsq,nlev/))       ,npsq,ie)
+      call outfld('DYN_U'     ,RESHAPE(dyn_in%elem(ie)%state%V(:,:,1,:,tl_f), (/npsq,nlev/))  ,npsq,ie)
+      call outfld('DYN_V'     ,RESHAPE(dyn_in%elem(ie)%state%V(:,:,2,:,tl_f), (/npsq,nlev/))  ,npsq,ie)
 
       ! at this point in the code we are on floating lagrangian levels
       ! need to compute ps for output
       p_i(:,:,nlevp) = hvcoord%hyai(1)*hvcoord%ps0 + &
            sum(dyn_in%elem(ie)%state%dp3d(:,:,:,tl_f),3)
-      call outfld('DYN_PS'    ,p_i(:,:,nlevp),npsq,ie)
+      call outfld('DYN_PS'    ,RESHAPE(p_i(:,:,nlevp), (/npsq/)),npsq,ie)
 #ifdef MODEL_THETA_L
       ! omega_p is just omega when using the theta dycore
-      call outfld('DYN_OMEGA',dyn_in%elem(ie)%derived%omega_p(:,:,:)  ,npsq,ie)
+      call outfld('DYN_OMEGA',RESHAPE(dyn_in%elem(ie)%derived%omega_p(:,:,:), (/npsq,nlev/))  ,npsq,ie)
 #else
       ! Multiply omega_p by pressure to get omega for output
       p_i(:,:,1) = hvcoord%hyai(1)*hvcoord%ps0
@@ -517,7 +455,7 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
          p_m(:,:,k)   = ( p_i(:,:,k+1) + p_i(:,:,k) )/2
          omega(:,:,k) = dyn_in%elem(ie)%derived%omega_p(:,:,k) * p_m(:,:,k)
       enddo
-      call outfld('DYN_OMEGA',omega(:,:,:),npsq,ie)
+      call outfld('DYN_OMEGA',RESHAPE(omega(:,:,:), (/npsq,nlev/)),npsq,ie)
 #endif
    end do
 
@@ -531,7 +469,7 @@ subroutine stepon_run3(dtime, cam_out, phys_state, dyn_in, dyn_out)
    use dyn_comp,    only: dyn_run
    use time_mod,    only: tstep
    use hycoef,      only: hyam, hybm
-   use dimensions_mod, only: nlev, nelemd, np, npsq
+   use dimensions_mod_cam, only: nlev, nelemd, np, npsq
    use se_iop_intr_mod, only: iop_setfield, iop_setinitial
    use dyn_grid,    only: TimeLevel
    use cam_history,     only: outfld
@@ -653,10 +591,10 @@ end subroutine stepon_run3
 !
 ! !INTERFACE:
 subroutine stepon_final(dyn_in, dyn_out)
-  use dyn_grid,         only: fv_physgrid_final
-  use dimensions_mod,   only: fv_nphys
-  use cam_logfile, only: iulog
-  use prim_driver_mod,only: prim_finalize
+  use dyn_grid,           only: fv_physgrid_final
+  use dimensions_mod_cam, only: fv_nphys
+  use cam_logfile,        only: iulog
+  use prim_driver_mod,    only: prim_finalize
 ! !PARAMETERS:
   ! WARNING: intent(out) here means that pointers in dyn_in and dyn_out
   ! are nullified. Unless this memory is released in some other routine,
@@ -686,6 +624,243 @@ subroutine stepon_final(dyn_in, dyn_out)
 end subroutine stepon_final
 
 !-----------------------------------------------------------------------
+
+subroutine diag_dynvar_ic(elem)
+   use cam_history,            only: outfld, hist_fld_active, write_inithist
+   use constituents,           only: cnst_type
+   use dyn_grid,               only: TimeLevel, hvcoord
+   use cam_history_support,    only: max_fieldname_len
+   use time_mod,               only: TimeLevel_Qdp   !  dynamics typestep
+   use control_mod_cam,        only: qsplit
+   use hybrid_mod_cam,         only: hybrid_create_cam, hybrid_t
+   use dimensions_mod_cam,     only: np, npsq, nc, nhc, fv_nphys, qsize, ntrac, nlev
+   use dimensions_mod_cam,     only: cnst_name_gll, nelemd
+   use constituents,           only: cnst_name
+   use element_mod,            only: element_t
+   use element_ops,            only: get_temperature
+   use cam_thermo,             only: get_sum_species, get_dp_ref, get_ps
+   use air_composition,        only: thermodynamic_active_species_idx
+   use air_composition,        only: thermodynamic_active_species_idx_dycore
+   use hycoef,                 only: hyai, hybi, ps0
+   ! arguments
+   type(element_t) , intent(in)    :: elem(1:nelemd)
+
+   ! local variables
+   integer              :: ie, i, j, k, m, m_cnst, nq
+   integer              :: tl_f, tl_qdp
+   character(len=max_fieldname_len) :: tfname
+
+   type(hybrid_t)        :: hybrid
+   integer               :: nets, nete
+   real(r8), allocatable :: ftmp(:,:,:)
+   real(r8), allocatable :: fld_fvm(:,:,:,:,:), fld_gll(:,:,:,:,:)
+   real(r8), allocatable :: fld_2d(:,:)
+   real(r8) :: temperature(np,np,nlev)   ! Temperature from dynamics
+   logical               :: llimiter(1)
+   real(r8)              :: qtmp(np,np,nlev), dp_ref(np,np,nlev), ps_ref(np,np)
+   real(r8), allocatable :: factor_array(:,:,:)
+   integer               :: astat
+   character(len=*), parameter :: prefix = 'diag_dynvar_ic: '
+   !----------------------------------------------------------------------------
+
+   tl_f = timelevel%n0
+   call TimeLevel_Qdp(TimeLevel, qsplit, tl_Qdp)
+
+   allocate(ftmp(npsq,nlev,2))
+
+   ! Output tracer fields for analysis of advection schemes
+   do m_cnst = 1, qsize
+     tfname = trim(cnst_name_gll(m_cnst))//'_gll'
+     if (hist_fld_active(tfname)) then
+       do ie = 1, nelemd
+         do j = 1, np
+           do i = 1, np
+             ftmp(i+(j-1)*np,:,1) = elem(ie)%state%Qdp(i,j,:,m_cnst,tl_qdp)/&
+                  elem(ie)%state%dp3d(i,j,:,tl_f)
+           end do
+         end do
+         call outfld(tfname, ftmp(:,:,1), npsq, ie)
+       end do
+     end if
+   end do
+
+   do m_cnst = 1, qsize
+     tfname = trim(cnst_name_gll(m_cnst))//'dp_gll'
+     if (hist_fld_active(tfname)) then
+       do ie = 1, nelemd
+         do j = 1, np
+           do i = 1, np
+             ftmp(i+(j-1)*np,:,1) = elem(ie)%state%Qdp(i,j,:,m_cnst,tl_qdp)
+           end do
+         end do
+         call outfld(tfname, ftmp(:,:,1), npsq, ie)
+       end do
+     end if
+    end do
+
+   if (hist_fld_active('U_gll') .or. hist_fld_active('V_gll')) then
+      do ie = 1, nelemd
+         do j = 1, np
+            do i = 1, np
+               ftmp(i+(j-1)*np,:,1) = elem(ie)%state%v(i,j,1,:,tl_f)
+               ftmp(i+(j-1)*np,:,2) = elem(ie)%state%v(i,j,2,:,tl_f)
+            end do
+         end do
+         call outfld('U_gll', ftmp(:,:,1), npsq, ie)
+         call outfld('V_gll', ftmp(:,:,2), npsq, ie)
+      end do
+   end if
+
+   if (hist_fld_active('T_gll')) then
+      do ie = 1, nelemd
+         call get_temperature(elem(ie),temperature,hvcoord,tl_f)
+         call outfld('T_gll' ,RESHAPE(temperature(:,:,:), (/npsq,nlev/))    ,npsq,ie)
+      end do
+   end if
+
+   if (hist_fld_active('dp_ref_gll')) then
+     do ie = 1, nelemd
+       call get_dp_ref(hyai,hybi,ps0,elem(ie)%state%phis(:,:),dp_ref(:,:,:),ps_ref(:,:))
+         do j = 1, np
+            do i = 1, np
+               ftmp(i+(j-1)*np,:,1) = elem(ie)%state%dp3d(i,j,:,tl_f)/dp_ref(i,j,:)
+            end do
+         end do
+         call outfld('dp_ref_gll', ftmp(:,:,1), npsq, ie)
+      end do
+   end if
+
+!!$   if (hist_fld_active('PSDRY_gll')) then
+!!$      do ie = 1, nelemd
+!!$         do j = 1, np
+!!$            do i = 1, np
+!!$               ftmp(i+(j-1)*np,1,1) = elem(ie)%state%psdry(i,j)
+!!$            end do
+!!$         end do
+!!$         call outfld('PSDRY_gll', ftmp(:,1,1), npsq, ie)
+!!$      end do
+!!$   end if
+
+   if (hist_fld_active('PS_gll')) then
+
+!!$     allocate(fld_2d(np,np))
+     do ie = 1, nelemd
+!!$       call get_ps(elem(ie)%state%Qdp(:,:,:,:,tl_Qdp),&
+!!$            thermodynamic_active_species_idx_dycore,elem(ie)%state%dp3d(:,:,:,tl_f),fld_2d,hyai(1)*ps0)
+!!$         do j = 1, np
+!!$            do i = 1, np
+!!$              ftmp(i+(j-1)*np,1,1) = fld_2d(i,j)
+!!$            end do
+!!$         end do
+         call outfld('PS_gll',RESHAPE(elem(ie)%state%ps_v(:,:,tl_f), (/np*np/)), np*np, ie)
+       end do
+!!$       deallocate(fld_2d)
+   end if
+
+   if (hist_fld_active('PHIS_gll')) then
+      do ie = 1, nelemd
+         call outfld('PHIS_gll', RESHAPE(elem(ie)%state%phis, (/np*np/)), np*np, ie)
+      end do
+   end if
+
+   if (write_inithist()) then
+!!$      allocate(fld_2d(np,np))
+      do ie = 1, nelemd
+!!$         call get_ps(elem(ie)%state%Qdp(:,:,:,:,tl_Qdp), thermodynamic_active_species_idx_dycore,&
+!!$              elem(ie)%state%dp3d(:,:,:,tl_f),fld_2d,hyai(1)*ps0)
+!!$         do j = 1, np
+!!$            do i = 1, np
+!!$               ftmp(i+(j-1)*np,1,1) = fld_2d(i,j)
+!!$            end do
+!!$         end do
+!jt         call outfld('PS&IC', ftmp(:,1,1), npsq, ie)
+         call outfld('PS&IC',RESHAPE(elem(ie)%state%ps_v(:,:,tl_f), (/np*np/)), np*np, ie)
+      end do
+!!$      deallocate(fld_2d)
+   endif
+
+   deallocate(ftmp)
+
+   if (write_inithist()) then
+
+      if (fv_nphys < 1) then
+         allocate(factor_array(np,np,nlev),stat=astat)
+         if (astat /= 0) call endrun(prefix//"Allocate factor_array failed")
+      endif
+
+      do ie = 1, nelemd
+#ifdef MODEL_THETA_L
+         call outfld('T&IC', RESHAPE(elem(ie)%derived%FT(:,:,:), (/npsq,nlev/)), npsq, ie)
+#else
+         call outfld('T&IC', RESHAPE(elem(ie)%state%T(:,:,:,tl_f), (/npsq,nlev/)), npsq, ie)
+#endif
+         call outfld('U&IC', RESHAPE(elem(ie)%state%v(:,:,1,:,tl_f), (/npsq,nlev/)), npsq, ie)
+         call outfld('V&IC', RESHAPE(elem(ie)%state%v(:,:,2,:,tl_f), (/npsq,nlev/)), npsq, ie)
+
+         if (fv_nphys < 1) then
+            call get_sum_species(elem(ie)%state%Qdp(:,:,:,:,tl_qdp), &
+                 thermodynamic_active_species_idx_dycore, factor_array,dp_dry=elem(ie)%state%dp3d(:,:,:,tl_f))
+            factor_array(:,:,:) = 1.0_r8/factor_array(:,:,:)
+            do m_cnst = 1, qsize
+               if (cnst_type(m_cnst) == 'wet') then
+                  call outfld(trim(cnst_name(m_cnst))//'&IC', &
+                       RESHAPE(factor_array(:,:,:)*elem(ie)%state%Qdp(:,:,:,m_cnst,tl_qdp)/&
+                       elem(ie)%state%dp3d(:,:,:,tl_f), (/npsq,nlev/)), npsq, ie)
+               else
+                  call outfld(trim(cnst_name(m_cnst))//'&IC', &
+                       RESHAPE(elem(ie)%state%Qdp(:,:,:,m_cnst,tl_qdp)/&
+                       elem(ie)%state%dp3d(:,:,:,tl_f), (/npsq,nlev/)), npsq, ie)
+               end if
+            end do
+         end if
+      end do
+
+!!$      if (fv_nphys > 0) then
+!!$         !JMD $OMP PARALLEL NUM_THREADS(horz_num_threads), DEFAULT(SHARED), PRIVATE(hybrid,nets,nete,n)
+!!$         !JMD        hybrid = config_thread_region(par,'horizontal')
+!!$         ithr=omp_get_thread_num()
+!!$         nets=dom_mt(ithr)%start
+!!$         nete=dom_mt(ithr)%end
+!!$         hybrid = hybrid_create_cam(par,ithr,hthreads)
+!!$         allocate(fld_fvm(1-nhc:nc+nhc,1-nhc:nc+nhc,nlev,1,nets:nete),stat=astat)
+!!$         if (astat /= 0) call endrun(prefix//"Allocate fld_fvm failed")
+!!$         allocate(fld_gll(np,np,nlev,1,nets:nete),stat=astat)
+!!$         if (astat /= 0) call endrun(prefix//"Allocate fld_gll failed")
+!!$         allocate(factor_array(nc,nc,nlev),stat=astat)
+!!$         if (astat /= 0) call endrun(prefix//"Allocate factor_array failed")
+!!$
+!!$         llimiter = .true.
+!!$
+!!$         do m_cnst = 1, pcnst
+!!$            do ie = nets, nete
+!!$
+!!$               call get_sum_species(fvm(ie)%c(1:nc,1:nc,:,:),thermodynamic_active_species_idx,factor_array)
+!!$               factor_array(:,:,:) = 1.0_r8/factor_array(:,:,:)
+!!$
+!!$               if (cnst_type(m_cnst) == 'wet') then
+!!$                  fld_fvm(1:nc,1:nc,:,1,ie) = fvm(ie)%c(1:nc,1:nc,:,m_cnst)*factor_array(:,:,:)
+!!$               else
+!!$                  fld_fvm(1:nc,1:nc,:,1,ie) = fvm(ie)%c(1:nc,1:nc,:,m_cnst)
+!!$               end if
+!!$            end do
+!!$
+!!$            call fvm2dyn(fld_fvm, fld_gll, hybrid, nets, nete, nlev, fvm(nets:nete), llimiter)
+!!$
+!!$            do ie = nets, nete
+!!$               call outfld(trim(cnst_name(m_cnst))//'&IC', &
+!!$                    RESHAPE(fld_gll(:,:,:,:,ie), (/npsq,nlev/)), npsq, ie)
+!!$            end do
+!!$         end do
+!!$
+!!$         deallocate(fld_fvm)
+!!$         deallocate(fld_gll)
+!!$      end if
+!!$
+!!$      deallocate(factor_array)
+
+   end if  ! if (write_inithist)
+
+end subroutine diag_dynvar_ic
 
 
 end module stepon

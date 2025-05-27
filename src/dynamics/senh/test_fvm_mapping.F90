@@ -3,7 +3,7 @@ module test_fvm_mapping
 !jt  use fvm_control_volume_mod, only: fvm_struct
   use cam_history,            only: outfld
   use physconst,              only: pi
-  use dimensions_mod,         only: np, nelemd, nlev, npsq, ntrac
+  use dimensions_mod_cam,     only: np, nelemd, nlev, npsq, ntrac
   use element_mod,            only: element_t
   implicit none
   private
@@ -134,7 +134,7 @@ contains
 
 !jt  subroutine test_mapping_overwrite_tendencies(phys_state,phys_tend,ncols,lchnk,q_prev,fvm)
   subroutine test_mapping_overwrite_tendencies(phys_state,phys_tend,ncols,lchnk,q_prev)
-    use dimensions_mod,         only: fv_nphys
+    use dimensions_mod_cam,     only: fv_nphys
     use constituents,           only: cnst_get_ind,pcnst,cnst_name
     use physics_types,  only: physics_state, physics_tend
     type(physics_state), intent(inout) :: phys_state
@@ -193,7 +193,7 @@ contains
 
 !jt  subroutine test_mapping_output_mapped_tendencies(fvm,elem,nets,nete,tl_f,tl_qdp)
   subroutine test_mapping_output_mapped_tendencies(elem,nets,nete,tl_f,tl_qdp)
-    use dimensions_mod,         only: fv_nphys,nlev,nc
+    use dimensions_mod_cam,     only: fv_nphys,nlev,nc
     use constituents,           only: cnst_get_ind,cnst_name
     integer,          intent(in)   :: nets,nete,tl_f,tl_qdp
 !jt    type(fvm_struct), intent(inout):: fvm(nets:nete)
@@ -279,12 +279,12 @@ contains
   subroutine test_mapping_overwrite_dyn_state(elem)
 !jt    use fvm_control_volume_mod, only: fvm_struct
     use constituents,           only: cnst_name
-    use dimensions_mod,         only: nc,nhc
-    use hybrid_mod,             only: get_loop_ranges, hybrid_t,config_thread_region
-    use control_mod,            only: north, south, east, west, neast, nwest, seast, swest
+    use dimensions_mod_cam,     only: nc,nhc
+    use hybrid_mod_cam,         only: get_loop_ranges, hybrid_t,config_thread_region
+    use control_mod_cam,        only: north, south, east, west, neast, nwest, seast, swest
     !    use fvm_mod,                only: fill_halo_fvm_noprealloc
 !jt    use fvm_mod,                only: fill_halo_fvm,ghostBufQnhc_h
-    use parallel_mod,           only: par
+    use parallel_mod_cam,       only: par
 !jt    type (fvm_struct), intent(inout)    :: fvm(:)
     type(element_t), intent(inout) :: elem(:)             ! pointer to dyn_out element array
 #ifdef debug_coupling

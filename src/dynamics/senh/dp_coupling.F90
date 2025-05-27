@@ -8,8 +8,7 @@ module dp_coupling
   use cam_abortutils, only: endrun
   use cam_logfile,    only: iulog
   use constituents,   only: pcnst, cnst_name
-  use cam_history,    only: outfld, write_inithist, hist_fld_active
-  use dimensions_mod, only: np, npsq, nelemd, nlev, fv_nphys
+  use dimensions_mod_cam, only: np, npsq, nelemd, nlev, fv_nphys
   use dof_mod,        only: UniquePoints, PutUniquePoints
   use dyn_comp,       only: dyn_export_t, dyn_import_t
   use dyn_grid,       only: TimeLevel, hvcoord, dom_mt
@@ -21,13 +20,13 @@ module dp_coupling
   use phys_grid,      only: get_dyn_col_p, columns_on_task, get_chunk_info_p
   use ppgrid,         only: begchunk, endchunk, pcols, pver, pverp
   use perf_mod,       only: t_startf, t_stopf, t_barrierf
-  use parallel_mod,   only: par
+  use parallel_mod_cam,   only: par
   use shr_kind_mod,   only: r8=>shr_kind_r8
   use spmd_dyn,       only: local_dp_map, block_buf_nrecs, chunk_buf_nrecs
   use spmd_utils,     only: mpicom, iam
   use qneg_module,    only: qneg3
-  use thread_mod,     only: max_num_threads
-!jt  use iop_data_mod,   only: single_column
+  use thread_mod_cam,     only: max_num_threads
+
   private
   public :: d_p_coupling, p_d_coupling
 !===============================================================================
@@ -36,10 +35,10 @@ CONTAINS
 
 !===============================================================================
   subroutine d_p_coupling(phys_state, phys_tend,  pbuf2d, dyn_out)
-    use dyn_comp,              only: frontgf_idx, frontga_idx
+    use dyn_comp,              only: frontgf_idx, frontga_idx, vort4gw_idx
     use gllfvremap_mod,        only: gfr_dyn_to_fv_phys
-    use gravity_waves_sources, only: gws_src_fnct
-    use phys_control,          only: use_gw_front, use_gw_front_igw
+    use gravity_waves_sources, only: gws_src_fnct, compute_vorticity_4gw
+    use phys_control,           only: use_gw_front, use_gw_front_igw,  use_gw_movmtn_pbl
     use physics_buffer,        only: physics_buffer_desc, pbuf_get_chunk, &
                                      pbuf_get_field
     use shr_vmath_mod,         only: shr_vmath_exp
@@ -70,9 +69,16 @@ CONTAINS
     ! Frontogenesis
     real(r8), allocatable     :: frontgf(:,:,:) ! temporary arrays to hold frontogenesis
     real(r8), allocatable     :: frontga(:,:,:) !   function (frontgf) and angle (frontga)
+    real(r8), allocatable     :: frontgf_phys(:,:,:)
+    real(r8), allocatable     :: frontga_phys(:,:,:)
+
+    ! Vorticity
+    real (kind=r8),  allocatable :: vort4gw(:,:,:)      ! temp arrays to hold vorticity
+
     ! Pointers to pbuf
     real(r8), pointer         :: pbuf_frontgf(:,:)
     real(r8), pointer         :: pbuf_frontga(:,:)
+    real(r8), pointer         :: pbuf_vort4gw(:,:)
 
     integer                   :: ncols,i,j,ierr
     integer                   :: col_ind        ! index over columns
@@ -96,6 +102,7 @@ CONTAINS
     nullify(pbuf_chnk)
     nullify(pbuf_frontgf)
     nullify(pbuf_frontga)
+    nullify(pbuf_vort4gw)
 
     if (fv_nphys > 0) then
       nphys = fv_nphys
@@ -105,13 +112,14 @@ CONTAINS
     nphys_sq = nphys*nphys
 
     if (use_gw_front .or. use_gw_front_igw) then
-
        allocate(frontgf(nphys_sq,pver,nelemd), stat=ierr)
        if (ierr /= 0) call endrun("dp_coupling: Allocate of frontgf failed.")
-
        allocate(frontga(nphys_sq,pver,nelemd), stat=ierr)
        if (ierr /= 0) call endrun("dp_coupling: Allocate of frontga failed.")
-
+    end if
+    if (use_gw_movmtn_pbl) then
+       allocate(vort4gw(nphys_sq,pver,nelemd), stat=ierr)
+       if (ierr /= 0) call endrun("dp_coupling: Allocate of vort4gw failed.")
     end if
 
     if( par%dynproc) then
@@ -120,8 +128,10 @@ CONTAINS
 
        tl_f = TimeLevel%n0  ! time split physics (with forward-in-time RK)
 
-      if (use_gw_front .or. use_gw_front_igw) call gws_src_fnct(elem, tl_f, nphys, frontgf, frontga)
-
+       if (use_gw_front .or. use_gw_front_igw) call gws_src_fnct(elem, tl_f, nphys, frontgf, frontga)
+       if (use_gw_movmtn_pbl ) then
+          call compute_vorticity_4gw(vort4gw,tl_f,elem,nphys)
+      end if
       if (fv_nphys > 0) then
         !-----------------------------------------------------------------------
         ! Map dynamics state to FV physics grid
@@ -165,18 +175,25 @@ CONTAINS
           frontgf(:,:,:) = 0._r8
           frontga(:,:,:) = 0._r8
        end if
+       if (use_gw_movmtn_pbl) then
+          vort4gw(:,:,:) = 0._r8
+       end if
 
     end if ! par%dynproc
-
-    if (use_gw_front .or. use_gw_front_igw) then
-       call pbuf_get_field(pbuf_chnk, frontgf_idx, pbuf_frontgf)
-       call pbuf_get_field(pbuf_chnk, frontga_idx, pbuf_frontga)
-    end if
 
     !$omp parallel do num_threads(max_num_threads) private (col_ind, lchnk, icol, ie, blk_ind, ilyr, m)
     do col_ind = 1, columns_on_task
        call get_dyn_col_p(col_ind, ie, blk_ind)
        call get_chunk_info_p(col_ind, lchnk, icol)
+
+       pbuf_chnk => pbuf_get_chunk(pbuf2d, lchnk)
+       if (use_gw_front .or. use_gw_front_igw) then
+          call pbuf_get_field(pbuf_chnk, frontgf_idx, pbuf_frontgf)
+          call pbuf_get_field(pbuf_chnk, frontga_idx, pbuf_frontga)
+       end if
+       if (use_gw_movmtn_pbl) then
+          call pbuf_get_field(pbuf_chnk, vort4gw_idx, pbuf_vort4gw)
+       end if
        phys_state(lchnk)%ps(icol)=ps_tmp(blk_ind(1),ie)
        phys_state(lchnk)%phis(icol)=phis_tmp(blk_ind(1),ie)
        do ilyr=1,pver
@@ -189,6 +206,9 @@ CONTAINS
              pbuf_frontgf(icol,ilyr) = frontgf(blk_ind(1),ilyr,ie)
              pbuf_frontga(icol,ilyr) = frontga(blk_ind(1),ilyr,ie)
           endif
+          if (use_gw_movmtn_pbl) then
+             pbuf_vort4gw(icol, ilyr) = vort4gw(blk_ind(1), ilyr, ie)
+          end if
        end do ! ilyr
 
        do m=1,pcnst
@@ -218,44 +238,13 @@ CONTAINS
     end do ! lchnk
 #endif
 
-   if (write_inithist() ) then
-      if (fv_nphys > 0) then
-
-        ncol_d = np*np
-        do ie = 1,nelemd
-          ncols = elem(ie)%idxP%NumUniquePts
-          call outfld('PS&IC',elem(ie)%state%ps_v(:,:,tl_f),  ncol_d,ie)
-          call outfld('U&IC', elem(ie)%state%V(:,:,1,:,tl_f), ncol_d,ie)
-          call outfld('V&IC', elem(ie)%state%V(:,:,2,:,tl_f), ncol_d,ie)
-          call get_temperature(elem(ie),temperature,hvcoord,tl_f)
-          call outfld('T&IC',temperature,ncol_d,ie)
-          do m = 1,pcnst
-            call outfld(trim(cnst_name(m))//'&IC',elem(ie)%state%Q(:,:,:,m), ncol_d,ie)
-          end do ! m
-        end do ! ie
-
-      else
-
-         do lchnk=begchunk,endchunk
-            call outfld('T&IC',phys_state(lchnk)%t,pcols,lchnk)
-            call outfld('U&IC',phys_state(lchnk)%u,pcols,lchnk)
-            call outfld('V&IC',phys_state(lchnk)%v,pcols,lchnk)
-            call outfld('PS&IC',phys_state(lchnk)%ps,pcols,lchnk)
-            do m=1,pcnst
-               call outfld(trim(cnst_name(m))//'&IC',phys_state(lchnk)%q(1,1,m), pcols,lchnk)
-            end do ! m
-         end do ! lchnk
-
-      end if ! fv_nphys > 0
-    end if ! write_inithist
-
   end subroutine d_p_coupling
   !=================================================================================================
   !=================================================================================================
   subroutine p_d_coupling(phys_state, phys_tend,  dyn_in)
     use shr_vmath_mod, only: shr_vmath_log
     use cam_control_mod, only : adiabatic
-    use control_mod,             only: ftype
+    use control_mod_cam,         only: ftype
     use edge_mod,                only: edge_g, edgeVpack_nlyr, edgeVunpack_nlyr
     use gllfvremap_mod,          only: gfr_fv_phys_to_dyn
     use time_manager,            only: get_step_size
@@ -355,6 +344,7 @@ CONTAINS
    ! so do a simple sum (boundary exchange with no weights).
    ! For physics grid, we interpolated into all points, so do weighted average.
 
+   if(.not.par%dynproc) return
    call t_startf('p_d_coupling:bndry_exchange')
 
    nlev_tot=(3+pcnst)*nlev
@@ -401,18 +391,18 @@ CONTAINS
       kptr = 0
       ! fmtmp can be removed if theta and preqx model had the same size FM array
       fmtmp=dyn_in%elem(ie)%derived%FM(:,:,1,:)
-      call edgeVpack_nlyr(edge_g,dyn_in%elem(ie)%desc,fmtmp,nlev,kptr,nlev_tot)
+      call edgeVunpack_nlyr(edge_g,dyn_in%elem(ie)%desc,fmtmp,nlev,kptr,nlev_tot)
       kptr=kptr+nlev
 
       fmtmp=dyn_in%elem(ie)%derived%FM(:,:,2,:)
-      call edgeVpack_nlyr(edge_g,dyn_in%elem(ie)%desc,fmtmp,nlev,kptr,nlev_tot)
+      call edgeVunpack_nlyr(edge_g,dyn_in%elem(ie)%desc,fmtmp,nlev,kptr,nlev_tot)
       kptr=kptr+nlev
 
 
-      call edgeVpack_nlyr(edge_g,dyn_in%elem(ie)%desc,dyn_in%elem(ie)%derived%FT(:,:,:),nlev,kptr,nlev_tot)
+      call edgeVunpack_nlyr(edge_g,dyn_in%elem(ie)%desc,dyn_in%elem(ie)%derived%FT(:,:,:),nlev,kptr,nlev_tot)
       kptr=kptr+nlev
-!jt      call edgeVpack_nlyr(edge_g,dyn_in%elem(ie)%desc,dyn_in%elem(ie)%derived%FQ(:,:,:,:),nlev*qsize,kptr,nlev_tot)
-      call edgeVpack_nlyr(edge_g,dyn_in%elem(ie)%desc,dyn_in%elem(ie)%derived%FQ(:,:,:,:),nlev*pcnst,kptr,nlev_tot)
+!jt      call edgeVunpack_nlyr(edge_g,dyn_in%elem(ie)%desc,dyn_in%elem(ie)%derived%FQ(:,:,:,:),nlev*qsize,kptr,nlev_tot)
+      call edgeVunpack_nlyr(edge_g,dyn_in%elem(ie)%desc,dyn_in%elem(ie)%derived%FQ(:,:,:,:),nlev*pcnst,kptr,nlev_tot)
       if (fv_nphys > 0) then
          do k = 1, nlev
             dyn_in%elem(ie)%derived%FM(:,:,1,k) =                             &
@@ -517,7 +507,7 @@ CONTAINS
       call geopotential_t(phys_state(lchnk)%lnpint, phys_state(lchnk)%lnpmid  ,&
                           phys_state(lchnk)%pint  , phys_state(lchnk)%pmid    ,&
                           phys_state(lchnk)%pdel  , phys_state(lchnk)%rpdel   ,&
-                          phys_state(lchnk)%t     , phys_state(lchnk)%q(:,:,1),&
+                          phys_state(lchnk)%t     , phys_state(lchnk)%q       ,&
                           rairv(:,:,lchnk)        , gravit, zvirv             ,&
                           phys_state(lchnk)%zi    , phys_state(lchnk)%zm      ,&
                           ncol)
@@ -545,8 +535,8 @@ CONTAINS
 !        back to wet. (in APE, all tracers are wet, so it is ok for now)
 !
 ! Convert dry type constituents from moist to dry mixing ratio
-       call set_state_pdry(phys_state(lchnk))	 ! First get dry pressure to use for this timestep
-       call set_wet_to_dry(phys_state(lchnk))    ! Dynamics had moist, physics wants dry.
+       call set_state_pdry(phys_state(lchnk), .true.)	 ! First get dry pressure to use for this timestep
+       call set_wet_to_dry(phys_state(lchnk), convert_cnst_type='dry')    ! Dynamics had moist, physics wants dry.
 !
 ! Ensure tracers are all positive
 !
