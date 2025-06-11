@@ -90,7 +90,7 @@ OPTIONS
      -max_n_rad_cnst <n> Maximum number of constituents that are either radiatively
                         active, or in any single diagnostic list for the radiation.
      -microphys <name>  Specify the microphysics option [mg1 | mg2 | mg3| rk | pumas].
-     -model_top <name>  Specify the model_top option for cam7 [ lt | mt ].
+     -model_top <name>  Specify the model_top option for cam7 [ lt | mt | ht | xt ].
      -nadv <n>          Set total number of advected species to <n>.
      -nadv_tt <n>       Set number of advected test tracers <n>.
      -nlev <n>          Set number of levels to <n>.
@@ -716,8 +716,8 @@ $waccm_phys = $cfg_ref->get('waccm_phys');
 
 if ($print>=2) { print "WACCM physics: $waccm_phys$eol"; }
 
-# WACCM includes 4 age of air tracers by default
-if ($chem_pkg =~ /waccm_ma/ or $chem_pkg =~ /waccm_tsmlt/) {
+# WACCM and CAM-Chem includes 3 age of air tracers by default
+if ($chem_pkg =~ /waccm_/ or $chem_pkg =~ /trop_strat_/) {
     $cfg_ref->set('age_of_air_trcs', 1);
 }
 
@@ -1230,6 +1230,7 @@ $cfg_ref->set('model_top', $model_top);
 
 # user override
 if (defined $opts{'model_top'} and $opts{'model_top'} ne 'none') {
+    $model_top = lc($opts{'model_top'});
     if ($phys_pkg eq 'cam7') {
         $cfg_ref->set('model_top', $opts{'model_top'});
     } else {
@@ -1243,10 +1244,21 @@ if ($print>=2) { print "model_top: $model_top$eol"; }
 my $nlev = 0;
 
 # Defaults
-if ($waccmx) {
+if ($phys_pkg eq 'cam7') {
+    if ($model_top eq 'lt') {
+        $nlev = 58;
+    } elsif ($model_top eq 'mt') {
+        $nlev = 93;
+    } elsif ($model_top eq 'ht') {
+        $nlev = 135;
+    } elsif ($model_top eq 'xt') {
+        $nlev = 189;
+    } else {
+        $nlev = 32;  # this is for some old cam_dev tests
+    }
+}
+elsif ($waccmx) {
     if ($phys_pkg eq 'cam6') {
-        $nlev = 130;
-    } elsif ($phys_pkg eq 'cam7') {
         $nlev = 130;
     } else {
         $nlev = 126;
@@ -1260,9 +1272,6 @@ elsif ($chem_pkg =~ /waccm_/) {
         $nlev = 70;
     }
 }
-elsif ($phys_pkg eq 'cam7') {
-    $nlev = 32;
-}
 elsif ($phys_pkg eq 'cam6') {
     $nlev = 32;
 }
@@ -1273,9 +1282,8 @@ elsif ($phys_pkg eq 'cam4') {
     $nlev = 26;
 }
 else {
-    # This will be used for Held-Suarez and other 'simple' physics
-    # We may change this to 32 once IC files are available.
-    $nlev = 30;
+    # Simple models use cam7-lt vertical grid.
+    $nlev = 58;
 }
 
 # user override
@@ -1355,7 +1363,7 @@ if ($chem_pkg =~ '_mam3') {
 if ($chem_pkg =~ 'geoschem') {
     $chem_cppdefs .= ' -DEXTERNAL_GRID -DEXTERNAL_FORCING -DMODEL_CESM -DMODEL_GEOSCHEM';
     if ($chem_pkg =~ '_mam4') {
-        $chem_nadv = 269; # includes all GEOS-Chem advected species, CO2, and MAM aerosols
+        $chem_nadv = 312; # includes all GEOS-Chem advected species, CO2, and MAM aerosols
     }
 }
 # CARMA sectional microphysics
@@ -1853,6 +1861,9 @@ $cfg_cppdefs .= " -DPLEV=$nlev -DPCNST=$nadv -DPCOLS=$pcols -DPSUBCOLS=$psubcols
 # Radiatively active constituent number
 $cfg_cppdefs .= " -DN_RAD_CNST=$max_n_rad_cnst";
 
+# use iso_c_binding c_bool in RRTMGP (needed for nag-7)
+if ($rad_pkg eq 'rrtmgp') { $cfg_cppdefs .= ' -DRTE_USE_CBOOL'; }
+
 # offline driver for FV dycore
 if ($offline_dyn) { $cfg_cppdefs .= ' -DOFFLINE_DYN'; }
 
@@ -2232,13 +2243,16 @@ sub write_filepath
     print $fh "$camsrcdir/src/atmos_phys/to_be_ccppized\n";
     print $fh "$camsrcdir/src/atmos_phys/phys_utils\n";
 
-    #Add the CCPP'ized subdirectories
+    # Add the CCPP'ized subdirectories
     print $fh "$camsrcdir/src/atmos_phys/schemes/tropopause_find\n";
     print $fh "$camsrcdir/src/atmos_phys/schemes/zhang_mcfarlane\n";
     print $fh "$camsrcdir/src/atmos_phys/schemes/dry_adiabatic_adjust\n";
-    print $fh "$camsrcdir/src/atmos_phys/schemes/check_energy\n";
+    print $fh "$camsrcdir/src/atmos_phys/schemes/conservation_adjust/check_energy\n";
+    print $fh "$camsrcdir/src/atmos_phys/schemes/conservation_adjust/dme_adjust\n";
     print $fh "$camsrcdir/src/atmos_phys/schemes/hack_shallow\n";
+    print $fh "$camsrcdir/src/atmos_phys/schemes/rasch_kristjansson\n";
     print $fh "$camsrcdir/src/atmos_phys/schemes/utilities\n";
+    print $fh "$camsrcdir/src/atmos_phys/schemes/rayleigh_friction\n";
 
     print $fh "$camsrcdir/src/atmos_phys/schemes/cloud_fraction\n";
 
