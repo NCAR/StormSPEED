@@ -972,7 +972,7 @@ subroutine read_inidat(dyn_in)
   use microp_driver,           only: microp_driver_implements_cnst, microp_driver_init_cnst
   use phys_control,            only: phys_getopts
   use prim_si_mod,             only: prim_set_mass
-  use rk_stratiform,           only: rk_stratiform_implements_cnst, rk_stratiform_init_cnst
+  use rk_stratiform_cam,       only: rk_stratiform_cam_implements_cnst, rk_stratiform_cam_init_cnst
 
   use shr_vmath_mod,           only: shr_vmath_log
   use tracers,                 only: tracers_implements_cnst, tracers_init_cnst
