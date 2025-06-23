@@ -3305,6 +3305,7 @@
 <se_refined_mesh hgrid="ne0np4TESTONLY.ne5x4" > .true. </se_refined_mesh>
 <se_refined_mesh hgrid="ne0np4.ARCTIC.ne30x4" > .true. </se_refined_mesh>
 <se_refined_mesh hgrid="ne0np4.ARCTICGRIS.ne30x8" > .true. </se_refined_mesh>
+<se_refined_mesh hgrid="ne0np4.MIDWEST.ne30x5" > .true. </se_refined_mesh>
 
 <se_nsplit se_dyn_target="cam"                                                >  2 </se_nsplit>
 <se_nsplit se_dyn_target="cam" hgrid="ne16np4"                                >  1 </se_nsplit>

@@ -11,7 +11,7 @@ use cam_history_support,     only: max_fieldname_len
 use cam_initfiles,           only: initial_file_get_id, topo_file_get_id, pertlim
 use cam_logfile,             only: iulog
 use cam_map_utils,           only: iMap
-use control_mod_cam,         only: hypervis_subcycle_q, integration, statefreq, runtype, use_moisture
+use control_mod_cam,         only: hypervis_subcycle_q, integration, statefreq, runtype, use_moisture, refined_mesh
 use dimensions_mod_cam,      only: nelemd, nlev, np, npsq, ne, ne_x, ne_y, fv_nphys,qsize
 use dyn_grid,                only: timelevel, dom_mt, hvcoord, ini_grid_hdim_name
 !jtuse dyn_grid,                only: get_horiz_grid_dim_d, dyn_decomp, fv_nphys, ini_grid_name
@@ -114,7 +114,10 @@ subroutine dyn_readnl(NLFileName)
   use fvm_mod,        only: fvm_get_test_type
   use native_mapping, only: native_mapping_readnl
 #endif
-  use dimensions_mod_cam, only: qsize, qsize_d, ntrac, ntrac_d, npsq, ne, npart, lcp_moist
+#ifndef HOMME_WITHOUT_PIOLIBRARY
+  use mesh_mod,       only: MeshOpen
+#endif
+  use dimensions_mod_cam, only: qsize, qsize_d, ntrac, ntrac_d, npsq, ne, npart, lcp_moist, set_mesh_dimensions
   use constituents,   only: pcnst
   use params_mod,     only: SFCURVE, SPHERE_COORDS, Z2_NO_TASK_MAPPING
   use physical_constants, only: lx, ly
@@ -250,11 +253,11 @@ subroutine dyn_readnl(NLFileName)
  integer                          :: se_vert_remap_u_alg = -2   ! remap for dynamics. default -2 means inherit vert_remap_q_alg
  real (r8)                        :: se_vtheta_thresh = 100.d0  ! threshold for virtual potential temperature minimum limiter
  integer                          :: se_vthreads
+ logical                          :: se_refined_mesh
 #ifndef MODEL_THETA_L
   integer                         :: se_fine_ne
   real(r8)                        :: se_hypervis_power
   real(r8)                        :: se_max_hypervis_courant
-  logical                         :: se_refined_mesh
 #endif
  integer                          :: se_z2_map_method       ! If zoltan2 is used,
                                                             ! Task mapping method to be used by zoltan2.
@@ -319,11 +322,11 @@ subroutine dyn_readnl(NLFileName)
       se_vert_remap_u_alg,     &
       se_vtheta_thresh,        &
       se_vthreads,             &
+      se_refined_mesh,         &
 #ifndef MODEL_THETA_L
       se_fine_ne,              & ! For refined meshes
       se_hypervis_power,       &
       se_max_hypervis_courant, &
-      se_refined_mesh,         &
 #endif
       se_z2_map_method
  !!XXgoldyXX: v For future physgrid commit
@@ -343,8 +346,8 @@ subroutine dyn_readnl(NLFileName)
  se_fine_ne              = -1
  se_hypervis_power       = 0
  se_max_hypervis_courant = 1.0e99_r8
- se_refined_mesh         = .false.
 #endif
+ se_refined_mesh         = .false.
  se_COORD_TRANSFORM_METHOD = SPHERE_COORDS
  se_Z2_MAP_METHOD = Z2_NO_TASK_MAPPING
  se_ftype                = 0
@@ -457,11 +460,11 @@ subroutine dyn_readnl(NLFileName)
  call MPI_bcast(se_vert_remap_u_alg, 1, mpi_integer, masterprocid, mpicom, ierr)
  call MPI_bcast(se_vtheta_thresh, 1, mpi_real8, masterprocid, mpicom, ierr)
  call MPI_bcast(se_vthreads, 1, mpi_integer, masterprocid, mpicom, ierr)
+ call MPI_bcast(se_refined_mesh, 1, mpi_logical, masterprocid, mpicom, ierr)
 #ifndef MODEL_THETA_L
  call MPI_bcast(se_fine_ne, 1, mpi_integer, masterprocid, mpicom, ierr)
  call MPI_bcast(se_hypervis_power, 1, mpi_real8, masterprocid, mpicom, ierr)
  call MPI_bcast(se_max_hypervis_courant, 1, mpi_real8, masterprocid, mpicom, ierr)
- call MPI_bcast(se_refined_mesh, 1, mpi_logical, masterprocid, mpicom, ierr)
 #endif
  call MPI_bcast(se_z2_map_method, 1, mpi_integer, masterprocid, mpicom, ierr)
 
@@ -514,75 +517,7 @@ subroutine dyn_readnl(NLFileName)
     endif
  endif
 
- ! set defautl for dynamics remap
- if (se_vert_remap_u_alg == -2) se_vert_remap_u_alg = se_vert_remap_q_alg
-
- ! more thread error checks:
-#ifdef HORIZ_OPENMP
- if(par%masterproc) write(iulog,*)'-DHORIZ_OPENMP enabled'
-#else
- if(par%masterproc) write(iulog,*)'-DHORIZ_OPENMP disabled'
-#endif
-#ifdef COLUMN_OPENMP
- if(par%masterproc) write(iulog,*)'-DCOLUMN_OPENMP enabled'
-#else
- if(par%masterproc) write(iulog,*)'-DCOLUMN_OPENMP disabled'
-#endif
-
- if (se_topology == "plane" .and. (se_mesh_file /= "/dev/null" .and. se_mesh_file /= "none")) then
-    call endrun("RRM grids not yet supported for plane")
- end if
-
- if (se_ne /=0 .or. se_ne_x /=0 .or. se_ne_y /=0) then
-    if (se_mesh_file /= "none" .and. se_mesh_file /= "/dev/null") then
-       write (*,*) "namelist_mod: se_mesh_file:",trim(se_mesh_file), &
-            " and ne/ne_x/ne_y:",se_ne,se_ne_x,se_ne_y," are both specified in the input file."
-       write (*,*) "Specify one or the other, but not both."
-       call endrun("Do not specify ne (or ne_x, ne_y) if using a mesh file input.")
-    end if
- end if
- if (par%masterproc) write (iulog,*) "SE_Mesh File:", trim(se_mesh_file)
-!!$ if (se_ne.eq.0 .and. se_ne_x .eq. 0 .and. se_ne_y .eq. 0) then
-!!$#ifndef HOMME_WITHOUT_PIOLIBRARY
-!!$    call set_mesh_dimensions()
-!!$    if (par%masterproc) write (iulog,*) "Opening Mesh File:", trim(mesh_file)
-!!$    call MeshOpen(mesh_file, par)
-!!$#else
-!!$    call endrun("Build is without PIO library, mesh runs (ne=0) are not supported.")
-!!$#endif
-!!$ end if
- ! set map
- if (se_cubed_sphere_map<0) then
-#if ( defined MODEL_THETA_C || defined MODEL_THETA_L )
-    se_cubed_sphere_map=2  ! theta model default = element local
-#else
-    se_cubed_sphere_map=0  ! default is equi-angle gnomonic
-#endif
- endif
- if (par%masterproc) write (iulog,*) "Reference element projection: se_cubed_sphere_map=",se_cubed_sphere_map
-
- ! set geometric factors
- ! Ideally this stuff moves into a separate sub routine
- ! Along with all the other things that are test case specific (rearth/Omega scaling for small-earth experiments, etc.)
- if (se_geometry == "sphere") then
-    scale_factor = rearth
-    scale_factor_inv = rrearth
-    domain_size = 4.0D0*DD_PI
-    laplacian_rigid_factor = rrearth
- end if
-
  ftype = se_ftype
-
-#ifdef _PRIM
- if (se_limiter_option==8 .or. se_limiter_option==84 .or. se_limiter_option == 9) then
-    if (se_hypervis_subcycle_q/=1 .and. se_transport_alg == 0) then
-       call endrun('limiter 8,84,9 require hypervis_subcycle_q=1')
-    endif
- endif
- if (se_transport_alg == 0 .and. se_dt_remap_factor > 0 .and. se_dt_remap_factor < se_dt_tracer_factor) then
-    call endrun('Only SL transport supports vertical remap time step < tracer time step.')
- end if
-#endif
 
  coord_transform_method = se_coord_transform_method
  cubed_sphere_map = se_cubed_sphere_map
@@ -636,11 +571,11 @@ subroutine dyn_readnl(NLFileName)
  vert_remap_u_alg = se_vert_remap_u_alg
  vtheta_thresh = se_vtheta_thresh
  vthreads = se_vthreads
+ refined_mesh = se_refined_mesh
 #ifndef MODEL_THETA_L
  fine_ne = se_fine_ne
  hypervis_power = se_hypervis_power
  max_hypervis_courant = se_max_hypervis_courant
- refined_mesh = se_refined_mesh
 #endif
  z2_map_method = se_z2_map_method
 
@@ -656,9 +591,9 @@ subroutine dyn_readnl(NLFileName)
  ! HOMME wants 'none' to indicate no mesh file
  if (len_trim(se_mesh_file) == 0) then
     se_mesh_file = 'none'
-!!$      if (se_refined_mesh) then
-!!$         call endrun('dyn_readnl ERROR: se_refined_mesh=.true. but no se_mesh_file')
-!!$      end if
+      if (se_refined_mesh) then
+         call endrun('dyn_readnl ERROR: se_refined_mesh=.true. but no se_mesh_file')
+      end if
  end if
 
  write_restart_unstruct = se_write_restart_unstruct
@@ -672,9 +607,9 @@ subroutine dyn_readnl(NLFileName)
     write(iulog, '(a,i0)') 'dyn_readnl: se_hypervis_subcycle = ',se_hypervis_subcycle
     write(iulog, '(a,i0)') 'dyn_readnl: se_hypervis_subcycle_q = ',se_hypervis_subcycle_q
     write(iulog, '(a,i0)') 'dyn_readnl: se_limiter_option = ',se_limiter_option
-!!$    if (.not. se_refined_mesh) then
-    write(iulog, '(a,i0)') 'dyn_readnl: se_ne = ',se_ne
-!!$    end if
+    if (.not. se_refined_mesh) then
+       write(iulog, '(a,i0)') 'dyn_readnl: se_ne = ',se_ne
+    end if
     write(iulog, '(a,i0)') 'dyn_readnl: se_npes = ',se_npes
     write(iulog, '(a,i0)') 'dyn_readnl: se_nsplit = ',se_nsplit
     write(iulog, '(a,e9.2)') 'dyn_readnl: se_nu = ',se_nu
@@ -689,22 +624,10 @@ subroutine dyn_readnl(NLFileName)
     write(iulog, '(a,i0)') 'dyn_readnl: se_vert_remap_q_alg = ',se_vert_remap_q_alg
     write(iulog,'(a,l1)') 'dyn_readnl: write restart data on unstructured grid = ', &
          se_write_restart_unstruct
-!!$    if (se_refined_mesh) then
-!!$      write(iulog, *) 'dyn_readnl: Refined mesh simulation'
-!!$      write(iulog, *) 'dyn_readnl: se_mesh_file = ',trim(se_mesh_file)
-!jt      if (abs(se_hypervis_power) < 1.0e-12_r8) then
-!jt        write(iulog, '(a,e11.4)') 'dyn_readnl: se_hypervis_power = ',se_hypervis_power, ', (tensor hyperviscosity)'
-!jt        write(iulog, '(a,e11.4)') 'dyn_readnl: se_hypervis_scaling = ',se_hypervis_scaling
-!jt      else if (abs(se_hypervis_power - 3.322_r8) < 1.0e-12_r8) then
-!jt        write(iulog, '(a,e11.4)') 'dyn_readnl: se_hypervis_power = ',se_hypervis_power, ', (scalar hyperviscosity)'
-!jt        write(iulog, '(a,i0)') 'dyn_readnl: se_fine_ne = ',se_fine_ne
-!jt      else
-!jt        write(iulog, '(a,i0)') 'dyn_readnl: se_hypervis_power = ',se_hypervis_power
-!jt        write(iulog, '(a,e11.4)') 'dyn_readnl: se_hypervis_scaling = ',se_hypervis_scaling
-!jt        write(iulog, '(a,e11.4)') 'dyn_readnl: se_fine_ne = ',se_fine_ne
-!jt      end if
-!jt      write(iulog, '(a,e11.4)') 'dyn_readnl: se_max_hypervis_courant = ',se_max_hypervis_courant
-!!$    end if
+    if (se_refined_mesh) then
+      write(iulog, *) 'dyn_readnl: Refined mesh simulation'
+      write(iulog, *) 'dyn_readnl: se_mesh_file = ',trim(se_mesh_file)
+    end if
 
 
 !!XXgoldyXX: v For future physgrid commit
@@ -972,7 +895,6 @@ subroutine read_inidat(dyn_in)
   use microp_driver,           only: microp_driver_implements_cnst, microp_driver_init_cnst
   use phys_control,            only: phys_getopts
   use prim_si_mod,             only: prim_set_mass
-  use rk_stratiform_cam,       only: rk_stratiform_cam_implements_cnst, rk_stratiform_cam_init_cnst
 
   use shr_vmath_mod,           only: shr_vmath_log
   use tracers,                 only: tracers_implements_cnst, tracers_init_cnst
