@@ -31,7 +31,7 @@
 <dtime dyn="se"    hgrid="ne30np4" >1800</dtime>
 <dtime dyn="se"    hgrid="ne60np4" > 900</dtime>
 <dtime dyn="se"    hgrid="ne120np4"> 450</dtime>
-<dtime dyn="se"    hgrid="ne240np4"> 225</dtime>
+<dtime dyn="se"    hgrid="ne240np4"> 300</dtime>
 <dtime dyn="se"    hgrid="ne0np4CONUS.ne30x8">225</dtime>
 <dtime dyn="se"    hgrid="ne0np4.ARCTIC.ne30x4">450</dtime>
 <dtime dyn="se"    hgrid="ne0np4.ARCTICGRIS.ne30x8">225</dtime>
@@ -3184,9 +3184,9 @@
 <se_dt_remap_factor se_dyn_target="theta-l"                  >  2 </se_dt_remap_factor>
 <se_dt_remap_factor se_dyn_target="preqx"                    > -1 </se_dt_remap_factor>
 
-<se_dt_tracer_factor  se_dyn_target="theta-l"         >   6 </se_dt_tracer_factor>
-<se_dt_tracer_factor se_dyn_target="preqx"            > -1 </se_dt_tracer_factor>
-
+<se_dt_tracer_factor  se_dyn_target="theta-l"                   >  6 </se_dt_tracer_factor>
+<se_dt_tracer_factor  se_dyn_target="theta-l"  hgrid="ne240np4" > 10 </se_dt_tracer_factor>
+<se_dt_tracer_factor se_dyn_target="preqx"                      > -1 </se_dt_tracer_factor>
 <se_hypervis_scaling se_refined_mesh="1" hypervis_type="tensor" >3.22D0 </se_hypervis_scaling>
 <se_hypervis_scaling se_dyn_target="preqx"                      >0.0D0 </se_hypervis_scaling>
 <se_hypervis_scaling se_dyn_target="theta-l"                    >3.0D0 </se_hypervis_scaling>
@@ -3227,7 +3227,8 @@
 <se_hypervis_subcycle_q se_dyn_target="cam" hgrid="ne16np4"                 >2 </se_hypervis_subcycle_q>
 <se_hypervis_subcycle_q se_dyn_target="preqx" hgrid="ne30np4"               >6 </se_hypervis_subcycle_q>
 <se_hypervis_subcycle_q se_dyn_target="theta-l"                             >6 </se_hypervis_subcycle_q>
-<se_hypervis_subcycle_q se_dyn_target="theta-l"  hgrid="ne16np4"      > 3 </se_hypervis_subcycle_q>
+<se_hypervis_subcycle_q se_dyn_target="theta-l"  hgrid="ne16np4"            > 3 </se_hypervis_subcycle_q>
+<se_hypervis_subcycle_q se_dyn_target="theta-l"  hgrid="ne240np4"           > 6 </se_hypervis_subcycle_q>
 
 <se_hypervis_subcycle_tom  se_dyn_target="theta-l"                > 1 </se_hypervis_subcycle_tom>
 <se_hypervis_subcycle_tom  se_dyn_target="preqx"                  > 0 </se_hypervis_subcycle_tom>
@@ -3280,6 +3281,7 @@
 <se_nu_top se_dyn_target="theta-l"                    > 2.5e5 </se_nu_top>
 <se_nu_top se_dyn_target="theta-l" hgrid="ne120np4"   > 1.e5 </se_nu_top>
 <se_nu_top se_dyn_target="theta-l" hgrid="ne256np4"   > 4e4 </se_nu_top>
+<se_nu_top se_dyn_target="theta-l" hgrid="ne240np4"   > 4e4 </se_nu_top>
 <se_nu_top se_dyn_target="theta-l" hgrid="ne512np4"   > 2e4 </se_nu_top>
 <se_nu_top se_dyn_target="theta-l" hgrid="ne1024np4"  > 1e4 </se_nu_top>
 
@@ -3410,6 +3412,7 @@
 <se_tstep se_dyn_target="theta-l" hgrid="ne30np4"    > 300 </se_tstep>
 <se_tstep se_dyn_target="theta-l" hgrid="ne60np4"    > 200 </se_tstep>
 <se_tstep se_dyn_target="theta-l" hgrid="ne120np4"   >  75 </se_tstep>
+<se_tstep se_dyn_target="theta-l" hgrid="ne240np4"   >  30 </se_tstep>
 <se_tstep se_dyn_target="theta-l" hgrid="ne256np4"   >  33 </se_tstep>
 <se_tstep se_dyn_target="theta-l" hgrid="ne512np4"   >  16 </se_tstep>
 <se_tstep se_dyn_target="theta-l" hgrid="ne1024np4"  >   8 </se_tstep>
