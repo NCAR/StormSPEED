@@ -100,10 +100,10 @@ def _main_prog():
     ghub = Github(token)
 
     #+++++++++++++++++++++
-    #Open ESCOMP/CAM repo
+    #Open NCAR/StormSPEED repo
     #+++++++++++++++++++++
 
-    cam_repo = ghub.get_repo("ESCOMP/CAM")
+    cam_repo = ghub.get_repo("NCAR/StormSPEED")
 
     #+++++++++++++++++++++++++++++
     #Get triggering commit message
