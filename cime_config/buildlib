@@ -330,8 +330,16 @@ def _build_cam(caseroot, libroot, bldroot):
                 slr = os.path.abspath(case.get_value("SHAREDLIBROOT"))
                 kokkosbuildroot = os.path.join(slr, sharedpath)
 
+                libdir = None
+                if os.path.isdir(os.path.join(kokkosbuildroot, "lib64")):
+                    libdir = os.path.join(kokkosbuildroot, "lib64")
+                elif os.path.isdir(os.path.join(kokkosbuildroot, "lib")):
+                    libdir = os.path.join(kokkosbuildroot, "lib")
+                else:
+                    expect(False, f"No lib or lib64 directory found in {kokkosbuildroot}")
+
                 for libs in ["libkokkoscontainers.a", "libkokkoscore.a", "libkokkossimd.a"]:
-                    libkokkos = os.path.join(kokkosbuildroot, "lib64", libs)
+                    libkokkos = os.path.join(libdir, libs)
                     if os.path.isfile(libkokkos):
                         shutil.copy(libkokkos, libroot)
                     else:
