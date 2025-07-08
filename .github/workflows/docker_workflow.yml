@@ -24,8 +24,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - name: Build Docker image which will compile a predefined compset for StormSPEED CAM
         run: docker build -t stormspeed_pr -f dockerfiles/${{ matrix.dockerfile }} .
