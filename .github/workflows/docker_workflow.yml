@@ -1,0 +1,31 @@
+name: Docker container to build StormSPEED CAM
+
+on:
+  push:
+    branches:
+      - stormspeed
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  docker-build-and-test:
+    name: Build and Test - ${{ matrix.dockerfile }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        dockerfile:
+          - Dockerfile.gnu
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build Docker image which will compile a predefined compset for StormSPEED CAM
+        run: docker build -t stormspeed_pr -f dockerfiles/${{ matrix.dockerfile }} .
