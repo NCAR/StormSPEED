@@ -26,4 +26,4 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Build Docker image which will compile a predefined compset for StormSPEED CAM
-        run: docker build --platform=linux/amd64 -t stormspeed_pr -f dockerfiles/${{ matrix.dockerfile }} .
+        run: docker build --platform=linux/arm64 -t stormspeed_pr -f dockerfiles/${{ matrix.dockerfile }} .
