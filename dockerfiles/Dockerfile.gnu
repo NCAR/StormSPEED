@@ -19,7 +19,8 @@ ENV USER=example_user
 # build an FADIAB test at 1-degree resolution
 RUN . /home/spack/share/spack/setup-env.sh \
     && spack find \
-    && spack load gcc@12.4.0/jwf2kjs libxml2 cmake openmpi netcdf-c netcdf-fortran parallel-netcdf parallelio esmf
+    && spack load gcc@12.4.0/jwf2kjs \
+    && spack load libxml2 cmake openmpi netcdf-c netcdf-fortran parallel-netcdf parallelio esmf
     # && export MPI_ROOT=$(spack location -i openmpi@5.0.8 ^gcc@12.4.0) \
     # && export NETCDF_C_PATH=$(spack location -i netcdf-c@4.9.2) \
     # && export NETCDF_FORTRAN_PATH=$(spack location -i netcdf-fortran@4.6.1) \
