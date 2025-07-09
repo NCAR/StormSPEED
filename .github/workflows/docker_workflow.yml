@@ -14,16 +14,23 @@ concurrency:
 jobs:
   docker-build-and-test:
     name: Build and Test - ${{ matrix.dockerfile }}
-    runs-on: macos-14 # use GitHub-hosted macOS runners for image built on the aarch64 architecture
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-14]
+        os: [ubuntu-latest]
         dockerfile:
           - Dockerfile.gnu
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+  
+      # the following two setups are necessary to run GitHub-hosted ubuntu runners with an image built on the aarch64 architecture
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Build Docker image which will compile a predefined compset for StormSPEED CAM
-        run: docker build -t stormspeed_pr -f dockerfiles/${{ matrix.dockerfile }} .
+        run: docker buildx build --platform linux/arm64 -t stormspeed_pr -f dockerfiles/${{ matrix.dockerfile }} .
