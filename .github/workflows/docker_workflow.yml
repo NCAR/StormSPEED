@@ -14,11 +14,11 @@ concurrency:
 jobs:
   docker-build-and-test:
     name: Build and Test - ${{ matrix.dockerfile }}
-    runs-on: ubuntu-latest
+    runs-on: macos-14 # use GitHub-hosted macOS runners for image built on the aarch64 architecture
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest]
+        os: [macos-14]
         dockerfile:
           - Dockerfile.gnu
     steps:
