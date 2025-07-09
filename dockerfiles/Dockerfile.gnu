@@ -8,9 +8,9 @@ COPY . /tmp/StormSPEED
 RUN git config --global user.email "example_user@example.com" \
     && git config --global user.name "example_user"
 
-# # Check out individual components of StormSPEED
-# RUN cd /tmp/StormSPEED \
-#     && ./bin/git-fleximod update
+# Check out individual components of StormSPEED
+RUN cd /tmp/StormSPEED \
+    && ./bin/git-fleximod update
 
 # Set up some case-independent environment variables
 ENV TMP=tmp
@@ -18,7 +18,6 @@ ENV USER=example_user
 
 # build an FADIAB test at 1-degree resolution
 RUN . /home/spack/share/spack/setup-env.sh \
-    && spack find \
     && spack load gcc@12.4.0/jwf2kjs libxml2%gcc@12.4.0 cmake openmpi netcdf-c netcdf-fortran parallel-netcdf parallelio esmf \
     && export MPI_ROOT=$(spack location -i openmpi@5.0.8) \
     && export NETCDF_C_PATH=$(spack location -i netcdf-c@4.9.2) \
