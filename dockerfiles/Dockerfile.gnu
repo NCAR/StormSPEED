@@ -1,5 +1,5 @@
 # versions and sizes from here: https://hub.docker.com/r/jiansunncar/ubuntu24.04_gcc12.4.0_stormspeed
-FROM jiansunncar/ubuntu24.04_gcc12.4.0_stormspeed:v0
+FROM jiansunncar/ubuntu24.04_gcc12.4.0_stormspeed:v1
 
 # Copy the source code from a pull request into the container
 COPY . /tmp/StormSPEED
@@ -18,7 +18,7 @@ ENV USER=example_user
 
 # build an FADIAB test at 1-degree resolution
 RUN . /home/spack/share/spack/setup-env.sh \
-    && spack load gcc@12.4.0/jwf2kjs libxml2%gcc@12.4.0 cmake openmpi netcdf-c netcdf-fortran parallel-netcdf parallelio esmf \
+    && spack load gcc@12.4.0 libxml2 cmake openmpi netcdf-c netcdf-fortran parallel-netcdf parallelio esmf \
     && export MPI_ROOT=$(spack location -i openmpi@5.0.8) \
     && export NETCDF_C_PATH=$(spack location -i netcdf-c@4.9.2) \
     && export NETCDF_FORTRAN_PATH=$(spack location -i netcdf-fortran@4.6.1) \
