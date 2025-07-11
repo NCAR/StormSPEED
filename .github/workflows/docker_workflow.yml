@@ -1,0 +1,36 @@
+name: Docker container with GNU compiler for CPUs
+
+on:
+  push:
+    branches:
+      - stormspeed
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  docker-build-and-test:
+    name: Build and Test - ${{ matrix.dockerfile }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+        dockerfile:
+          - Dockerfile.gnu
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+  
+      # the following two setups are necessary to run GitHub-hosted ubuntu runners with an image built on the aarch64 architecture
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image which will compile a predefined compset for StormSPEED CAM
+        run: docker buildx build --platform linux/arm64 -t stormspeed_pr -f dockerfiles/${{ matrix.dockerfile }} .
