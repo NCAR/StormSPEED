@@ -426,6 +426,7 @@ subroutine dyn_readnl(NLFileName)
  call MPI_bcast(se_lcp_moist, 1, mpi_logical, masterprocid, mpicom, ierr)
  call MPI_bcast(se_write_restart_unstruct, 1, mpi_logical, masterprocid, mpicom, ierr)
  call MPI_bcast(se_limiter_option, 1, mpi_integer, masterprocid, mpicom, ierr)
+ call MPI_bcast(se_mesh_file, SHR_KIND_CL,  mpi_character, masterprocid, mpicom, ierr)
  call MPI_bcast(se_lx, 1, mpi_real8, masterprocid, mpicom, ierr)
  call MPI_bcast(se_ly, 1, mpi_real8, masterprocid, mpicom, ierr)
  call MPI_bcast(se_ne, 1, mpi_integer, masterprocid, mpicom, ierr)
@@ -477,6 +478,11 @@ subroutine dyn_readnl(NLFileName)
 !jt initialize nh dycore
  par = initmp(se_npes)
  call initomp()
+
+ ! Go ahead and enforce ne = 0 for refined mesh runs
+ if (se_refined_mesh) then
+    se_ne = 0
+ end if
 
  ! Set HOMME defaults
  call homme_set_defaults()
