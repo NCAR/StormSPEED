@@ -106,7 +106,7 @@ jobs:
           # Customize configurations #
           ############################
           cd /$TMP_DIR/ci_test
-          ./xmlchange NTASKS=32
+          ./xmlchange NTASKS=16
           ./xmlchange CAM_TARGET=${{ matrix.dycore }}
           ./xmlchange STOP_OPTION=ndays,STOP_N=1,RESUBMIT=0
           ./xmlchange DOUT_S='FALSE'
@@ -182,7 +182,7 @@ jobs:
           # Customize configurations #
           ############################
           cd /$TMP_DIR/ci_test
-          ./xmlchange NTASKS=32
+          ./xmlchange NTASKS=16
           ./xmlchange CAM_TARGET=${{ matrix.dycore }}
           ./xmlchange GPU_TYPE=a10
           ./xmlchange KOKKOS_GPU_OFFLOAD=TRUE
