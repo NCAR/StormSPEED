@@ -1,0 +1,113 @@
+##############
+# Base image #
+##############
+FROM opensuse/leap:15 AS spack_base
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Set up bash environment
+SHELL ["/bin/bash", "-c"]
+
+WORKDIR /opt
+
+# Install python3 and git as prerequisite for Spack
+# Install the basic compilers (gcc/7.5.0) to build other packages below
+# Then we install gcc/12.3.0 and use it as default compiler
+RUN zypper --non-interactive refresh && \
+    zypper --non-interactive update && \
+    zypper --non-interactive install -t pattern devel_basis && \
+    zypper --non-interactive install bzip2 libbz2-devel xz xz-devel gmp-devel mpfr-devel mpc-devel zlib-devel && \
+    zypper --non-interactive install python3 git make wget gzip && \
+    zypper --non-interactive install gcc12 gcc12-c++ gcc12-fortran && \
+    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 120 && \
+    update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 120 && \
+    update-alternatives --install /usr/bin/gfortran gfortran /usr/bin/gfortran-12 120
+
+# Clone Spack with tag v1.0.0
+RUN git clone --depth=2 --branch v1.0.0 https://github.com/spack/spack.git
+
+# Install Python 3.13.5 through Spack (needed for git-fleximod)
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install python@3.13.5 && \
+    update-alternatives --install /usr/bin/python python $(spack location -i python@3.13.5)/bin/python3.13 80 && \
+    update-alternatives --install /usr/bin/python3 python3 $(spack location -i python@3.13.5)/bin/python3.13 80
+
+########################
+# Build libxml2, cmake #
+########################
+FROM spack_base AS xml2_cmake
+
+# Install xmllint that is required by CIME
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install libxml2@2.13.5
+
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install cmake@3.31.8
+
+#########################
+# Build ucx and openmpi #
+#########################
+FROM xml2_cmake AS ucx_openmpi
+
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install ucx@1.18.1
+
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install openmpi@5.0.8 fabrics=cma,ucx ^ucx@1.18.1
+
+#########################
+# Build parallel-netcdf #
+#########################
+FROM ucx_openmpi AS parallel_netcdf
+
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install parallel-netcdf@1.14.0 +cxx +fortran +pic +shared ^openmpi@5.0.8
+
+################
+# Build netCDF #
+################
+FROM parallel_netcdf AS netcdf
+
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install netcdf-c@4.9.2 ^openmpi@5.0.8 ^parallel-netcdf@1.14.0
+
+# Install netcdf-fortran; it will install the netcdf-c and openmpi dependency by default
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install netcdf-fortran@4.6.1 ^netcdf-c@4.9.2 ^openmpi@5.0.8
+
+#############
+# Build PIO #
+#############
+FROM netcdf AS parallelio
+
+# Install parallelio; it will install the parallel-netcdf dependency by default
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install parallelio@2.6.6 +pnetcdf +fortran +mpi +shared +ncint ^parallel-netcdf@1.14.0
+
+##############
+# Build ESMF #
+##############
+FROM parallelio AS esmf
+
+# Install ESMF; it will install its parallelio and parallel-netcdf dependencies by default
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install esmf@8.8.1 +pnetcdf +mpi +shared ^parallelio@2.6.6 ^parallel-netcdf@1.14.0
+
+################
+# Build LAPACK #
+################
+FROM esmf AS lapack
+
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install netlib-lapack@3.12.1
+
+WORKDIR /tmp
+
+LABEL maintainer="Jian Sun"
+LABEL description="openSUSE Leap 15 container with gcc/12.3.0 software stack for StormSPEED CAM"
+
+ENV CXX=g++
+ENV CC=gcc
+ENV FC=gfortran
+
+CMD ["/bin/bash"]

@@ -1,4 +1,4 @@
-name: Docker containers running on CIRRUS CPUs
+name: Docker
 
 on:
   push:
@@ -13,17 +13,47 @@ concurrency:
 
 jobs:
   build-and-run-on-CIRRUS:
-    name: GNU container on CPUs
-    runs-on: gha-runner-stormspeed # CIRRUS CPU runner
+    name: Build and run ${{ matrix.image }} on ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        compset: [ FADIAB ]
+        res: [ ne30_ne30_mg17 ]
+        dycore: [ theta-l, theta-l_kokkos ]
+        image: [
+          opensuse15:gcc12_openmpi5.0.8_cpu,
+          almalinux9.6:intel2024_openmpi5.0.8_cpu,
+          ubuntu24.04:nvhpc25.7_openmpi4.1.5_cpu,
+          opensuse15:gcc12_openmpi5.0.8_cuda12.9,
+          ubuntu24.04:nvhpc25.7_openmpi5.0.8_cuda12.9
+        ]
+        include:
+          - image: opensuse15:gcc12_openmpi5.0.8_cpu
+            runner: gha-runner-stormspeed
+            compiler: gnu
+          - image: almalinux9.6:intel2024_openmpi5.0.8_cpu
+            runner: gha-runner-stormspeed
+            compiler: intel
+          - image: ubuntu24.04:nvhpc25.7_openmpi4.1.5_cpu
+            runner: gha-runner-stormspeed
+            compiler: nvhpc
+          - image: opensuse15:gcc12_openmpi5.0.8_cuda12.9
+            runner: gha-runner-gpu-stormspeed
+            compiler: gnu
+          - image: ubuntu24.04:nvhpc25.7_openmpi5.0.8_cuda12.9
+            runner: gha-runner-gpu-stormspeed
+            compiler: nvhpc
+    runs-on: ${{ matrix.runner }}
     container:
-      image: hub.k8s.ucar.edu/stormspeed/opensuse15:gcc12_cpu
+      image: hub.k8s.ucar.edu/stormspeed/${{ matrix.image }}
+      # Only set options for GPU runner
+      options: ${{ matrix.runner == 'gha-runner-gpu-stormspeed' && '--gpus all' }}
       credentials:
         username: ${{ secrets.hub_user }}
         password: ${{ secrets.hub_password }}
-    strategy:
-      fail-fast: false
     env:
       TMP_DIR: tmp
+      TMP_OUTPUT: case_output.log
     steps:
       - name: Checkout code from a pull request or push
         uses: actions/checkout@v4
@@ -39,11 +69,24 @@ jobs:
           spack load python && \
           ./bin/git-fleximod -C ${GITHUB_WORKSPACE} update
 
-      - name: Build and run FADIAB at ne30 resolution
+      - name: Build and run ${{ matrix.compset }} with ${{ matrix.dycore }} at ${{ matrix.res }} resolution on CIRRUS CPU
+        if: matrix.runner == 'gha-runner-stormspeed'
         run: |
+          ################################
+          # Set up environment variables #
+          ################################
           . /opt/spack/share/spack/setup-env.sh
-          spack load python libxml2 cmake openmpi parallel-netcdf parallelio esmf
-          export MPI_ROOT=$(spack location -i openmpi@5.0.8)
+          spack load python libxml2 openmpi parallel-netcdf parallelio esmf
+          if ! command -v cmake &> /dev/null; then
+            spack load cmake
+          fi
+          # the NVHPC CPU image comes with openmpi/4.1.5, so we don't install openmpi with Spack and set MPI_ROOT inside the image directly
+          if [ "${{ matrix.compiler }}" != "nvhpc" ]; then
+            export MPI_ROOT=$(spack location -i openmpi@5.0.8)
+          fi
+          if [ "${{ matrix.compiler }}" == "intel" ]; then
+            spack load intel-oneapi-mkl@2024.2.2
+          fi
           export NETCDF_C_PATH=$(spack location -i netcdf-c@4.9.2)
           export NETCDF_FORTRAN_PATH=$(spack location -i netcdf-fortran@4.6.1)
           export PNETCDF=$(spack location -i parallel-netcdf@1.14.0)
@@ -53,18 +96,131 @@ jobs:
           export PIO_VERSION_MAJOR=2
           export PIO_TYPENAME_VALID_VALUES="netcdf, pnetcdf, netcdf4c, netcdf4p"
           export USER=robot
+          #####################
+          # Create a new case #
+          #####################
           cd cime/scripts
-          ./create_newcase --case /$TMP_DIR/ci_test --machine cirrus --compset FADIAB --res ne30_ne30_mg17 --compiler gnu --run-unsupported
+          ./create_newcase --case /$TMP_DIR/ci_test --machine cirrus --compset ${{ matrix.compset }} \
+            --res ${{ matrix.res }} --compiler ${{ matrix.compiler }} --run-unsupported
+          ############################
+          # Customize configurations #
+          ############################
           cd /$TMP_DIR/ci_test
           ./xmlchange NTASKS=32
-          ./xmlchange CAM_TARGET=theta-l
+          ./xmlchange CAM_TARGET=${{ matrix.dycore }}
           ./xmlchange STOP_OPTION=ndays,STOP_N=1,RESUBMIT=0
           ./xmlchange DOUT_S='FALSE'
           ./case.setup
+          #########
+          # Build #
+          #########
           ./case.build
-          export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PIO/lib:$NETCDF_FORTRAN_PATH/lib:$NETCDF_C_PATH/lib:$LAPACK/lib64:$PNETCDF/lib
-          TMP_OUTPUT="case_output.log"
+          ##########################
+          # Turn off I/O for a run #
+          ##########################
+          cat <<EOF > user_nl_cam
+          se_statefreq = 488,
+          empty_htapes = .true.,
+          fincl1 = '',
+          /
+          EOF
+          cat <<EOF > user_nl_cice
+          empty_htapes = .true.,
+          fincl1 = '',
+          /
+          EOF
+          ################
+          # Run the test #
+          ################
+          if [ -d "$LAPACK/lib64" ]; then
+            export LAPACK_LIBDIR="$LAPACK/lib64"
+          else
+            export LAPACK_LIBDIR="$LAPACK/lib"
+          fi
+          export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PIO/lib:$NETCDF_FORTRAN_PATH/lib:$NETCDF_C_PATH/lib:$LAPACK_LIBDIR:$PNETCDF/lib
           ./case.submit --no-batch 2>&1 | tee "$TMP_OUTPUT"
+          ################
+          # Pass or fail #
+          ################    
+          # Check the last 5 lines for 'failed' or 'error:' (case-insensitive)
+          if tail -n 5 "$TMP_OUTPUT" | grep -iE 'failed|error:'; then
+            exit 911
+          fi
+
+      - name: Build and run ${{ matrix.compset }} with ${{ matrix.dycore }} at ${{ matrix.res }} resolution on CIRRUS GPU
+        if: matrix.runner == 'gha-runner-gpu-stormspeed' && matrix.dycore == 'theta-l_kokkos'
+        run: |
+          ################################
+          # Set up environment variables #
+          ################################
+          . /opt/spack/share/spack/setup-env.sh
+          spack load python libxml2 openmpi parallel-netcdf parallelio esmf
+          if ! command -v cmake &> /dev/null; then
+            spack load cmake
+          fi
+          export MPI_ROOT=$(spack location -i openmpi@5.0.8)
+          export NETCDF_C_PATH=$(spack location -i netcdf-c@4.9.2)
+          export NETCDF_FORTRAN_PATH=$(spack location -i netcdf-fortran@4.6.1)
+          export PNETCDF=$(spack location -i parallel-netcdf@1.14.0)
+          export PIO=$(spack location -i parallelio@2.6.6)
+          export ESMFMKFILE=$(spack location -i esmf@8.8.1)/lib/esmf.mk
+          export LAPACK=$(spack location -i netlib-lapack@3.12.1)
+          if [ "${{ matrix.compiler }}" != "nvhpc" ]; then
+            spack load cuda
+            export CUDA_ROOT=$(spack location -i cuda@12.9.0)
+          fi
+          export PIO_VERSION_MAJOR=2
+          export PIO_TYPENAME_VALID_VALUES="netcdf, pnetcdf, netcdf4c, netcdf4p"
+          export USER=robot
+          #####################
+          # Create a new case #
+          #####################
+          cd cime/scripts
+          ./create_newcase --case /$TMP_DIR/ci_test --machine cirrus --compset ${{ matrix.compset }} \
+            --res ${{ matrix.res }} --compiler ${{ matrix.compiler }} --run-unsupported
+          ############################
+          # Customize configurations #
+          ############################
+          cd /$TMP_DIR/ci_test
+          ./xmlchange NTASKS=32
+          ./xmlchange CAM_TARGET=${{ matrix.dycore }}
+          ./xmlchange GPU_TYPE=a10
+          ./xmlchange KOKKOS_GPU_OFFLOAD=TRUE
+          ./xmlchange OVERSUBSCRIBE_GPU=FALSE
+          ./xmlchange STOP_OPTION=ndays,STOP_N=1,RESUBMIT=0
+          ./xmlchange DOUT_S='FALSE'
+          ./case.setup
+          #########
+          # Build #
+          #########
+          ./case.build
+          ##########################
+          # Turn off I/O for a run #
+          ##########################
+          cat <<EOF > user_nl_cam
+          se_statefreq = 488,
+          empty_htapes = .true.,
+          fincl1 = '',
+          /
+          EOF
+          cat <<EOF > user_nl_cice
+          empty_htapes = .true.,
+          fincl1 = '',
+          /
+          EOF
+          ################
+          # Run the test #
+          ################
+          if [ -d "$LAPACK/lib64" ]; then
+            export LAPACK_LIBDIR="$LAPACK/lib64"
+          else
+            export LAPACK_LIBDIR="$LAPACK/lib"
+          fi
+          export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PIO/lib:$NETCDF_FORTRAN_PATH/lib:$NETCDF_C_PATH/lib:$LAPACK_LIBDIR:$PNETCDF/lib:$CUDA_ROOT/lib64:$CUDA_ROOT/lib64/stubs:/usr/lib64
+          ./case.submit --no-batch 2>&1 | tee "$TMP_OUTPUT"
+          ################
+          # Pass or fail #
+          ################    
           # Check the last 5 lines for 'failed' or 'error:' (case-insensitive)
           if tail -n 5 "$TMP_OUTPUT" | grep -iE 'failed|error:'; then
             exit 911

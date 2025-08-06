@@ -3,12 +3,8 @@
 ##############
 FROM opensuse/leap:15 AS spack_base
 
-LABEL maintainer="Jian Sun"
-LABEL description="openSUSE Leap 15 container with gcc/12.3.0 software stack for StormSPEED CAM"
-
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Set up bash environment
 SHELL ["/bin/bash", "-c"]
 
 WORKDIR /opt
@@ -35,11 +31,6 @@ RUN . /opt/spack/share/spack/setup-env.sh && \
     update-alternatives --install /usr/bin/python python $(spack location -i python@3.13.5)/bin/python3.13 80 && \
     update-alternatives --install /usr/bin/python3 python3 $(spack location -i python@3.13.5)/bin/python3.13 80
 
-# Set up the Spack environment
-ENV CXX=g++
-ENV CC=gcc
-ENV FC=gfortran
-
 ########################
 # Build libxml2, cmake #
 ########################
@@ -52,16 +43,30 @@ RUN . /opt/spack/share/spack/setup-env.sh && \
 RUN . /opt/spack/share/spack/setup-env.sh && \
     spack install cmake@3.31.8
 
+##############
+# Build cuda #
+##############
+FROM xml2_cmake AS cuda
+
+# Install CUDA 12.9.0
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install cuda@12.9.0
+
+# Remove unused CUDA SDK packages
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    cd $(spack location -i cuda@12.9.0) && \
+    rm -rf nsight*
+    
 #########################
 # Build ucx and openmpi #
 #########################
-FROM xml2_cmake AS ucx_openmpi
+FROM cuda AS ucx_openmpi
 
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install ucx@1.18.1
+    spack install ucx@1.18.1 +cuda +cma +dm cuda_arch=86 ^cuda@12.9.0
 
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install openmpi@5.0.8 fabrics=cma,ucx ^ucx@1.18.1
+    spack install openmpi@5.0.8 fabrics=cma,ucx,ofi +cuda cuda_arch=86 ^ucx@1.18.1 ^cuda@12.9.0
 
 #########################
 # Build parallel-netcdf #
@@ -110,5 +115,12 @@ RUN . /opt/spack/share/spack/setup-env.sh && \
     spack install netlib-lapack@3.12.1
 
 WORKDIR /tmp
+
+LABEL maintainer="Jian Sun"
+LABEL description="openSUSE Leap 15 container with gcc/12.3.0 and cuda/12.9.0 software stack for StormSPEED CAM"
+
+ENV CXX=g++
+ENV CC=gcc
+ENV FC=gfortran
 
 CMD ["/bin/bash"]

@@ -15,12 +15,27 @@ concurrency:
 jobs:
   build-images-on-CIRRUS:
     name: Build the images on CIRRUS for linux/amd64 architecture
-    runs-on: gha-runner-stormspeed # CIRRUS CPU runner
+    runs-on: ${{ matrix.runner }} # CIRRUS CPU/GPU runner
     strategy:
       fail-fast: false
       matrix:
         dockerfile:
-          - Dockerfile.opensuse15_gcc12_cpu
+          - Dockerfile.almalinux9.6_intel2024_openmpi5.0.8_cpu
+          - Dockerfile.opensuse15_gcc12_openmpi5.0.8_cpu
+          - Dockerfile.opensuse15_gcc12_openmpi5.0.8_cuda12.9
+          - Dockerfile.ubuntu24.04_nvhpc25.7_openmpi5.0.8_cuda12.9
+          - Dockerfile.ubuntu24.04_nvhpc25.7_openmpi4.1.5_cpu
+        include:
+          - dockerfile: Dockerfile.almalinux9.6_intel2024_openmpi5.0.8_cpu
+            runner: gha-runner-stormspeed
+          - dockerfile: Dockerfile.opensuse15_gcc12_openmpi5.0.8_cpu
+            runner: gha-runner-stormspeed
+          - dockerfile: Dockerfile.ubuntu24.04_nvhpc25.7_openmpi4.1.5_cpu
+            runner: gha-runner-stormspeed
+          - dockerfile: Dockerfile.opensuse15_gcc12_openmpi5.0.8_cuda12.9
+            runner: gha-runner-gpu-stormspeed
+          - dockerfile: Dockerfile.ubuntu24.04_nvhpc25.7_openmpi5.0.8_cuda12.9
+            runner: gha-runner-gpu-stormspeed
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -43,10 +58,10 @@ jobs:
 
       - name: Set image name and tag
         run: |
-            IMAGE_SUFFIX=$(basename "${{ matrix.dockerfile }}" | sed 's/^Dockerfile\.//')
-            IMAGE_NAME=$(echo "$IMAGE_SUFFIX" | cut -d'_' -f1)
-            IMAGE_TAG=$(echo "$IMAGE_SUFFIX" | cut -d'_' -f2-)
-            echo "IMAGE_NAME=${IMAGE_NAME}" >> $GITHUB_ENV
+            IMAGE_NAME=$(basename "${{ matrix.dockerfile }}" | sed 's/^Dockerfile\.//')
+            IMAGE_OS=$(echo "${IMAGE_NAME}" | cut -d'_' -f1)
+            IMAGE_TAG=$(echo "${IMAGE_NAME}" | cut -d'_' -f2-)
+            echo "IMAGE_OS=${IMAGE_OS}" >> $GITHUB_ENV
             echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
 
       # Use the docker/build-push-action to build and push the image; the raw docker build and push commands does not work on CIRRUS
@@ -55,8 +70,9 @@ jobs:
         with:
           context: . # use the local workspace rather than a remote git URL; avoid a fresh clone and submodule update inside BuildKit
           push: true
-          tags: hub.k8s.ucar.edu/stormspeed/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          tags: hub.k8s.ucar.edu/stormspeed/${{ env.IMAGE_OS }}:${{ env.IMAGE_TAG }}
           file: dockerfiles/${{ matrix.dockerfile }}
+          no-cache: true # Do not use cache for the build
           #to utilize better image build caching using hub.k8s.ucar.edu
-          cache-from: "type=registry,ref=hub.k8s.ucar.edu/stormspeed/${{ env.IMAGE_NAME }}:cache"
-          cache-to: "type=registry,ref=hub.k8s.ucar.edu/stormspeed/${{ env.IMAGE_NAME }}:cache,image-manifest=true,mode=max"
+          # cache-from: "type=registry,ref=hub.k8s.ucar.edu/stormspeed/${{ env.IMAGE_NAME }}:cache"
+          # cache-to: "type=registry,ref=hub.k8s.ucar.edu/stormspeed/${{ env.IMAGE_NAME }}:cache,image-manifest=true,mode=max"
