@@ -43,6 +43,11 @@ jobs:
           - image: ubuntu24.04:nvhpc25.7_openmpi5.0.8_cuda12.9
             runner: gha-runner-gpu-stormspeed
             compiler: nvhpc
+        exclude:
+          - image: opensuse15:gcc12_openmpi5.0.8_cuda12.9
+            dycore: theta-l
+          - image: ubuntu24.04:nvhpc25.7_openmpi5.0.8_cuda12.9
+            dycore: theta-l
     runs-on: ${{ matrix.runner }}
     container:
       image: hub.k8s.ucar.edu/stormspeed/${{ matrix.image }}
