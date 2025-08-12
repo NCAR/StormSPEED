@@ -17,7 +17,7 @@
 
 ## Documentation and Support
 
-For information on installation, usage, development guidelines, and troubleshooting, please visit the [StormSPEED Wiki](https://github.com/StormSPEED/StormSPEED/wiki).
+For information on installation, usage, development guidelines, and troubleshooting, please visit the [StormSPEED Wiki](https://github.com/NCAR/StormSPEED/wiki).
 
 [CAM Documentation](https://ncar.github.io/CAM/doc/build/html/index.html) - https://ncar.github.io/CAM/doc/build/html/index.html
 
@@ -31,6 +31,6 @@ StormSPEED is released under the [MIT License](LICENSE).
 
 ---
 
-For all other details, including instructions for obtaining and running the code, please see the [StormSPEED Wiki](https://github.com/StormSPEED/StormSPEED/wiki).
+For all other details, including instructions for obtaining and running the code, please see the [StormSPEED Wiki](https://github.com/NCAR/StormSPEED/wiki).
 
 **NOTE: This is **unsupported** development code and is subject to the [CESM developer's agreement](https://www.cgd.ucar.edu/sections/cseg/policies).**
