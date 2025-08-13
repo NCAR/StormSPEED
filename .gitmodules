@@ -157,10 +157,10 @@ fxDONOTUSEurl = https://github.com/ESMCI/cime.git
 
 [submodule "cmeps"]
 path = components/cmeps
-url = https://github.com/sjsprecious/CMEPS.git
-fxtag = a4533b2
+url = https://github.com/ESCOMP/CMEPS.git 
+fxtag = cmeps1.1.8
 fxrequired = ToplevelRequired
-fxDONOTUSEurl = https://github.com/sjsprecious/CMEPS.git
+fxDONOTUSEurl = https://github.com/ESCOMP/CMEPS.git 
 
 [submodule "cdeps"]
 path = components/cdeps
