@@ -1,0 +1,131 @@
+#############################################################################################################
+# Base image                                                                                                #
+# - I have trouble accessing the Fortran compiler with the intel/oneapi:2024.2.1-0-devel-rockylinux9 image; #
+# - So I decide to build intel-oneapi-compilers from source using Spack; install other packages;            #
+# - Also I want to test a different OS system (currently I have Ubuntu for NVHPC, OpenSUSE for GNU)         #
+#############################################################################################################
+FROM almalinux:9.6 AS spack_base
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+SHELL ["/bin/bash", "-c"]
+
+WORKDIR /opt
+
+# Install python3 and git as prerequisite for Spack
+# Install the basic compilers (gcc/11.5.0) to build other packages below
+RUN dnf -y update && \
+    dnf -y groupinstall "Development Tools" && \
+    dnf -y install bzip2 bzip2-devel xz xz-devel gmp-devel mpfr-devel libmpc-devel zlib-devel && \
+    dnf -y install python3 git make wget gzip perl && \
+    dnf -y install gcc-gfortran
+
+# Clone Spack with tag v1.0.0
+RUN git clone --depth=2 --branch v1.0.0 https://github.com/spack/spack.git
+
+# Install Python 3.13.5 through Spack (needed for git-fleximod)
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install python@3.13.5 && \
+    alternatives --install /usr/bin/python python $(spack location -i python@3.13.5)/bin/python3.13 80 && \
+    alternatives --install /usr/bin/python3 python3 $(spack location -i python@3.13.5)/bin/python3.13 80
+
+########################
+# Build intel compiler #
+########################
+FROM spack_base AS intel_compiler
+
+# Install the Intel compiler
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install intel-oneapi-compilers@2024.2.1 && \
+    update-alternatives --install /usr/bin/icpx icpx $(spack location -i intel-oneapi-compilers@2024.2.1)/compiler/2024.2/bin/icpx 120 && \
+    update-alternatives --install /usr/bin/icx icx $(spack location -i intel-oneapi-compilers@2024.2.1)/compiler/2024.2/bin/icx 120 && \
+    update-alternatives --install /usr/bin/ifort ifort $(spack location -i intel-oneapi-compilers@2024.2.1)/compiler/2024.2/bin/ifort 120
+
+########################
+# Build libxml2, cmake #
+########################
+FROM intel_compiler AS xml2_cmake
+
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install cmake@3.31.8 %gcc
+    
+# Install xmllint that is required by CIME
+# Somehow libxml2 will be built by gcc anyway during other stage, so we just use gcc here to avoid confliction
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install libxml2@2.13.5 %gcc
+
+#########################
+# Build ucx and openmpi #
+#########################
+FROM xml2_cmake AS ucx_openmpi
+
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install ucx@1.18.1 %intel-oneapi-compilers@2024.2.1
+
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install openmpi@5.0.8 fabrics=cma,ucx %intel-oneapi-compilers@2024.2.1 ^ucx@1.18.1
+
+#############
+# Build MKL #
+#############
+FROM ucx_openmpi AS mkl
+
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install intel-oneapi-mkl@2024.2.2 %intel-oneapi-compilers@2024.2.1 ^openmpi@5.0.8
+
+#########################
+# Build parallel-netcdf #
+#########################
+FROM mkl AS parallel_netcdf
+
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install parallel-netcdf@1.14.0 +cxx +fortran +pic +shared %intel-oneapi-compilers@2024.2.1 ^openmpi@5.0.8
+
+################
+# Build netCDF #
+################
+FROM parallel_netcdf AS netcdf
+
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install netcdf-c@4.9.2 %intel-oneapi-compilers@2024.2.1 ^openmpi@5.0.8 ^parallel-netcdf@1.14.0
+
+# Install netcdf-fortran; it will install the netcdf-c and openmpi dependency by default
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install netcdf-fortran@4.6.1 %intel-oneapi-compilers@2024.2.1 ^netcdf-c@4.9.2 ^openmpi@5.0.8
+
+#############
+# Build PIO #
+#############
+FROM netcdf AS parallelio
+
+# Install parallelio; it will install the parallel-netcdf dependency by default
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install parallelio@2.6.6 +pnetcdf +fortran +mpi +shared +ncint %intel-oneapi-compilers@2024.2.1 ^parallel-netcdf@1.14.0
+
+##############
+# Build ESMF #
+##############
+FROM parallelio AS esmf
+
+# Install ESMF; it will install its parallelio and parallel-netcdf dependencies by default
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install esmf@8.8.1 +pnetcdf +mpi +shared %intel-oneapi-compilers@2024.2.1 ^parallelio@2.6.6 ^parallel-netcdf@1.14.0
+
+################
+# Build LAPACK #
+################
+FROM esmf AS lapack
+
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install netlib-lapack@3.12.1 %intel-oneapi-compilers@2024.2.1
+
+WORKDIR /tmp
+
+LABEL maintainer="Jian Sun"
+LABEL description="AlmaLinux 9.6 container with intel/2024.2.1 software stack for StormSPEED CAM"
+
+ENV CXX=icpx
+ENV CC=icx
+ENV FC=ifort
+
+CMD ["/bin/bash"]

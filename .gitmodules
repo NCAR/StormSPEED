@@ -144,7 +144,7 @@ fxDONOTUSEurl = https://github.com/ESCOMP/mizuRoute
 [submodule "ccs_config"]
 path = ccs_config
 url = https://github.com/sjsprecious/ccs_config_cesm.git
-fxtag = 63b7cb3
+fxtag = 191d768 
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/sjsprecious/ccs_config_cesm.git 
 
@@ -157,10 +157,10 @@ fxDONOTUSEurl = https://github.com/ESMCI/cime.git
 
 [submodule "cmeps"]
 path = components/cmeps
-url = https://github.com/ESCOMP/CMEPS.git
-fxtag = cmeps1.0.47
+url = https://github.com/ESCOMP/CMEPS.git 
+fxtag = cmeps1.1.8
 fxrequired = ToplevelRequired
-fxDONOTUSEurl = https://github.com/ESCOMP/CMEPS.git
+fxDONOTUSEurl = https://github.com/ESCOMP/CMEPS.git 
 
 [submodule "cdeps"]
 path = components/cdeps
