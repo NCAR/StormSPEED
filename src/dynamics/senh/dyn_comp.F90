@@ -479,7 +479,7 @@ subroutine dyn_readnl(NLFileName)
  par = initmp(se_npes)
  call initomp()
 
- ! Go ahead and enforce ne = 0 for refined mesh runs
+ ! Set se_ne = 0 for refined mesh runs since element count is determined from mesh file
  if (se_refined_mesh) then
     se_ne = 0
  end if
