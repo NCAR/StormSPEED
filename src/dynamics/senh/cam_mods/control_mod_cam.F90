@@ -3,6 +3,7 @@
 module control_mod_cam
   use control_mod
   implicit none
+  logical, public :: refined_mesh
   integer, public :: multilevel
   integer, public :: tasknum
   integer, public :: remapfreq      ! remap frequency of synopsis of system state (steps)
