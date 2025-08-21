@@ -60,6 +60,15 @@ jobs:
       TMP_DIR: tmp
       TMP_OUTPUT: case_output.log
     steps:
+      - name: Set Job Context
+        run: |
+          echo "JOB_NAME=${{ github.job }}"
+          echo "JOB_STATUS=started"
+          echo "GITHUB_WORKFLOW=${{ github.workflow }}"
+          echo "GITHUB_RUN_ID=${{ github.run_id }}"
+          echo "GITHUB_REPOSITORY=${{ github.repository }}"
+          echo "GITHUB_ACTOR=${{ github.actor }}"
+
       - name: Checkout code from a pull request or push
         uses: actions/checkout@v4
 
@@ -230,3 +239,8 @@ jobs:
           if tail -n 5 "$TMP_OUTPUT" | grep -iE 'failed|error:'; then
             exit 911
           fi
+
+      - name: Job Complete
+        if: always()
+        run: |
+          echo "JOB_STATUS=${{ job.status }}"
