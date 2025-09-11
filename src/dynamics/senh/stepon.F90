@@ -127,38 +127,23 @@ subroutine stepon_init(dyn_in, dyn_out )
      call addfld ('SGH30_SM', horiz_only, 'I', 'm',     'Standard deviation of 30s orography (smoothed)', gridname='GLL')
   endif
 
-  call addfld ('CONVU   ', (/ 'ilev' /),'A', 'm/s2    ','Zonal component IE->KE conversion term',      gridname='physgrid')
-  call addfld ('CONVV   ', (/ 'ilev' /),'A', 'm/s2    ','Meridional component IE->KE conversion term', gridname='physgrid')
-  call register_vector_field('CONVU', 'CONVV')
-  call addfld ('DIFFU   ', (/ 'ilev' /),'A', 'm/s2    ','U horizontal diffusion',                      gridname='physgrid')
-  call addfld ('DIFFV   ', (/ 'ilev' /),'A', 'm/s2    ','V horizontal diffusion',                      gridname='physgrid')
-  call register_vector_field('DIFFU', 'DIFFV')
-
-  call addfld ('ETADOT', (/ 'ilev' /), 'A', '1/s', 'Vertical (eta) velocity', gridname='physgrid')
-  call addfld ('U&IC',   (/ 'lev' /),  'I', 'm/s', 'Zonal wind',              gridname='physgrid' )
-  call addfld ('V&IC',   (/ 'lev' /),  'I', 'm/s', 'Meridional wind',         gridname='physgrid' )
+  call addfld ('U&IC',   (/ 'lev' /),  'I', 'm/s', 'Zonal wind',              gridname='GLL' )
+  call addfld ('V&IC',   (/ 'lev' /),  'I', 'm/s', 'Meridional wind',         gridname='GLL' )
   ! Don't need to register U&IC V&IC since we don't interpolate IC files
   call add_default ('U&IC',0, 'I')
   call add_default ('V&IC',0, 'I')
 
-  call addfld ('PS&IC', horiz_only,  'I', 'Pa', 'Surface pressure',gridname='physgrid')
-  call addfld ('T&IC',  (/ 'lev' /), 'I', 'K',  'Temperature',     gridname='physgrid')
+  call addfld ('PS&IC', horiz_only,  'I', 'Pa', 'Surface pressure',gridname='GLL')
+  call addfld ('T&IC',  (/ 'lev' /), 'I', 'K',  'Temperature',     gridname='GLL')
 
   call add_default ('PS&IC      ',0, 'I')
   call add_default ('T&IC       ',0, 'I')
   do m = 1,pcnst
-     call addfld (trim(cnst_name(m))//'&IC', (/ 'lev' /), 'I', 'kg/kg', cnst_longname(m), gridname='physgrid')
+     call addfld (trim(cnst_name(m))//'&IC', (/ 'lev' /), 'I', 'kg/kg', cnst_longname(m), gridname='GLL')
   end do
   do m = 1,pcnst
      call add_default(trim(cnst_name(m))//'&IC',0, 'I')
   end do
-
-!!$  if (dp_crm) then
-!!$    call addfld('crm_grid_x'   ,horiz_only,  'A', 'm',   'Grid in x-direction',   gridname='GLL')
-!!$    call addfld('crm_grid_y'   ,horiz_only,  'A', 'm',   'Grid in y-direction',   gridname='GLL')
-!!$    call add_default('crm_grid_x', 1, ' ')
-!!$    call add_default('crm_grid_y', 1, ' ')
-!!$  endif
 
   call addfld('DYN_T'    ,(/ 'lev' /), 'A', 'K',    'Temperature (dyn grid)', gridname='GLL')
   call addfld('DYN_Q'    ,(/ 'lev' /), 'A', 'kg/kg','Water Vapor (dyn grid',  gridname='GLL' )
@@ -730,31 +715,11 @@ subroutine diag_dynvar_ic(elem)
       end do
    end if
 
-!!$   if (hist_fld_active('PSDRY_gll')) then
-!!$      do ie = 1, nelemd
-!!$         do j = 1, np
-!!$            do i = 1, np
-!!$               ftmp(i+(j-1)*np,1,1) = elem(ie)%state%psdry(i,j)
-!!$            end do
-!!$         end do
-!!$         call outfld('PSDRY_gll', ftmp(:,1,1), npsq, ie)
-!!$      end do
-!!$   end if
-
    if (hist_fld_active('PS_gll')) then
 
-!!$     allocate(fld_2d(np,np))
      do ie = 1, nelemd
-!!$       call get_ps(elem(ie)%state%Qdp(:,:,:,:,tl_Qdp),&
-!!$            thermodynamic_active_species_idx_dycore,elem(ie)%state%dp3d(:,:,:,tl_f),fld_2d,hyai(1)*ps0)
-!!$         do j = 1, np
-!!$            do i = 1, np
-!!$              ftmp(i+(j-1)*np,1,1) = fld_2d(i,j)
-!!$            end do
-!!$         end do
          call outfld('PS_gll',RESHAPE(elem(ie)%state%ps_v(:,:,tl_f), (/np*np/)), np*np, ie)
        end do
-!!$       deallocate(fld_2d)
    end if
 
    if (hist_fld_active('PHIS_gll')) then
@@ -783,81 +748,35 @@ subroutine diag_dynvar_ic(elem)
 
    if (write_inithist()) then
 
-      if (fv_nphys < 1) then
-         allocate(factor_array(np,np,nlev),stat=astat)
-         if (astat /= 0) call endrun(prefix//"Allocate factor_array failed")
-      endif
+      allocate(factor_array(np,np,nlev),stat=astat)
+      if (astat /= 0) call endrun(prefix//"Allocate factor_array failed")
 
       do ie = 1, nelemd
-#ifdef MODEL_THETA_L
-         call outfld('T&IC', RESHAPE(elem(ie)%derived%FT(:,:,:), (/npsq,nlev/)), npsq, ie)
-#else
-         call outfld('T&IC', RESHAPE(elem(ie)%state%T(:,:,:,tl_f), (/npsq,nlev/)), npsq, ie)
-#endif
+         call get_temperature(elem(ie),temperature,hvcoord,tl_f)
+         call outfld('T&IC' ,RESHAPE(temperature(:,:,:), (/npsq,nlev/))    ,npsq,ie)
          call outfld('U&IC', RESHAPE(elem(ie)%state%v(:,:,1,:,tl_f), (/npsq,nlev/)), npsq, ie)
          call outfld('V&IC', RESHAPE(elem(ie)%state%v(:,:,2,:,tl_f), (/npsq,nlev/)), npsq, ie)
 
-         if (fv_nphys < 1) then
-            call get_sum_species(elem(ie)%state%Qdp(:,:,:,:,tl_qdp), &
-                 thermodynamic_active_species_idx_dycore, factor_array,dp_dry=elem(ie)%state%dp3d(:,:,:,tl_f))
-            factor_array(:,:,:) = 1.0_r8/factor_array(:,:,:)
-            do m_cnst = 1, qsize
-               if (cnst_type(m_cnst) == 'wet') then
-                  call outfld(trim(cnst_name(m_cnst))//'&IC', &
-                       RESHAPE(factor_array(:,:,:)*elem(ie)%state%Qdp(:,:,:,m_cnst,tl_qdp)/&
-                       elem(ie)%state%dp3d(:,:,:,tl_f), (/npsq,nlev/)), npsq, ie)
-               else
-                  call outfld(trim(cnst_name(m_cnst))//'&IC', &
-                       RESHAPE(elem(ie)%state%Qdp(:,:,:,m_cnst,tl_qdp)/&
-                       elem(ie)%state%dp3d(:,:,:,tl_f), (/npsq,nlev/)), npsq, ie)
-               end if
-            end do
-         end if
+         call get_sum_species(elem(ie)%state%Qdp(:,:,:,:,tl_qdp), &
+              thermodynamic_active_species_idx_dycore, factor_array,dp_dry=elem(ie)%state%dp3d(:,:,:,tl_f))
+         factor_array(:,:,:) = 1.0_r8/factor_array(:,:,:)
+         do m_cnst = 1, qsize
+            if (cnst_type(m_cnst) == 'wet') then
+               call outfld(trim(cnst_name(m_cnst))//'&IC', &
+                    RESHAPE(factor_array(:,:,:)*elem(ie)%state%Qdp(:,:,:,m_cnst,tl_qdp)/&
+                    elem(ie)%state%dp3d(:,:,:,tl_f), (/npsq,nlev/)), npsq, ie)
+            else
+               call outfld(trim(cnst_name(m_cnst))//'&IC', &
+                    RESHAPE(elem(ie)%state%Qdp(:,:,:,m_cnst,tl_qdp)/&
+                    elem(ie)%state%dp3d(:,:,:,tl_f), (/npsq,nlev/)), npsq, ie)
+            end if
+         end do
       end do
 
 !!$      if (fv_nphys > 0) then
-!!$         !JMD $OMP PARALLEL NUM_THREADS(horz_num_threads), DEFAULT(SHARED), PRIVATE(hybrid,nets,nete,n)
-!!$         !JMD        hybrid = config_thread_region(par,'horizontal')
-!!$         ithr=omp_get_thread_num()
-!!$         nets=dom_mt(ithr)%start
-!!$         nete=dom_mt(ithr)%end
-!!$         hybrid = hybrid_create_cam(par,ithr,hthreads)
-!!$         allocate(fld_fvm(1-nhc:nc+nhc,1-nhc:nc+nhc,nlev,1,nets:nete),stat=astat)
-!!$         if (astat /= 0) call endrun(prefix//"Allocate fld_fvm failed")
-!!$         allocate(fld_gll(np,np,nlev,1,nets:nete),stat=astat)
-!!$         if (astat /= 0) call endrun(prefix//"Allocate fld_gll failed")
-!!$         allocate(factor_array(nc,nc,nlev),stat=astat)
-!!$         if (astat /= 0) call endrun(prefix//"Allocate factor_array failed")
-!!$
-!!$         llimiter = .true.
-!!$
-!!$         do m_cnst = 1, pcnst
-!!$            do ie = nets, nete
-!!$
-!!$               call get_sum_species(fvm(ie)%c(1:nc,1:nc,:,:),thermodynamic_active_species_idx,factor_array)
-!!$               factor_array(:,:,:) = 1.0_r8/factor_array(:,:,:)
-!!$
-!!$               if (cnst_type(m_cnst) == 'wet') then
-!!$                  fld_fvm(1:nc,1:nc,:,1,ie) = fvm(ie)%c(1:nc,1:nc,:,m_cnst)*factor_array(:,:,:)
-!!$               else
-!!$                  fld_fvm(1:nc,1:nc,:,1,ie) = fvm(ie)%c(1:nc,1:nc,:,m_cnst)
-!!$               end if
-!!$            end do
-!!$
-!!$            call fvm2dyn(fld_fvm, fld_gll, hybrid, nets, nete, nlev, fvm(nets:nete), llimiter)
-!!$
-!!$            do ie = nets, nete
-!!$               call outfld(trim(cnst_name(m_cnst))//'&IC', &
-!!$                    RESHAPE(fld_gll(:,:,:,:,ie), (/npsq,nlev/)), npsq, ie)
-!!$            end do
-!!$         end do
-!!$
-!!$         deallocate(fld_fvm)
-!!$         deallocate(fld_gll)
 !!$      end if
-!!$
-!!$      deallocate(factor_array)
 
+      deallocate(factor_array)
    end if  ! if (write_inithist)
 
 end subroutine diag_dynvar_ic
