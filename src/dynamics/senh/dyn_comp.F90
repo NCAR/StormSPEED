@@ -2,6 +2,52 @@ module dyn_comp
 
 use bndry_mod,               only: bndry_exchangev
 use cam_abortutils,          only: endrun
+use cam_control_mod,         only: initial_run, hypervis_subcycle_q, integration, statefreq, runtype, use_moisture, &
+                           hypervis_order, hypervis_subcycle, hypervis_scaling, hypervis_subcycle_tom, planar_slice, &
+                           nu, nu_div, nu_p, nu_q, nu_s, nu_top, qsplit, rsplit, vert_remap_q_alg, tstep_type, &
+                           rk_stage_user, ftype, limiter_option, partmethod, topology, transport_alg, z2_map_method, &
+                           pgrad_correction, precon_method, theta_advect_form, theta_hydrostatic_mode, vert_remap_u_alg, &
+                           vtheta_thresh, dt_remap_factor, dt_tracer_factor, geometry, hv_ref_profiles, hv_theta_correction, &
+                           hv_theta_thresh, coord_transform_method, cubed_sphere_map, dp3d_thresh, semi_lagrange_cdr_alg, &
+                           semi_lagrange_cdr_check, semi_lagrange_hv_q, semi_lagrange_nearest_point_lev
+use cam_grid_support,        only: cam_grid_id, cam_grid_get_gcid, cam_grid_dimensions, cam_grid_get_latvals, &
+                           cam_grid_get_lonvals, max_hcoordname_len
+use cam_history_support,     only: max_fieldname_len
+use cam_initfiles,           only: initial_file_get_id, topo_file_get_id, pertlim, scale_dry_air_mass
+use cam_logfile,             only: iulog
+use cam_map_utils,           only: iMap
+use control_mod_cam,         only: hypervis_subcycle_q, integration, statefreq, runtype, use_moisture
+use dimensions_mod_cam,      only: nelemd, nlev, np, npsq, ne, ne_x, ne_y, fv_nphys, qsize
+use dyn_grid,                only: timelevel, dom_mt, hvcoord, ini_grid_hdim_name, get_horiz_grid_dim_d, dyn_decomp, ini_grid_name
+use dyn_tests_utils,         only: vcoord=>vc_moist_pressure, vc_moist_pressure, vc_dycore, string_vc, vc_str_lgth
+use edge_mod,                only: edgevpack_nlyr, edgevunpack_nlyr, edge_g
+use element_mod,             only: element_t
+use element_state,           only: elem_state_t
+use gllfvremap_mod,          only: gfr_fv_phys_to_dyn_topo
+use hybrid_mod_cam,          only: hybrid_create_cam, hybrid_t
+use inic_analytic,           only: analytic_ic_active, analytic_ic_set_ic
+use ncdio_atm,               only: infld
+use parallel_mod_cam,        only: par, initmp
+use perf_mod,                only: t_startf, t_stopf
+use physconst,               only: pi
+use pio,                     only: file_desc_t, io_desc_t, pio_double, PIO_BCAST_ERROR, pio_get_local_array_size, &
+                           pio_freedecomp, PIO_NOERR, var_desc_t, PIO_inq_varid, pio_inq_dimid, pio_inq_dimlen, &
+                           pio_seterrorhandling
+use shr_kind_mod,            only: r8 => shr_kind_r8, shr_kind_cl
+use shr_const_mod,           only: SHR_CONST_PI
+use shr_sys_mod,             only: shr_sys_flush
+use spmd_utils,              only: iam, npes_cam => npes, masterproc
+use thread_mod_cam,          only: hthreads, vthreads, omp_get_max_threads, omp_get_thread_num, initomp
+use time_mod,                only: nsplit, tstep
+use time_manager,            only: is_first_step
+use shr_infnan_mod,          only: isnan => shr_infnan_isnan
+
+implicit none
+private
+save
+
+use bndry_mod,               only: bndry_exchangev
+use cam_abortutils,          only: endrun
 use cam_control_mod,         only: initial_run
 use cam_grid_support,        only: cam_grid_id, cam_grid_get_gcid, &
                                    cam_grid_dimensions, cam_grid_get_dim_names, &
@@ -16,7 +62,7 @@ use dimensions_mod_cam,      only: nelemd, nlev, np, npsq, ne, ne_x, ne_y, fv_np
 use dyn_grid,                only: timelevel, dom_mt, hvcoord, ini_grid_hdim_name
 !jtuse dyn_grid,                only: get_horiz_grid_dim_d, dyn_decomp, fv_nphys, ini_grid_name
 use dyn_grid,                only: get_horiz_grid_dim_d, dyn_decomp, ini_grid_name
-use dyn_tests_utils,         only: vcoord=>vc_moist_pressure, vc_moist_pressure
+use dyn_tests_utils,         only: vcoord=>vc_moist_pressure, vc_moist_pressure, vc_dycore, string_vc, vc_str_lgth
 use edge_mod,                only: edgevpack_nlyr, edgevunpack_nlyr, edge_g
 use element_mod,             only: element_t
 use element_state,           only: elem_state_t
@@ -756,53 +802,86 @@ end subroutine dyn_register
 
 subroutine dyn_init(dyn_in, dyn_out)
 
+    use air_composition,    only: thermodynamic_active_species_num, thermodynamic_active_species_idx
+    use air_composition,    only: thermodynamic_active_species_idx_dycore
+    use air_composition,    only: thermodynamic_active_species_liq_idx,thermodynamic_active_species_ice_idx
+    use air_composition,    only: thermodynamic_active_species_liq_idx_dycore,thermodynamic_active_species_ice_idx_dycore
+    use air_composition,    only: thermodynamic_active_species_liq_num, thermodynamic_active_species_ice_num
     use dyn_grid,         only: elem
     use cam_control_mod,  only: aqua_planet, ideal_phys, adiabatic
     use cam_instance,     only: inst_index
 !jt    use native_mapping,   only: create_native_mapping_files
     use cam_pio_utils,    only: clean_iodesc_list
-    use constituents,     only: pcnst
+    use constituents,     only: pcnst, cnst_name, cnst_longname
     use dimensions_mod_cam,only: cnst_longname_gll, cnst_name_gll
     use prim_driver_mod,  only: prim_init2
     use parallel_mod_cam, only: par
     use control_mod_cam,  only: runtype
-!jt    use comsrf,           only: sgh, sgh30
     use element_ops,      only: set_thermostate
-!jt    use nctopo_util_mod,  only: nctopo_util_driver
 
     type (dyn_import_t), intent(out) :: dyn_in
     type (dyn_export_t), intent(out) :: dyn_out
 
-    integer :: ithr, nets, nete, ie, k, tlev
-    real(r8), parameter :: Tinit=300.0_r8
-    type(hybrid_t) :: hybrid
-    real(r8) :: temperature(np,np,nlev),ps(np,np)
+    integer                          :: ithr, nets, nete, ie, k, tlev, m
+    real(r8), parameter              :: Tinit=300.0_r8
+    type(hybrid_t)                   :: hybrid
+    real(r8)                         :: temperature(np,np,nlev),ps(np,np)
+    character (len=vc_str_lgth)      :: vc_str
+    character(len=*), parameter      :: sub = 'dyn_init'
    !----------------------------------------------------------------------------
-
-  !use_moisturefor homme routines
+  
+   vc_dycore = vc_moist_pressure
+   if (masterproc) then
+     call string_vc(vc_dycore,vc_str)
+     write(iulog,*) sub//': vertical coordinate dycore   : ',trim(vc_str)
+   end if
+   !use_moisturefor homme routines
    use_moisture = vcoord == vc_moist_pressure
 
-    ! Initialize the import/export objects
-   dyn_in%elem  => elem
-!jt   dyn_in%fvm   => fvm
-
-   dyn_out%elem => elem
-!jt   dyn_out%fvm  => fvm
-
-!jt   ! Create mapping files using SE basis functions if requested
-!jt   call create_native_mapping_files(par, elem, 'native')
-!jt   call create_native_mapping_files(par, elem, 'bilin')
-
-   ! allocate and set condenstate vars
+   ! Now allocate and set condenstate vars
    allocate(cnst_name_gll(pcnst))     ! constituent names for gll tracers
    allocate(cnst_longname_gll(pcnst)) ! long name of constituents for gll tracers
 
-   call set_phis(dyn_in)
+    do m=1,pcnst
+       if (m.le.thermodynamic_active_species_num) then
+          thermodynamic_active_species_idx_dycore(m) = thermodynamic_active_species_idx(m)
+       end if
+       cnst_name_gll    (m)                = cnst_name    (m)
+       cnst_longname_gll(m)                = cnst_longname(m)
+    end do
 
-   if (initial_run) then
-      call read_inidat(dyn_in)
-      call clean_iodesc_list()
-   end if
+    do m=1,thermodynamic_active_species_liq_num
+       thermodynamic_active_species_liq_idx_dycore(m) = thermodynamic_active_species_liq_idx(m)
+       if (masterproc) then
+          write(iulog,*) sub//": m,thermodynamic_active_species_idx_liq_dycore: ",m,thermodynamic_active_species_liq_idx_dycore(m)
+       end if
+    end do
+    do m=1,thermodynamic_active_species_ice_num
+       thermodynamic_active_species_ice_idx_dycore(m) = thermodynamic_active_species_ice_idx(m)
+       if (masterproc) then
+          write(iulog,*) sub//": m,thermodynamic_active_species_idx_ice_dycore: ",m,thermodynamic_active_species_ice_idx_dycore(m)
+       end if
+    end do
+
+    ! Initialize the import/export objects
+    if(par%dynproc) then
+       dyn_in%elem  => elem
+       dyn_out%elem => elem
+    else
+       nullify(dyn_in%elem)
+       nullify(dyn_out%elem)
+    end if
+
+    !jt   ! Create mapping files using SE basis functions if requested
+    !jt   call create_native_mapping_files(par, elem, 'native')
+    !jt   call create_native_mapping_files(par, elem, 'bilin')
+    
+    call set_phis(dyn_in)
+
+    if (initial_run) then
+       call read_inidat(dyn_in)
+       call clean_iodesc_list()
+    end if
 
     if(par%dynproc) then
 
@@ -818,13 +897,6 @@ subroutine dyn_init(dyn_in, dyn_out)
        nets=dom_mt(ithr)%start
        nete=dom_mt(ithr)%end
        hybrid = hybrid_create_cam(par,ithr,hthreads)
-
-
-!!$       ! scale PS to achieve prescribed dry mass
-!!$       if (runtype == 0) then
-!!$          ! new run, scale mass to value given in namelist, if needed
-!!$          call prim_set_mass(elem, TimeLevel,hybrid,hvcoord,nets,nete)
-!!$       endif
 
        call t_startf('prim_init2')
        call prim_init2(elem,hybrid,nets,nete, TimeLevel, hvcoord)
@@ -945,11 +1017,6 @@ end subroutine dyn_final
 
 subroutine read_inidat(dyn_in)
 
-  use air_composition,    only: thermodynamic_active_species_num, thermodynamic_active_species_idx
-  use air_composition,    only: thermodynamic_active_species_idx_dycore
-  use air_composition,    only: thermodynamic_active_species_liq_idx,thermodynamic_active_species_ice_idx
-  use air_composition,    only: thermodynamic_active_species_liq_idx_dycore,thermodynamic_active_species_ice_idx_dycore
-  use air_composition,    only: thermodynamic_active_species_liq_num, thermodynamic_active_species_ice_num
   use aoa_tracers,             only: aoa_tracers_implements_cnst, aoa_tracers_init_cnst
   use constituents,            only: cnst_name, cnst_read_iv, qmin,cnst_is_a_water_species
   use cam_control_mod,         only: ideal_phys, aqua_planet
@@ -1510,43 +1577,7 @@ subroutine read_inidat(dyn_in)
       end if
    end if
 
-!!$   ! store Q values:
-!!$   !
-!!$   ! if CSLAM is NOT active then state%Qdp for all constituents
-!!$   ! if CSLAM active then we only advect water vapor and condensate
-!!$   ! loading tracers in state%qdp
-!!$
-!!$   if (fv_nphys > 0) then
-!!$      do ie = 1, nelemd
-!!$         do nq = 1, thermodynamic_active_species_num
-!!$            m_cnst = thermodynamic_active_species_idx(nq)
-!!$            do k = 1, nlev
-!!$               do j = 1, np
-!!$                  do i = 1, np
-!!$                     elem(ie)%state%Qdp(i,j,k,nq,:) = &
-!!$                                 elem(ie)%state%dp3d(i,j,k,1)*qtmp(i,j,k,ie,m_cnst)
-!!$                  end do
-!!$               end do
-!!$            end do
-!!$         end do
-!!$      end do
-!!$   else
-!!$      do ie = 1, nelemd
-!!$         do m_cnst = 1, qsize
-!!$            do k = 1, nlev
-!!$               do j = 1, np
-!!$                  do i = 1, np
-!!$                     elem(ie)%state%Qdp(i,j,k,m_cnst,:)=&
-!!$                        elem(ie)%state%dp3d(i,j,k,1)*qtmp(i,j,k,ie,m_cnst)
-!!$                  end do
-!!$               end do
-!!$            end do
-!!$         end do
-!!$      end do
-!!$   end if
-!!$
-
-   !$omp parallel do private(ie, ps, t, m_cnst)
+   !$omp parallel do private(ie, ps)
    do ie=1,nelemd
       ps=elem(ie)%state%ps_v(:,:,tl)
 #ifdef MODEL_THETA_L
