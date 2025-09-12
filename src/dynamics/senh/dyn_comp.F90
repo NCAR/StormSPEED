@@ -2,52 +2,6 @@ module dyn_comp
 
 use bndry_mod,               only: bndry_exchangev
 use cam_abortutils,          only: endrun
-use cam_control_mod,         only: initial_run, hypervis_subcycle_q, integration, statefreq, runtype, use_moisture, &
-                           hypervis_order, hypervis_subcycle, hypervis_scaling, hypervis_subcycle_tom, planar_slice, &
-                           nu, nu_div, nu_p, nu_q, nu_s, nu_top, qsplit, rsplit, vert_remap_q_alg, tstep_type, &
-                           rk_stage_user, ftype, limiter_option, partmethod, topology, transport_alg, z2_map_method, &
-                           pgrad_correction, precon_method, theta_advect_form, theta_hydrostatic_mode, vert_remap_u_alg, &
-                           vtheta_thresh, dt_remap_factor, dt_tracer_factor, geometry, hv_ref_profiles, hv_theta_correction, &
-                           hv_theta_thresh, coord_transform_method, cubed_sphere_map, dp3d_thresh, semi_lagrange_cdr_alg, &
-                           semi_lagrange_cdr_check, semi_lagrange_hv_q, semi_lagrange_nearest_point_lev
-use cam_grid_support,        only: cam_grid_id, cam_grid_get_gcid, cam_grid_dimensions, cam_grid_get_latvals, &
-                           cam_grid_get_lonvals, max_hcoordname_len
-use cam_history_support,     only: max_fieldname_len
-use cam_initfiles,           only: initial_file_get_id, topo_file_get_id, pertlim, scale_dry_air_mass
-use cam_logfile,             only: iulog
-use cam_map_utils,           only: iMap
-use control_mod_cam,         only: hypervis_subcycle_q, integration, statefreq, runtype, use_moisture
-use dimensions_mod_cam,      only: nelemd, nlev, np, npsq, ne, ne_x, ne_y, fv_nphys, qsize
-use dyn_grid,                only: timelevel, dom_mt, hvcoord, ini_grid_hdim_name, get_horiz_grid_dim_d, dyn_decomp, ini_grid_name
-use dyn_tests_utils,         only: vcoord=>vc_moist_pressure, vc_moist_pressure, vc_dycore, string_vc, vc_str_lgth
-use edge_mod,                only: edgevpack_nlyr, edgevunpack_nlyr, edge_g
-use element_mod,             only: element_t
-use element_state,           only: elem_state_t
-use gllfvremap_mod,          only: gfr_fv_phys_to_dyn_topo
-use hybrid_mod_cam,          only: hybrid_create_cam, hybrid_t
-use inic_analytic,           only: analytic_ic_active, analytic_ic_set_ic
-use ncdio_atm,               only: infld
-use parallel_mod_cam,        only: par, initmp
-use perf_mod,                only: t_startf, t_stopf
-use physconst,               only: pi
-use pio,                     only: file_desc_t, io_desc_t, pio_double, PIO_BCAST_ERROR, pio_get_local_array_size, &
-                           pio_freedecomp, PIO_NOERR, var_desc_t, PIO_inq_varid, pio_inq_dimid, pio_inq_dimlen, &
-                           pio_seterrorhandling
-use shr_kind_mod,            only: r8 => shr_kind_r8, shr_kind_cl
-use shr_const_mod,           only: SHR_CONST_PI
-use shr_sys_mod,             only: shr_sys_flush
-use spmd_utils,              only: iam, npes_cam => npes, masterproc
-use thread_mod_cam,          only: hthreads, vthreads, omp_get_max_threads, omp_get_thread_num, initomp
-use time_mod,                only: nsplit, tstep
-use time_manager,            only: is_first_step
-use shr_infnan_mod,          only: isnan => shr_infnan_isnan
-
-implicit none
-private
-save
-
-use bndry_mod,               only: bndry_exchangev
-use cam_abortutils,          only: endrun
 use cam_control_mod,         only: initial_run
 use cam_grid_support,        only: cam_grid_id, cam_grid_get_gcid, &
                                    cam_grid_dimensions, cam_grid_get_dim_names, &
