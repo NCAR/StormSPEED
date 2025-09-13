@@ -121,10 +121,6 @@ subroutine dyn_readnl(NLFileName)
   use physical_constants, only: scale_factor, scale_factor_inv, &
                                 domain_size, laplacian_rigid_factor, &
                                 DD_PI, rearth, rrearth
-!!XXgoldyXX: v For future CSLAM / physgrid commit
-!    use dp_grids,       only: fv_nphys, fv_nphys2, nphys_pts, write_phys_grid, phys_grid_file
-!!XXgoldyXX: ^ For future CSLAM / physgrid commit
-
   ! Dummy argument
   character(len=*), intent(in) :: NLFileName
 
@@ -134,13 +130,6 @@ subroutine dyn_readnl(NLFileName)
   integer         :: LFTfreq=0            ! leapfrog-trapazoidal frequency (shallow water only)
                                           ! interspace a lf-trapazoidal step every LFTfreq leapfrogs
                                           ! 0 = disabled
-
-
-
-!!$  ! hyperviscosity parameters used for smoothing topography
-!!$  integer                      :: se_smooth_phis_numcycle = -1   ! -1 = disable
-!!$  integer                      :: se_smooth_phis_p2filt = -1     ! -1 = disable
-!!$  real (r8)                    :: se_smooth_phis_nudt = 0
 
   ! Physgrid parameters
   integer                      :: se_fv_phys_remap_alg
@@ -326,14 +315,6 @@ subroutine dyn_readnl(NLFileName)
       se_refined_mesh,         &
 #endif
       se_z2_map_method
- !!XXgoldyXX: v For future physgrid commit
- !!XXgoldyXX: ^ For future physgrid commit
- !         se_fv_nphys,          & ! Linear size of FV physics grid
- !         se_write_phys_grid,   &
- !         se_phys_grid_file,    &
- !!XXgoldyXX: v For future CSLAM / physgrid commit
- !    namelist /cslam_nl/ se_tracer_transport_method, se_cslam_ideal_test, se_cslam_test_type
- !!XXgoldyXX: ^ For future CSLAM / physgrid commit
 
  !--------------------------------------------------------------------------
 
@@ -376,14 +357,6 @@ subroutine dyn_readnl(NLFileName)
  se_topology             = "cube"
  se_tstep_type           = 5
  se_vert_remap_q_alg     = 1
- !!XXgoldyXX: v For future CSLAM / physgrid commit
- !    character(len=METHOD_LEN)     :: se_tracer_transport_method
- !    character(len=METHOD_LEN)     :: se_cslam_ideal_test
- !    character(len=METHOD_LEN)     :: se_cslam_test_type
- !    character(len=METHOD_LEN)     :: se_write_phys_grid
- !    character(len=shr_kind_cl)    :: se_phys_grid_file
- !    integer                       :: se_fv_nphys = 0
- !!XXgoldyXX: ^ For future CSLAM / physgrid commit
 
  ! Read the namelist (dyn_se_inparm)
  call MPI_barrier(mpicom, ierr)
@@ -656,9 +629,6 @@ subroutine dyn_readnl(NLFileName)
  ! HOMME wants 'none' to indicate no mesh file
  if (len_trim(se_mesh_file) == 0) then
     se_mesh_file = 'none'
-!!$      if (se_refined_mesh) then
-!!$         call endrun('dyn_readnl ERROR: se_refined_mesh=.true. but no se_mesh_file')
-!!$      end if
  end if
 
  write_restart_unstruct = se_write_restart_unstruct
@@ -706,19 +676,6 @@ subroutine dyn_readnl(NLFileName)
 !jt      write(iulog, '(a,e11.4)') 'dyn_readnl: se_max_hypervis_courant = ',se_max_hypervis_courant
 !!$    end if
 
-
-!!XXgoldyXX: v For future physgrid commit
-!      write(iulog,*) 'dyn_readnl: fv_nphys = ', fv_nphys, ', nphys_pts = ', nphys_pts
-!      if (fv_nphys > 0) then
-!        if (trim(write_phys_grid) == 'grid') then
-!          write(iulog,*) "dyn_readnl: write physics grid file = ", trim(phys_grid_file)
-!        else if (trim(write_phys_grid) == 'interp') then
-!          write(iulog,*) "dyn_readnl: write physics interp file = ", trim(phys_grid_file)
-!        else
-!          write(iulog,*) "dyn_readnl: do not write physics grid or interp file"
-!        end if
-!      end if
-!!XXgoldyXX: ^ For future physgrid commit
  end if
 
 #ifndef MODEL_THETA_L
@@ -764,7 +721,6 @@ subroutine dyn_init(dyn_in, dyn_out)
     use dyn_grid,         only: elem
     use cam_control_mod,  only: aqua_planet, ideal_phys, adiabatic
     use cam_instance,     only: inst_index
-!jt    use native_mapping,   only: create_native_mapping_files
     use cam_pio_utils,    only: clean_iodesc_list
     use constituents,     only: pcnst, cnst_name, cnst_longname
     use dimensions_mod_cam,only: cnst_longname_gll, cnst_name_gll
@@ -826,10 +782,6 @@ subroutine dyn_init(dyn_in, dyn_out)
        nullify(dyn_out%elem)
     end if
 
-    !jt   ! Create mapping files using SE basis functions if requested
-    !jt   call create_native_mapping_files(par, elem, 'native')
-    !jt   call create_native_mapping_files(par, elem, 'bilin')
-    
     call set_phis(dyn_in)
 
     if (initial_run) then
@@ -1064,7 +1016,6 @@ subroutine read_inidat(dyn_in)
     tl = 1
 
     fh_ini  => initial_file_get_id()
-!jt   fh_topo => topo_file_get_id()
 
     if(iam < par%nprocs) then
        elem=> dyn_in%elem
@@ -1072,33 +1023,9 @@ subroutine read_inidat(dyn_in)
        nullify(elem)
     end if
 
-    allocate(tmp(npsq,nlev,nelemd))
-    allocate(tmp_point(1,nlev)) ! To find input at a single location
     allocate(qtmp(np,np,nlev,nelemd,pcnst))
-!jt    allocate(qtmp(npsq*nelemd,nlev))
-    tmp = 0.0_r8
+
     qtmp = 0.0_r8
-
-    do m=1,pcnst
-       if (m.le.thermodynamic_active_species_num) then
-          thermodynamic_active_species_idx_dycore(m) = thermodynamic_active_species_idx(m)
-       end if
-       cnst_name_gll    (m)                = cnst_name    (m)
-       cnst_longname_gll(m)                = cnst_longname(m)
-    end do
-
-    do m=1,thermodynamic_active_species_liq_num
-       thermodynamic_active_species_liq_idx_dycore(m) = thermodynamic_active_species_liq_idx(m)
-       if (masterproc) then
-          write(iulog,*) subname//": m,thermodynamic_active_species_idx_liq_dycore: ",m,thermodynamic_active_species_liq_idx_dycore(m)
-       end if
-    end do
-    do m=1,thermodynamic_active_species_ice_num
-       thermodynamic_active_species_ice_idx_dycore(m) = thermodynamic_active_species_ice_idx(m)
-       if (masterproc) then
-          write(iulog,*) subname//": m,thermodynamic_active_species_idx_ice_dycore: ",m,thermodynamic_active_species_ice_idx_dycore(m)
-       end if
-    end do
 
     if (par%dynproc) then
       if(elem(1)%idxP%NumUniquePts <=0 .or. elem(1)%idxP%NumUniquePts > np*np) then
@@ -1545,8 +1472,6 @@ subroutine read_inidat(dyn_in)
    end do
 
    ! Cleanup
-   deallocate(tmp)
-   deallocate(tmp_point)
    deallocate(qtmp)
 !!$   if (fv_nphys>0) then
 !!$      deallocate(phis_tmp)

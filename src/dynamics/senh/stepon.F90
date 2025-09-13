@@ -258,7 +258,7 @@ subroutine stepon_run1( dtime_out, phys_state, phys_tend,               &
 end subroutine stepon_run1
 
 subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
-   use dimensions_mod_cam, only: nlev, nlevp, nelemd, np, npsq, fv_nphys
+   use dimensions_mod_cam, only: nlev, nlevp, nelemd, np, npsq
    use dyn_grid,           only: TimeLevel, hvcoord, dom_mt
    use dp_coupling,        only: p_d_coupling
    use parallel_mod_cam,   only: par
@@ -618,7 +618,7 @@ subroutine diag_dynvar_ic(elem)
    use time_mod,               only: TimeLevel_Qdp   !  dynamics typestep
    use control_mod_cam,        only: qsplit
    use hybrid_mod_cam,         only: hybrid_create_cam, hybrid_t
-   use dimensions_mod_cam,     only: np, npsq, nc, nhc, fv_nphys, qsize, ntrac, nlev
+   use dimensions_mod_cam,     only: np, npsq, nc, nhc, qsize, ntrac, nlev
    use dimensions_mod_cam,     only: cnst_name_gll, nelemd
    use constituents,           only: cnst_name
    use element_mod,            only: element_t
@@ -638,8 +638,6 @@ subroutine diag_dynvar_ic(elem)
    type(hybrid_t)        :: hybrid
    integer               :: nets, nete
    real(r8), allocatable :: ftmp(:,:,:)
-   real(r8), allocatable :: fld_fvm(:,:,:,:,:), fld_gll(:,:,:,:,:)
-   real(r8), allocatable :: fld_2d(:,:)
    real(r8) :: temperature(np,np,nlev)   ! Temperature from dynamics
    logical               :: llimiter(1)
    real(r8)              :: qtmp(np,np,nlev), dp_ref(np,np,nlev), ps_ref(np,np)
@@ -729,19 +727,9 @@ subroutine diag_dynvar_ic(elem)
    end if
 
    if (write_inithist()) then
-!!$      allocate(fld_2d(np,np))
       do ie = 1, nelemd
-!!$         call get_ps(elem(ie)%state%Qdp(:,:,:,:,tl_Qdp), thermodynamic_active_species_idx_dycore,&
-!!$              elem(ie)%state%dp3d(:,:,:,tl_f),fld_2d,hyai(1)*ps0)
-!!$         do j = 1, np
-!!$            do i = 1, np
-!!$               ftmp(i+(j-1)*np,1,1) = fld_2d(i,j)
-!!$            end do
-!!$         end do
-!jt         call outfld('PS&IC', ftmp(:,1,1), npsq, ie)
          call outfld('PS&IC',RESHAPE(elem(ie)%state%ps_v(:,:,tl_f), (/np*np/)), np*np, ie)
       end do
-!!$      deallocate(fld_2d)
    endif
 
    deallocate(ftmp)
@@ -772,9 +760,6 @@ subroutine diag_dynvar_ic(elem)
             end if
          end do
       end do
-
-!!$      if (fv_nphys > 0) then
-!!$      end if
 
       deallocate(factor_array)
    end if  ! if (write_inithist)
