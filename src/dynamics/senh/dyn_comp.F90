@@ -114,9 +114,6 @@ subroutine dyn_readnl(NLFileName)
   use fvm_mod,        only: fvm_get_test_type
   use native_mapping, only: native_mapping_readnl
 #endif
-#ifndef HOMME_WITHOUT_PIOLIBRARY
-  use mesh_mod,       only: MeshOpen
-#endif
   use dimensions_mod_cam, only: qsize, qsize_d, ntrac, ntrac_d, npsq, ne, npart, lcp_moist, set_mesh_dimensions
   use constituents,   only: pcnst
   use params_mod,     only: SFCURVE, SPHERE_COORDS, Z2_NO_TASK_MAPPING
