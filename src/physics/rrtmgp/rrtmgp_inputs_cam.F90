@@ -1,4 +1,4 @@
-module rrtmgp_inputs
+module rrtmgp_inputs_cam
 
 !--------------------------------------------------------------------------------
 ! Transform data for inputs from CAM's data structures to those used by
@@ -17,9 +17,7 @@ use physics_types,    only: physics_state
 use physics_buffer,   only: physics_buffer_desc
 use camsrfexch,       only: cam_in_t
 
-use radconstants,     only: nradgas, gaslist, nswbands, nlwbands, nswgpts, nlwgpts,   &
-                            get_sw_spectral_boundaries, idx_sw_diag, idx_sw_cloudsim, &
-                            idx_lw_cloudsim
+use radconstants,     only: nradgas, gaslist, nswbands, nlwbands
 
 use rad_constituents, only: rad_cnst_get_gas
 
@@ -28,29 +26,27 @@ use cloud_rad_props,  only: get_liquid_optics_sw, liquid_cloud_get_rad_props_lw,
                             get_snow_optics_sw,   snow_cloud_get_rad_props_lw,   &
                             get_grau_optics_sw,   grau_cloud_get_rad_props_lw
                                  
-use mcica_subcol_gen, only: mcica_subcol_sw, mcica_subcol_lw
+use mcica_subcol_gen, only: mcica_subcol_sw
 
 use aer_rad_props,    only: aer_rad_props_sw, aer_rad_props_lw
 
-use mo_gas_concentrations, only: ty_gas_concs
-use mo_gas_optics_rrtmgp,  only: ty_gas_optics_rrtmgp 
-use mo_optical_props,      only: ty_optical_props_2str, ty_optical_props_1scl
+use ccpp_gas_concentrations, only: ty_gas_concs_ccpp
+use ccpp_gas_optics_rrtmgp,  only: ty_gas_optics_rrtmgp_ccpp
+use ccpp_optical_props,      only: ty_optical_props_2str_ccpp, ty_optical_props_1scl_ccpp
 
 use cam_history_support,   only: fillvalue
-use cam_logfile,      only: iulog
 use cam_abortutils,   only: endrun
 use error_messages,   only: alloc_err
+use radiation_utils, only: get_sw_spectral_boundaries_ccpp
 
 implicit none
 private
 save
 
 public :: &
-   rrtmgp_inputs_init,  &
-   rrtmgp_set_state,    &
-   rrtmgp_set_gases_lw, &
+   rrtmgp_inputs_cam_init, &
+   rrtmgp_get_gas_mmrs, &
    rrtmgp_set_gases_sw, &
-   rrtmgp_set_cloud_lw, &
    rrtmgp_set_cloud_sw, &
    rrtmgp_set_aer_lw,   &
    rrtmgp_set_aer_sw
@@ -59,15 +55,16 @@ public :: &
 ! This value is to match the arbitrary small value used in RRTMG to decide
 ! when a quantity is effectively zero.
 real(r8), parameter :: tiny = 1.0e-80_r8
-
-! Indices for copying data between cam and rrtmgp arrays
-integer :: ktopcam ! Index in CAM arrays of top level (layer or interface) at which
-                   ! RRTMGP is active.
-integer :: ktoprad ! Index in RRTMGP arrays of the layer or interface corresponding
-                   ! to CAM's top layer or interface
-
-! wavenumber (cm^-1) boundaries of shortwave bands
-real(r8) :: sw_low_bounds(nswbands), sw_high_bounds(nswbands)
+real(r8) :: sw_low_bounds(nswbands)
+real(r8) :: sw_high_bounds(nswbands)
+integer :: ktopcam
+integer :: ktoprad
+integer :: idx_sw_diag
+integer :: idx_nir_diag
+integer :: idx_uv_diag
+integer :: idx_sw_cloudsim
+integer :: idx_lw_diag
+integer :: idx_lw_cloudsim
 
 ! Mapping from RRTMG shortwave bands to RRTMGP.  Currently needed to continue using
 ! the SW optics datasets from RRTMG (even thought there is a slight mismatch in the
@@ -79,186 +76,40 @@ integer, parameter, dimension(14) :: rrtmg_to_rrtmgp_swbands = &
 contains
 !==================================================================================================
 
-subroutine rrtmgp_inputs_init(ktcam, ktrad)
+!==================================================================================================
+subroutine rrtmgp_inputs_cam_init(ktcam, ktrad, idx_sw_diag_in, idx_nir_diag_in, idx_uv_diag_in, &
+               idx_sw_cloudsim_in, idx_lw_diag_in, idx_lw_cloudsim_in)
       
    ! Note that this routine must be called after the calls to set_wavenumber_bands which set
    ! the sw/lw band boundaries in the radconstants module.
 
    integer, intent(in) :: ktcam
    integer, intent(in) :: ktrad
+   integer, intent(in) :: idx_sw_diag_in
+   integer, intent(in) :: idx_nir_diag_in
+   integer, intent(in) :: idx_uv_diag_in
+   integer, intent(in) :: idx_sw_cloudsim_in
+   integer, intent(in) :: idx_lw_diag_in
+   integer, intent(in) :: idx_lw_cloudsim_in
+   character(len=512) :: errmsg
+   integer :: errflg
 
    ktopcam = ktcam
    ktoprad = ktrad
+   idx_sw_diag = idx_sw_diag_in
+   idx_nir_diag = idx_nir_diag_in
+   idx_uv_diag = idx_uv_diag_in
+   idx_sw_cloudsim = idx_sw_cloudsim_in
+   idx_lw_diag = idx_lw_diag_in
+   idx_lw_cloudsim = idx_lw_cloudsim_in
 
    ! Initialize the module data containing the SW band boundaries.
-   call get_sw_spectral_boundaries(sw_low_bounds, sw_high_bounds, 'cm^-1')
-
-end subroutine rrtmgp_inputs_init
-
-!=========================================================================================
-
-subroutine rrtmgp_set_state( &
-   state, cam_in, ncol, nlay, nday,           &
-   idxday, coszrs, kdist_sw, t_sfc, emis_sfc,  &
-   t_rad, pmid_rad, pint_rad, t_day, pmid_day, &
-   pint_day, coszrs_day, alb_dir, alb_dif) 
-
-   ! arguments
-   type(physics_state),         intent(in) :: state     ! CAM physics state
-   type(cam_in_t),              intent(in) :: cam_in    ! CAM import state
-   integer,                     intent(in) :: ncol      ! # cols in CAM chunk
-   integer,                     intent(in) :: nlay      ! # layers in rrtmgp grid
-   integer,                     intent(in) :: nday      ! # daylight columns
-   integer,                     intent(in) :: idxday(:) ! chunk indicies of daylight columns
-   real(r8),                    intent(in) :: coszrs(:) ! cosine of solar zenith angle
-   class(ty_gas_optics_rrtmgp), intent(in) :: kdist_sw  ! spectral information
-
-   real(r8), intent(out) :: t_sfc(ncol)              ! surface temperature [K] 
-   real(r8), intent(out) :: emis_sfc(nlwbands,ncol)  ! emissivity at surface []
-   real(r8), intent(out) :: t_rad(ncol,nlay)         ! layer midpoint temperatures [K]
-   real(r8), intent(out) :: pmid_rad(ncol,nlay)      ! layer midpoint pressures [Pa]
-   real(r8), intent(out) :: pint_rad(ncol,nlay+1)    ! layer interface pressures [Pa]
-   real(r8), intent(out) :: t_day(nday,nlay)         ! layer midpoint temperatures [K]
-   real(r8), intent(out) :: pmid_day(nday,nlay)      ! layer midpoint pressure [Pa]
-   real(r8), intent(out) :: pint_day(nday,nlay+1)    ! layer interface pressures [Pa]
-   real(r8), intent(out) :: coszrs_day(nday)         ! cosine of solar zenith angle
-   real(r8), intent(out) :: alb_dir(nswbands,nday)   ! surface albedo, direct radiation
-   real(r8), intent(out) :: alb_dif(nswbands,nday)   ! surface albedo, diffuse radiation
-
-   ! local variables
-   integer :: i, k, iband
-
-   real(r8) :: tref_min, tref_max
-
-   character(len=*), parameter :: sub='rrtmgp_set_state'
-   character(len=512) :: errmsg
-   !--------------------------------------------------------------------------------
-
-   t_sfc = sqrt(sqrt(cam_in%lwup(:ncol)/stebol))  ! Surface temp set based on longwave up flux.
-
-   ! Set surface emissivity to 1.0.
-   ! The land model *does* have its own surface emissivity, but is not spectrally resolved.
-   ! The LW upward flux is calculated with that land emissivity, and the "radiative temperature"
-   ! t_sfc is derived from that flux. We assume, therefore, that the emissivity is unity
-   ! to be consistent with t_sfc.
-   emis_sfc(:,:) = 1._r8
-
-   ! Level ordering is the same for both CAM and RRTMGP (top to bottom)
-   t_rad(:,ktoprad:) = state%t(:ncol,ktopcam:)
-   pmid_rad(:,ktoprad:) = state%pmid(:ncol,ktopcam:)
-   pint_rad(:,ktoprad:) = state%pint(:ncol,ktopcam:)
-
-   ! Add extra layer values if needed.
-   if (nlay == pverp) then
-      t_rad(:,1) = state%t(:ncol,1)
-      ! The top reference pressure from the RRTMGP coefficients datasets is 1.005183574463 Pa
-      ! Set the top of the extra layer just below that.
-      pint_rad(:,1) = 1.01_r8
-
-      ! next interface down in LT will always be > 1Pa
-      ! but in MT we apply adjustment to have it be 1.02 Pa if it was too high
-      where (pint_rad(:,2) <= pint_rad(:,1)) pint_rad(:,2) = pint_rad(:,1)+0.01_r8
-      
-      ! set the highest pmid (in the "extra layer") to the midpoint (guarantees > 1Pa) 
-      pmid_rad(:,1)   = pint_rad(:,1) + 0.5_r8 * (pint_rad(:,2) - pint_rad(:,1))
-      
-      ! For case of CAM MT, also ensure pint_rad(:,2) > pint_rad(:,1) & pmid_rad(:,2) > max(pmid_rad(:,1), min_pressure)
-      where (pmid_rad(:,2) <= kdist_sw%get_press_min()) pmid_rad(:,2) = pint_rad(:,2) + 0.01_r8
-   else
-      ! nlay < pverp, thus the 1 Pa level is within a CAM layer.  Assuming the top interface of
-      ! this layer is at a pressure < 1 Pa, we need to adjust the top of this layer so that it
-      ! is within the valid pressure range of RRTMGP (otherwise RRTMGP issues an error).  Then
-      ! set the midpoint pressure halfway between the interfaces.
-      pint_rad(:,1) = 1.01_r8
-      pmid_rad(:,1) = 0.5_r8 * (pint_rad(:,1) + pint_rad(:,2))
+   call get_sw_spectral_boundaries_ccpp(sw_low_bounds, sw_high_bounds, 'cm^-1', errmsg, errflg)
+   if (errflg /= 0) then
+      call endrun('rrtmgp_inputs_cam_init: error during get_sw_spectral_boundaries_ccpp - message: '//errmsg)
    end if
 
-   ! Limit temperatures to be within the limits of RRTMGP validity.
-   tref_min = kdist_sw%get_temp_min()
-   tref_max = kdist_sw%get_temp_max()
-   t_rad = merge(t_rad, tref_min, t_rad > tref_min)
-   t_rad = merge(t_rad, tref_max, t_rad < tref_max)
-
-   ! Construct arrays containing only daylight columns
-   do i = 1, nday
-      t_day(i,:)    = t_rad(idxday(i),:)
-      pmid_day(i,:) = pmid_rad(idxday(i),:)
-      pint_day(i,:) = pint_rad(idxday(i),:)
-      coszrs_day(i) = coszrs(idxday(i))
-   end do
- 
-   ! Assign albedos to the daylight columns (from E3SM implementation)
-   ! Albedos are imported from the surface models as broadband (visible, and near-IR),
-   ! and we need to map these to appropriate narrower bands used in RRTMGP. Bands
-   ! are categorized broadly as "visible/UV" or "infrared" based on wavenumber.
-   ! Loop over bands, and determine for each band whether it is broadly in the
-   ! visible or infrared part of the spectrum based on a dividing line of
-   ! 0.7 micron, or 14286 cm^-1
-   do iband = 1,nswbands
-      if (is_visible(sw_low_bounds(iband)) .and. &
-         is_visible(sw_high_bounds(iband))) then
-
-         ! Entire band is in the visible
-         do i = 1, nday
-            alb_dir(iband,i) = cam_in%asdir(idxday(i))
-            alb_dif(iband,i) = cam_in%asdif(idxday(i))
-         end do
-
-      else if (.not.is_visible(sw_low_bounds(iband)) .and. &
-               .not.is_visible(sw_high_bounds(iband))) then
-         ! Entire band is in the longwave (near-infrared)
-         do i = 1, nday
-            alb_dir(iband,i) = cam_in%aldir(idxday(i))
-            alb_dif(iband,i) = cam_in%aldif(idxday(i))
-         end do
-      else
-         ! Band straddles the visible to near-infrared transition, so we take
-         ! the albedo to be the average of the visible and near-infrared
-         ! broadband albedos
-         do i = 1, nday
-            alb_dir(iband,i) = 0.5_r8 * (cam_in%aldir(idxday(i)) + cam_in%asdir(idxday(i)))
-            alb_dif(iband,i) = 0.5_r8 * (cam_in%aldif(idxday(i)) + cam_in%asdif(idxday(i)))
-         end do
-      end if
-   end do
-
-   ! Strictly enforce albedo bounds
-   where (alb_dir < 0)
-       alb_dir = 0.0_r8
-   end where
-   where (alb_dir > 1)
-       alb_dir = 1.0_r8
-   end where
-   where (alb_dif < 0)
-       alb_dif = 0.0_r8
-   end where
-   where (alb_dif > 1)
-       alb_dif = 1.0_r8
-   end where
-
-end subroutine rrtmgp_set_state
-
-!=========================================================================================
-
-pure logical function is_visible(wavenumber)
-
-   ! Wavenumber is in the visible if it is above the visible threshold
-   ! wavenumber, and in the infrared if it is below the threshold
-   ! This function doesn't distinquish between visible and UV.
-
-   ! wavenumber in inverse cm (cm^-1)
-   real(r8), intent(in) :: wavenumber
-
-   ! Set threshold between visible and infrared to 0.7 micron, or 14286 cm^-1
-   real(r8), parameter :: visible_wavenumber_threshold = 14286._r8  ! cm^-1
-
-   if (wavenumber > visible_wavenumber_threshold) then
-      is_visible = .true.
-   else
-      is_visible = .false.
-   end if
-
-end function is_visible
+end subroutine rrtmgp_inputs_cam_init
 
 !=========================================================================================
 
@@ -319,7 +170,7 @@ subroutine rad_gas_get_vmr(icall, gas_name, state, pbuf, nlay, numactivecols, ga
    integer,                     intent(in) :: nlay           ! number of layers in radiation calculation
    integer,                     intent(in) :: numactivecols  ! number of columns, ncol for LW, nday for SW
 
-   type(ty_gas_concs),       intent(inout) :: gas_concs  ! the result is VRM inside gas_concs
+   type(ty_gas_concs_ccpp),     intent(inout) :: gas_concs  ! the result is VMR inside gas_concs
 
    integer, optional,          intent(in) :: idxday(:)   ! indices of daylight columns in a chunk
 
@@ -402,7 +253,7 @@ subroutine rad_gas_get_vmr(icall, gas_name, state, pbuf, nlay, numactivecols, ga
       end do
    end if
 
-   errmsg = gas_concs%set_vmr(gas_name, gas_vmr)
+   errmsg = gas_concs%gas_concs%set_vmr(gas_name, gas_vmr)
    if (len_trim(errmsg) > 0) then
       call endrun(sub//': ERROR, gas_concs%set_vmr: '//trim(errmsg))
    end if
@@ -414,32 +265,29 @@ end subroutine rad_gas_get_vmr
 
 !==================================================================================================
 
-subroutine rrtmgp_set_gases_lw(icall, state, pbuf, nlay, gas_concs)
+subroutine rrtmgp_get_gas_mmrs(icall, state, pbuf, nlay, gas_mmrs)
 
-   ! Set gas vmr for the gases in the radconstants module's gaslist.
-
-   ! The memory management for the gas_concs object is internal.  The arrays passed to it
-   ! are copied to the internally allocated memory.  Each call to the set_vmr method checks
-   ! whether the gas already has memory allocated, and if it does that memory is deallocated
-   ! and new memory is allocated.
+   ! Retrieve mass mixing ratios for radiatively active gases from rad_constituents
 
    ! arguments
    integer,                     intent(in)    :: icall      ! index of climate/diagnostic radiation call
    type(physics_state), target, intent(in)    :: state
    type(physics_buffer_desc),   pointer       :: pbuf(:)
    integer,                     intent(in)    :: nlay
-   type(ty_gas_concs),          intent(inout) :: gas_concs
+   real(r8),                    intent(out)   :: gas_mmrs(:,:,:)
 
    ! local variables
    integer :: i, ncol
-   character(len=*), parameter :: sub = 'rrtmgp_set_gases_lw'
+   real(r8), pointer :: gas_mmr(:,:)
+   character(len=*), parameter :: sub = 'rrtmgp_get_gas_mmrs'
    !--------------------------------------------------------------------------------
 
    ncol = state%ncol
    do i = 1, nradgas
-      call rad_gas_get_vmr(icall, gaslist(i), state, pbuf, nlay, ncol, gas_concs)
+      call rad_cnst_get_gas(icall, gaslist(i), state, pbuf, gas_mmr)
+      gas_mmrs(:,:,i) = gas_mmr(:ncol,:)
    end do
-end subroutine rrtmgp_set_gases_lw
+end subroutine rrtmgp_get_gas_mmrs
 
 !==================================================================================================
 
@@ -457,7 +305,7 @@ subroutine rrtmgp_set_gases_sw( &
    integer,                     intent(in)    :: nlay
    integer,                     intent(in)    :: nday
    integer,                     intent(in)    :: idxday(:)
-   type(ty_gas_concs),          intent(inout) :: gas_concs
+   type(ty_gas_concs_ccpp),     intent(inout) :: gas_concs
 
    ! local variables
    integer :: i
@@ -473,143 +321,8 @@ end subroutine rrtmgp_set_gases_sw
 
 !==================================================================================================
 
-subroutine rrtmgp_set_cloud_lw( &
-   state, pbuf, ncol, nlay, nlaycam, &
-   cld, cldfsnow, cldfgrau, cldfprime, graupel_in_rad, &
-   kdist_lw, cloud_lw, cld_lw_abs_cloudsim, snow_lw_abs_cloudsim, grau_lw_abs_cloudsim)
-
-   ! Compute combined cloud optical properties.
-   ! Create MCICA stochastic arrays for cloud LW optical properties.
-   ! Initialize optical properties object (cloud_lw) and load with MCICA columns.
-
-   ! arguments
-   type(physics_state),         intent(in)  :: state
-   type(physics_buffer_desc),   pointer     :: pbuf(:)
-   integer,  intent(in) :: ncol           ! number of columns in CAM chunk
-   integer,  intent(in) :: nlay           ! number of layers in radiation calculation (may include "extra layer")
-   integer,  intent(in) :: nlaycam        ! number of CAM layers in radiation calculation
-   real(r8), pointer    :: cld(:,:)       ! cloud fraction (liq+ice)
-   real(r8), pointer    :: cldfsnow(:,:)  ! cloud fraction of just "snow clouds"
-   real(r8), pointer    :: cldfgrau(:,:)  ! cloud fraction of just "graupel clouds"
-   real(r8), intent(in) :: cldfprime(pcols,pver) ! combined cloud fraction
-
-   logical,                     intent(in)  :: graupel_in_rad ! use graupel in radiation code
-   class(ty_gas_optics_rrtmgp), intent(in)  :: kdist_lw
-   type(ty_optical_props_1scl), intent(out) :: cloud_lw
-
-   ! Diagnostic outputs
-   real(r8), intent(out) :: cld_lw_abs_cloudsim(pcols,pver) ! in-cloud liq+ice optical depth (for COSP)
-   real(r8), intent(out) :: snow_lw_abs_cloudsim(pcols,pver)! in-cloud snow optical depth (for COSP)
-   real(r8), intent(out) :: grau_lw_abs_cloudsim(pcols,pver)! in-cloud Graupel optical depth (for COSP)
-
-   ! Local variables
-
-   integer :: i, k
-
-   ! cloud radiative parameters are "in cloud" not "in cell"
-   real(r8) :: liq_lw_abs(nlwbands,pcols,pver)   ! liquid absorption optics depth (LW)
-   real(r8) :: ice_lw_abs(nlwbands,pcols,pver)   ! ice absorption optics depth (LW)
-   real(r8) :: cld_lw_abs(nlwbands,pcols,pver)   ! cloud absorption optics depth (LW)
-   real(r8) :: snow_lw_abs(nlwbands,pcols,pver)  ! snow absorption optics depth (LW)
-   real(r8) :: grau_lw_abs(nlwbands,pcols,pver)  ! graupel absorption optics depth (LW)
-   real(r8) :: c_cld_lw_abs(nlwbands,pcols,pver) ! combined cloud absorption optics depth (LW)
-
-   ! Arrays for converting from CAM chunks to RRTMGP inputs.
-   real(r8) :: cldf(ncol,nlaycam)
-   real(r8) :: tauc(nlwbands,ncol,nlaycam)
-   real(r8) :: taucmcl(nlwgpts,ncol,nlaycam)
-
-   character(len=128) :: errmsg
-   character(len=*), parameter :: sub = 'rrtmgp_set_cloud_lw'
-   !--------------------------------------------------------------------------------
-
-   ! Combine the cloud optical properties.  These calculations are done on CAM "chunks".
-
-   ! gammadist liquid optics
-   call liquid_cloud_get_rad_props_lw(state, pbuf, liq_lw_abs)
-   ! Mitchell ice optics
-   call ice_cloud_get_rad_props_lw(state, pbuf, ice_lw_abs)
-
-   cld_lw_abs(:,:ncol,:) = liq_lw_abs(:,:ncol,:) + ice_lw_abs(:,:ncol,:)
-
-   if (associated(cldfsnow)) then
-      ! add in snow
-      call snow_cloud_get_rad_props_lw(state, pbuf, snow_lw_abs)
-      do i = 1, ncol
-         do k = 1, pver
-            if (cldfprime(i,k) > 0._r8) then
-               c_cld_lw_abs(:,i,k) = ( cldfsnow(i,k)*snow_lw_abs(:,i,k) &
-                                            + cld(i,k)*cld_lw_abs(:,i,k) )/cldfprime(i,k)
-            else
-               c_cld_lw_abs(:,i,k) = 0._r8
-            end if
-         end do
-      end do
-   else
-      c_cld_lw_abs(:,:ncol,:) = cld_lw_abs(:,:ncol,:)
-   end if
-
-   ! add in graupel
-   if (associated(cldfgrau) .and. graupel_in_rad) then
-      call grau_cloud_get_rad_props_lw(state, pbuf, grau_lw_abs)
-      do i = 1, ncol
-         do k = 1, pver
-            if (cldfprime(i,k) > 0._r8) then
-               c_cld_lw_abs(:,i,k) = ( cldfgrau(i,k)*grau_lw_abs(:,i,k) &
-                                            + cld(i,k)*c_cld_lw_abs(:,i,k) )/cldfprime(i,k)
-            else
-               c_cld_lw_abs(:,i,k) = 0._r8
-            end if
-         end do
-      end do
-   end if
-
-   ! Cloud optics for COSP
-   cld_lw_abs_cloudsim  = cld_lw_abs(idx_lw_cloudsim,:,:)
-   snow_lw_abs_cloudsim = snow_lw_abs(idx_lw_cloudsim,:,:)
-   grau_lw_abs_cloudsim = grau_lw_abs(idx_lw_cloudsim,:,:)
-   
-   ! Extract just the layers of CAM where RRTMGP does calculations.
-
-   ! Subset "chunk" data so just the number of CAM layers in the
-   ! radiation calculation are used by MCICA to produce subcolumns.
-   cldf = cldfprime(:ncol, ktopcam:)
-   tauc = c_cld_lw_abs(:, :ncol, ktopcam:)
-
-   ! Enforce tauc >= 0.
-   tauc = merge(tauc, 0.0_r8, tauc > 0.0_r8)
-   
-   ! MCICA uses spectral data (on bands) to construct subcolumns (one per g-point)
-   call mcica_subcol_lw( &
-      kdist_lw, nlwbands, nlwgpts, ncol, nlaycam, &
-      nlwgpts, state%pmid, cldf, tauc, taucmcl    )
-
-   errmsg =cloud_lw%alloc_1scl(ncol, nlay, kdist_lw)
-   if (len_trim(errmsg) > 0) then
-      call endrun(sub//': ERROR: cloud_lw%alloc_1scalar: '//trim(errmsg))
-   end if
-
-   ! If there is an extra layer in the radiation then this initialization
-   ! will provide zero optical depths there.
-   cloud_lw%tau = 0.0_r8
-
-   ! Set the properties on g-points.
-   do i = 1, nlwgpts
-      cloud_lw%tau(:,ktoprad:,i) = taucmcl(i,:,:)
-   end do
-
-   ! validate checks that: tau > 0
-   errmsg = cloud_lw%validate()
-   if (len_trim(errmsg) > 0) then
-      call endrun(sub//': ERROR: cloud_lw%validate: '//trim(errmsg))
-   end if
-
-end subroutine rrtmgp_set_cloud_lw
-
-!==================================================================================================
-
 subroutine rrtmgp_set_cloud_sw( &
-   state, pbuf, nlay, nday, idxday, &
+   state, pbuf, nlay, nday, idxday, nswgpts, &
    nnite, idxnite, pmid, cld, cldfsnow, &
    cldfgrau, cldfprime, graupel_in_rad, kdist_sw, cloud_sw, &
    tot_cld_vistau, tot_icld_vistau, liq_icld_vistau, ice_icld_vistau, snow_icld_vistau, &
@@ -625,6 +338,7 @@ subroutine rrtmgp_set_cloud_sw( &
    integer,  intent(in) :: nlay           ! number of layers in radiation calculation (may include "extra layer")
    integer,  intent(in) :: nday           ! number of daylight columns
    integer,  intent(in) :: idxday(pcols)  ! indices of daylight columns in the chunk
+   integer,  intent(in) :: nswgpts        ! number of shortwave g-points
    integer,  intent(in) :: nnite          ! number of night columns
    integer,  intent(in) :: idxnite(pcols) ! indices of night columns in the chunk
 
@@ -635,9 +349,9 @@ subroutine rrtmgp_set_cloud_sw( &
    real(r8), pointer    :: cldfgrau(:,:) ! cloud fraction of just "graupel clouds"
    real(r8), intent(in) :: cldfprime(pcols,pver) ! combined cloud fraction
 
-   logical,                     intent(in)  :: graupel_in_rad ! graupel in radiation code
-   class(ty_gas_optics_rrtmgp), intent(in)  :: kdist_sw  ! shortwave gas optics object
-   type(ty_optical_props_2str), intent(out) :: cloud_sw  ! SW cloud optical properties object
+   logical,                          intent(in)  :: graupel_in_rad ! graupel in radiation code
+   class(ty_gas_optics_rrtmgp_ccpp), intent(in)  :: kdist_sw  ! shortwave gas optics object
+   type(ty_optical_props_2str_ccpp), intent(out) :: cloud_sw  ! SW cloud optical properties object
 
    ! Diagnostic outputs
    real(r8), intent(out) :: tot_cld_vistau(pcols,pver)   ! gbx total cloud optical depth
@@ -840,39 +554,39 @@ subroutine rrtmgp_set_cloud_sw( &
 
       ! MCICA uses spectral data (on bands) to construct subcolumns (one per g-point)
       call mcica_subcol_sw( &
-         kdist_sw, nswbands, nswgpts, nday, nlay, &
+         kdist_sw%gas_props, nswbands, nswgpts, nday, nlay, &
          nver, changeseed, pmid, cldf, tauc,     &
          ssac, asmc, taucmcl, ssacmcl, asmcmcl)
    
       ! Initialize object for SW cloud optical properties.
-      errmsg = cloud_sw%alloc_2str(nday, nlay, kdist_sw)
+      errmsg = cloud_sw%optical_props%alloc_2str(nday, nlay, kdist_sw%gas_props)
       if (len_trim(errmsg) > 0) then
-         call endrun(trim(sub)//': ERROR: cloud_sw%alloc_2str: '//trim(errmsg))
+         call endrun(trim(sub)//': ERROR: cloud_sw%optical_props%alloc_2str: '//trim(errmsg))
       end if
 
       ! If there is an extra layer in the radiation then this initialization
       ! will provide the optical properties there.
-      cloud_sw%tau = 0.0_r8
-      cloud_sw%ssa = 1.0_r8
-      cloud_sw%g   = 0.0_r8
+      cloud_sw%optical_props%tau = 0.0_r8
+      cloud_sw%optical_props%ssa = 1.0_r8
+      cloud_sw%optical_props%g   = 0.0_r8
 
       ! Set the properties on g-points.
       do igpt = 1,nswgpts
-         cloud_sw%g  (:,ktoprad:,igpt) = asmcmcl(igpt,:,:)
-         cloud_sw%ssa(:,ktoprad:,igpt) = ssacmcl(igpt,:,:)
-         cloud_sw%tau(:,ktoprad:,igpt) = taucmcl(igpt,:,:)
+         cloud_sw%optical_props%g  (:,ktoprad:,igpt) = asmcmcl(igpt,:,:)
+         cloud_sw%optical_props%ssa(:,ktoprad:,igpt) = ssacmcl(igpt,:,:)
+         cloud_sw%optical_props%tau(:,ktoprad:,igpt) = taucmcl(igpt,:,:)
       end do
 
       ! validate checks that: tau > 0, ssa is in range [0,1], and g is in range [-1,1].
-      errmsg = cloud_sw%validate()
+      errmsg = cloud_sw%optical_props%validate()
       if (len_trim(errmsg) > 0) then
-         call endrun(sub//': ERROR: cloud_sw%validate: '//trim(errmsg))
+         call endrun(sub//': ERROR: cloud_sw%optical_props%validate: '//trim(errmsg))
       end if
 
       ! delta scaling adjusts for forward scattering
-      errmsg = cloud_sw%delta_scale()
+      errmsg = cloud_sw%optical_props%delta_scale()
       if (len_trim(errmsg) > 0) then
-         call endrun(sub//': ERROR: cloud_sw%delta_scale: '//trim(errmsg))
+         call endrun(sub//': ERROR: cloud_sw%optical_props%delta_scale: '//trim(errmsg))
       end if
 
       ! All information is in cloud_sw, now deallocate local vars.
@@ -896,7 +610,7 @@ subroutine rrtmgp_set_aer_lw(icall, state, pbuf, aer_lw)
    type(physics_state), target, intent(in) :: state
    type(physics_buffer_desc),   pointer    :: pbuf(:)
 
-   type(ty_optical_props_1scl), intent(inout) :: aer_lw
+   type(ty_optical_props_1scl_ccpp), intent(inout) :: aer_lw
 
    ! Local variables
    integer :: ncol
@@ -915,13 +629,13 @@ subroutine rrtmgp_set_aer_lw(icall, state, pbuf, aer_lw)
 
    ! If there is an extra layer in the radiation then this initialization
    ! will provide zero optical depths there.
-   aer_lw%tau = 0.0_r8
+   aer_lw%optical_props%tau = 0.0_r8
 
-   aer_lw%tau(:ncol, ktoprad:, :) = aer_lw_abs(:ncol, ktopcam:, :)
+   aer_lw%optical_props%tau(:ncol, ktoprad:, :) = aer_lw_abs(:ncol, ktopcam:, :)
 
-   errmsg = aer_lw%validate()
+   errmsg = aer_lw%optical_props%validate()
    if (len_trim(errmsg) > 0) then
-      call endrun(sub//': ERROR: aer_lw%validate: '//trim(errmsg))
+      call endrun(sub//': ERROR: aer_lw%optical_props%validate: '//trim(errmsg))
    end if
 end subroutine rrtmgp_set_aer_lw
 
@@ -941,7 +655,7 @@ subroutine rrtmgp_set_aer_sw( &
    integer,  intent(in) :: nnite          ! number of night columns
    integer,  intent(in) :: idxnite(pcols) ! indices of night columns in the chunk
 
-   type(ty_optical_props_2str), intent(inout) :: aer_sw
+   type(ty_optical_props_2str_ccpp), intent(inout) :: aer_sw
 
    ! local variables
    integer  :: i
@@ -977,31 +691,31 @@ subroutine rrtmgp_set_aer_sw( &
                   
       ! If there is an extra layer in the radiation then this initialization
       ! will provide default values.
-      aer_sw%tau = 0.0_r8
-      aer_sw%ssa = 1.0_r8
-      aer_sw%g   = 0.0_r8
+      aer_sw%optical_props%tau = 0.0_r8
+      aer_sw%optical_props%ssa = 1.0_r8
+      aer_sw%optical_props%g   = 0.0_r8
 
       ! CAM fields are products tau, tau*ssa, tau*ssa*asy
       ! Fields expected by RRTMGP are computed by
-      ! aer_sw%tau = aer_tau
-      ! aer_sw%ssa = aer_tau_w / aer_tau
-      ! aer_sw%g   = aer_tau_w_g / aer_taw_w
+      ! aer_sw%optical_props%tau = aer_tau
+      ! aer_sw%optical_props%ssa = aer_tau_w / aer_tau
+      ! aer_sw%optical_props%g   = aer_tau_w_g / aer_taw_w
       ! aer_sw arrays have dimensions of (nday,nlay,nswbands)
 
       do i = 1, nday
          ! set aerosol optical depth, clip to zero
-         aer_sw%tau(i,ktoprad:,:) = max(aer_tau(idxday(i),ktopcam:,:), 0._r8)
+         aer_sw%optical_props%tau(i,ktoprad:,:) = max(aer_tau(idxday(i),ktopcam:,:), 0._r8)
          ! set value of single scattering albedo
-         aer_sw%ssa(i,ktoprad:,:) = merge(aer_tau_w(idxday(i),ktopcam:,:)/aer_tau(idxday(i),ktopcam:,:), &
+         aer_sw%optical_props%ssa(i,ktoprad:,:) = merge(aer_tau_w(idxday(i),ktopcam:,:)/aer_tau(idxday(i),ktopcam:,:), &
                                           1._r8, aer_tau(idxday(i),ktopcam:,:) > 0._r8)
          ! set value of asymmetry
-         aer_sw%g(i,ktoprad:,:) = merge(aer_tau_w_g(idxday(i),ktopcam:,:)/aer_tau_w(idxday(i),ktopcam:,:), &
+         aer_sw%optical_props%g(i,ktoprad:,:) = merge(aer_tau_w_g(idxday(i),ktopcam:,:)/aer_tau_w(idxday(i),ktopcam:,:), &
                                         0._r8, aer_tau_w(idxday(i),ktopcam:,:) > tiny)
       end do
 
       ! impose limits on the components
-      aer_sw%ssa = min(max(aer_sw%ssa, 0._r8), 1._r8)
-      aer_sw%g   = min(max(aer_sw%g, -1._r8), 1._r8)
+      aer_sw%optical_props%ssa = min(max(aer_sw%optical_props%ssa, 0._r8), 1._r8)
+      aer_sw%optical_props%g   = min(max(aer_sw%optical_props%g, -1._r8), 1._r8)
 
    end if
 
@@ -1009,4 +723,4 @@ end subroutine rrtmgp_set_aer_sw
 
 !==================================================================================================
 
-end module rrtmgp_inputs
+end module rrtmgp_inputs_cam

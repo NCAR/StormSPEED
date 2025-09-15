@@ -181,7 +181,17 @@ CONTAINS
 
     end if ! par%dynproc
 
-    !$omp parallel do num_threads(max_num_threads) private (col_ind, lchnk, icol, ie, blk_ind, ilyr, m)
+    ! Parallel region: Each thread copies data from dynamics to physics
+    ! state for a subset of columns on the task. All variables listed in
+    ! the PRIVATE clause are thread-local, including pointers (e.g.,
+    ! pbuf_chnk, pbuf_frontgf, pbuf_frontga, pbuf_vort4gw), ensuring that
+    ! pointer assignments and accesses are safe within each thread. Each
+    ! thread operates on independent columns, so there are no data races
+    ! or shared writes to the same memory locations.
+
+    !$omp parallel do num_threads(max_num_threads) private (col_ind, lchnk, &
+    !$omp icol, ie, blk_ind, ilyr, m, pbuf_chnk, pbuf_frontgf, pbuf_frontga, &
+    !$omp pbuf_vort4gw) schedule(dynamic)
     do col_ind = 1, columns_on_task
        call get_dyn_col_p(col_ind, ie, blk_ind)
        call get_chunk_info_p(col_ind, lchnk, icol)
