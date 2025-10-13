@@ -2,7 +2,7 @@
 	path = chem_proc
 	url = https://github.com/ESCOMP/CHEM_PREPROCESSOR.git
         fxrequired = AlwaysRequired
-        fxtag = chem_proc5_0_06
+        fxtag = chem_proc5_0_07
 	fxDONOTUSEurl = https://github.com/ESCOMP/CHEM_PREPROCESSOR.git
 
 [submodule "carma"]
@@ -11,13 +11,6 @@
         fxrequired = AlwaysRequired
         fxtag = carma4_09
         fxDONOTUSEurl = https://github.com/ESCOMP/CARMA_base.git
-
-[submodule "pumas"]
-	path = src/physics/pumas
-	url = https://github.com/ESCOMP/PUMAS
-        fxrequired = AlwaysRequired
-        fxtag = pumas_cam-release_v1.39
-        fxDONOTUSEurl = https://github.com/ESCOMP/PUMAS
 
 [submodule "pumas-frozen"]
 	path = src/physics/pumas-frozen
@@ -36,9 +29,17 @@
 [submodule "atmos_phys"]
 	path = src/atmos_phys
 	url = https://github.com/ESCOMP/atmospheric_physics
-        fxtag = atmos_phys0_14_001
+	fxtag = atmos_phys0_18_001
         fxrequired = AlwaysRequired
 	fxDONOTUSEurl = https://github.com/ESCOMP/atmospheric_physics
+
+[submodule "cam-sima"]
+        path = src/utils/cam-sima
+        url = https://github.com/ESCOMP/CAM-SIMA.git
+        fxrequired = AlwaysRequired
+        fxsparse = ../.sima_phys_utils_sparse_checkout
+        fxtag = sima0_07_000
+        fxDONOTUSEurl = https://github.com/ESCOMP/CAM-SIMA.git
 
 [submodule "fv3"]
 	path = src/dynamics/fv3
@@ -75,13 +76,6 @@
         fxrequired = AlwaysRequired
 	fxDONOTUSEurl = https://github.com/ESCOMP/HEMCO_CESM.git
 
-[submodule "rte-rrtmgp"]
-	path = src/physics/rrtmgp/ext
-	url = https://github.com/earth-system-radiation/rte-rrtmgp.git
-        fxrequired = AlwaysRequired
-        fxtag = v1.7
-        fxDONOTUSEurl = https://github.com/earth-system-radiation/rte-rrtmgp.git
-
 [submodule "rrtmgp-data"]
 	path = src/physics/rrtmgp/data
 	url = https://github.com/earth-system-radiation/rrtmgp-data.git
@@ -116,7 +110,7 @@
 [submodule "cism"]
 path = components/cism
 url = https://github.com/ESCOMP/CISM-wrapper
-fxtag = cismwrap_2_2_006
+fxtag = cismwrap_2_2_010
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/ESCOMP/CISM-wrapper
 
@@ -137,28 +131,28 @@ fxDONOTUSEurl = https://github.com/ESCOMP/MOSART
 [submodule "mizuRoute"]
 path = components/mizuRoute
 url = https://github.com/ESCOMP/mizuRoute
-fxtag = cesm-coupling.n04_v2.3.0
+fxtag = v3.0.0
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/ESCOMP/mizuRoute
 
 [submodule "ccs_config"]
 path = ccs_config
 url = https://github.com/jtruesdal/ccs_config_cesm.git
-fxtag = ccs_config_cesm1.0.57_nh.01
+fxtag = ccs_config_cesm1.0.61_nh.01
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/jtruesdal/ccs_config_cesm.git
 
 [submodule "cime"]
 path = cime
 url = https://github.com/ESMCI/cime
-fxtag = cime6.1.116
+fxtag = cime6.1.126
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/ESMCI/cime.git
 
 [submodule "cmeps"]
 path = components/cmeps
-url = https://github.com/ESCOMP/CMEPS.git 
-fxtag = cmeps1.1.10
+url = https://github.com/ESCOMP/CMEPS.git
+fxtag = cmeps1.1.16
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/ESCOMP/CMEPS.git
 
@@ -193,7 +187,7 @@ fxDONOTUSEurl = https://github.com/ESCOMP/CESM_CICE
 [submodule "clm"]
 path = components/clm
 url = https://github.com/ESCOMP/CTSM
-fxtag = ctsm5.3.068
+fxtag = alpha-ctsm5.4.CMIP7.09.ctsm5.3.068
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/ESCOMP/CTSM
 
