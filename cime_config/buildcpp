@@ -79,6 +79,13 @@ def buildcpp(case):
 
     if cam_dycore == 'fv3':
          config_opts += ["-fv3core_libdir", os.path.join(exeroot,"atm","obj","atmos_cubed_sphere")]
+         try:
+             libs = case.get_values("CASE_SUPPORT_LIBRARIES")
+             if libs is not None and "FMS" not in libs:
+                 libs.extend(["gptl","pio","csm_share","FMS"])
+                 case.set_value("CASE_SUPPORT_LIBRARIES", ",".join(libs))
+         except:
+             pass
 
     if cam_dycore == 'se':
         config_opts += ["-se_dyn_target", cam_target]

@@ -149,10 +149,21 @@ jobs:
           # Check the last 5 lines for 'failed' or 'error:' (case-insensitive)
           if tail -n 5 "$TMP_OUTPUT" | grep -iE 'failed|error:'; then
             echo "Test failed"
+            cat /tmp/ci_test/run/cesm.log*
             exit 911
           else
             echo "Test passed"
           fi
+
+      - name: Upload logs to GitHub artifacts
+        if: failure() 
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs.${{ matrix.compset }}.${{ matrix.dycore }}.${{ matrix.compiler }}.${{ matrix.runner }}
+          path: |
+            /tmp/ci_test/run/cesm.log*
+            /tmp/ci_test/run/atm.log*
+          retention-days: 7
 
       - name: Upload the netCDF output files to CIRRUS storage
         if: env.GENERATE_BASELINE == 'true'
