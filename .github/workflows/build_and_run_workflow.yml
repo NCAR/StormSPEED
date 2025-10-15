@@ -30,7 +30,7 @@ jobs:
         dycore: [ theta-l, theta-l_kokkos ]
         image: [
           opensuse15_gcc12_openmpi5.0.8_cpu:bd1e777,
-          opensuse15_gcc12_openmpi5.0.8_cuda12.9:bd1e777
+          opensuse15_gcc12_openmpi5.0.8_cuda12.9:bd1e777,
           almalinux9.6_intel2024_openmpi5.0.8_cpu:bd1e777,
           ubuntu24.04_nvhpc25.7_openmpi4.1.5_cpu:bd1e777,
           ubuntu24.04_nvhpc25.7_openmpi5.0.8_cuda12.9:bd1e777
