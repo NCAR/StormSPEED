@@ -159,7 +159,7 @@ jobs:
         if: failure() 
         uses: actions/upload-artifact@v4
         with:
-          name: Log files for running ${{ matrix.compset }} with ${{ matrix.dycore }} using ${{ matrix.image }}
+          name: logs.${{ matrix.compset }}.${{ matrix.dycore }}.${{ matrix.compiler }}.${{ matrix.runner }}
           path: |
             /tmp/ci_test/run/cesm.log*
             /tmp/ci_test/run/atm.log*
