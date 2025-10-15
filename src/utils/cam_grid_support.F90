@@ -1688,7 +1688,7 @@ contains
           end select
        end if
     end if
-    
+
   end function cam_grid_get_areawt
 
   ! Find the longitude and latitude of a range of map entries

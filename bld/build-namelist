@@ -4253,6 +4253,7 @@ if ($dyn =~ /se/) {
     # namelist group: dyn_se_inparm (for CAM_SE) #
     ####################################################
 
+    my $se_dyn_target = $cfg->get('se_dyn_target');
     my $csne = $cfg->get('csne');
     my $se_ne = $nl->get_value('se_ne');
     if (defined($se_ne) and $se_ne != $csne) {
@@ -4267,7 +4268,60 @@ if ($dyn =~ /se/) {
     }
     add_default($nl, 'se_fv_nphys', 'val'=>$npg);
 
-    my @vars = qw(
+    my %opts;
+
+    if($se_dyn_target ne 'cam') {
+	my @vars = qw( se_cubed_sphere_map
+		       se_coord_transform_method
+		       se_dt_remap_factor
+		       se_dt_tracer_factor
+		       se_hypervis_scaling
+		       se_hypervis_subcycle
+		       se_hypervis_subcycle_q
+		       se_hypervis_subcycle_tom
+		       se_integration
+		       se_mesh_file
+		       se_nu
+		       se_nu_div
+		       se_nu_p
+		       se_nu_q
+		       se_nu_s
+		       se_nu_top
+		       se_qsplit
+		       se_rsplit
+		       se_ftype
+		       se_geometry
+		       se_limiter_option
+		       se_lx
+		       se_ly
+		       se_ne_x
+		       se_ne_y
+		       se_nsplit
+		       se_partmethod
+		       se_semi_lagrange_cdr_alg
+		       se_semi_lagrange_cdr_check
+		       se_semi_lagrange_hv_q
+		       se_semi_lagrange_nearest_point_lev
+		       se_topology
+		       se_tstep
+		       se_statefreq
+		       se_theta_advect_form
+		       se_theta_hydrostatic_mode
+		       se_transport_alg
+		       se_tstep_type
+		       se_vert_remap_q_alg
+		       se_vthreads
+		       se_z2_map_method
+		       interpolate_output
+		       interpolate_nlat
+		       interpolate_nlon
+	    );
+	# Add the collected vars
+	foreach my $var (@vars) {
+	    add_default($nl, $var, %opts);
+	}
+    } else {
+	my @vars = qw(
                   se_ftype
                   se_horz_num_threads
 		  se_large_Courant_incr
@@ -4300,47 +4354,52 @@ if ($dyn =~ /se/) {
                   se_molecular_diff
 	          se_pgf_formulation
 	          se_dribble_in_rsplit_loop
+		  interpolate_output
+		  interpolate_nlat
+		  interpolate_nlon
         );
 
-    my %opts;
 
-    # Settings for refined mesh.
-    add_default($nl, 'se_refined_mesh');
-    my $refined_mesh = $nl->get_value('se_refined_mesh');
-    if ($refined_mesh =~ m/$TRUE/i) {
-        $opts{'se_refined_mesh'} = "1";
+	# Settings for refined mesh.
+	add_default($nl, 'se_refined_mesh');
+	my $refined_mesh = $nl->get_value('se_refined_mesh');
+	if ($refined_mesh =~ m/$TRUE/i) {
+	    $opts{'se_refined_mesh'} = "1";
 
-        add_default($nl, 'se_mesh_file');
-        my $se_mesh_file = $nl->get_value('se_mesh_file');
-        if (!defined $se_mesh_file or ($se_mesh_file =~ m/none/i) or ((length $se_mesh_file) == 0)) {
-            die "$ProgName - ERROR: se_mesh_file is required for a refined mesh run\n";
-        }
+	    add_default($nl, 'se_mesh_file');
+	    my $se_mesh_file = $nl->get_value('se_mesh_file');
+	    if (!defined $se_mesh_file or ($se_mesh_file =~ m/none/i) or ((length $se_mesh_file) == 0)) {
+		die "$ProgName - ERROR: se_mesh_file is required for a refined mesh run\n";
+	    }
 
-        # We are in a refined mesh situation, set appropriate defaults
-        $nl->set_variable_value('dyn_se_inparm', 'se_ne', 0);
+	    # We are in a refined mesh situation, set appropriate defaults
+	    $nl->set_variable_value('dyn_se_inparm', 'se_ne', 0);
 
-        add_default($nl, 'se_hypervis_power');
-        my $hypervis_power = $nl->get_value('se_hypervis_power');
-        if ($hypervis_power == 0) {
-            # Configure default tensor hyperviscosity
-            $opts{'hypervis_type'} = 'tensor';
-            push @vars, 'se_hypervis_scaling';
-        }
-        else {
-            # Configure scalar hyperviscosity
-            $opts{'hypervis_type'} = 'scalar';
-            if ($hypervis_power != 3.322) {
-                # This is unsupported territory, allow chaos to reign
-                print "$ProgName - WARNING: Unsupported value for hypervis_power, assuming scalar hyperviscosity\n";
-            }
-            push @vars, 'se_fine_ne';
-            push @vars, 'se_max_hypervis_courant';
-        }
+	    add_default($nl, 'se_hypervis_power');
+	    my $hypervis_power = $nl->get_value('se_hypervis_power');
+	    if ($hypervis_power == 0) {
+		# Configure default tensor hyperviscosity
+		$opts{'hypervis_type'} = 'tensor';
+		push @vars, 'se_hypervis_scaling';
+	    }
+	    else {
+		# Configure scalar hyperviscosity
+		$opts{'hypervis_type'} = 'scalar';
+		if ($hypervis_power != 3.322) {
+		    # This is unsupported territory, allow chaos to reign
+		    print "$ProgName - WARNING: Unsupported value for hypervis_power, assuming scalar hyperviscosity\n";
+		}
+		push @vars, 'se_fine_ne';
+		push @vars, 'se_max_hypervis_courant';
+	    }
+	}
+
+	# Add the collected vars
+	foreach my $var (@vars) {
+	    add_default($nl, $var, %opts);
+	}
     }
-    # Add the collected vars
-    foreach my $var (@vars) {
-        add_default($nl, $var, %opts);
-    }
+
 }
 
 # MPAS-Atmosphere dycore

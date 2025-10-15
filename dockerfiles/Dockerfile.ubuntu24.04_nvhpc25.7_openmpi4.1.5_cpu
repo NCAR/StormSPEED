@@ -1,0 +1,148 @@
+#############################################################################################################
+# Base image                                                                                                #
+# - Do not try to install nvhpc and cuda from source;                                                       #
+# - It may not build some packages below and you need to switch back to gcc compiler;                       #
+# - NVIDIA also does not provide OpenSUSE image; use Ubuntu instead and good to test a different OS system. #
+#############################################################################################################
+FROM nvcr.io/nvidia/nvhpc:25.7-devel-cuda12.9-ubuntu24.04 AS spack_base
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+SHELL ["/bin/bash", "-c"]
+
+WORKDIR /opt
+
+# Install python3 as prerequisite for Spack
+# This image also comes with gcc/13.3.0 compiler
+RUN apt-get update && \
+    apt-get install -y python3 unzip curl && \
+    update-alternatives --install /usr/bin/python python /usr/bin/python3 80 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install AWS CLI v2
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
+    unzip awscliv2.zip && \
+    ./aws/install && \
+    rm -rf awscliv2.zip aws && \
+    aws --version
+
+# Clean up unused packages
+RUN cd /opt/nvidia/hpc_sdk/Linux_x86_64/25.7 && \
+    rm -rf cuda profilers
+
+# Clone Spack with tag v1.0.0
+RUN git clone --depth=2 --branch v1.0.0 https://github.com/spack/spack.git
+
+#################
+# Build libxml2 #
+#################
+FROM spack_base AS xml2
+
+# Install xmllint that is required by CIME
+# This image comes with cmake/3.28.3
+# The xmllint built by NVHPC does not work; so we switch to gcc
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install libxml2@2.13.5 %gcc && \
+    ln -s $(spack location -i libxml2@2.13.5)/bin/xmllint /usr/local/bin/xmllint
+
+#################
+# Build openmpi #
+#################
+FROM xml2 AS openmpi
+
+# This image comes with openmpi/4.1.5 and likely not cuda enabled;
+# We can register it as external package for Spack
+ENV MPI_ROOT=/opt/nvidia/hpc_sdk/Linux_x86_64/25.7/comm_libs/12.9/openmpi4/openmpi-4.1.5
+RUN echo "  openmpi:" >> /root/.spack/packages.yaml && \
+    echo "    externals:" >> /root/.spack/packages.yaml && \
+    echo "    - spec: openmpi@4.1.5" >> /root/.spack/packages.yaml && \
+    echo "      prefix: $MPI_ROOT" >> /root/.spack/packages.yaml && \
+    echo "    buildable: false" >> /root/.spack/packages.yaml && \
+    ln -s $MPI_ROOT /usr/local/openmpi
+
+#########################
+# Build parallel-netcdf #
+#########################
+FROM openmpi AS parallel_netcdf
+
+# Install m4 and other build tools first
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install m4 && \
+    spack install autoconf && \
+    spack install automake && \
+    spack install libtool && \
+    spack install parallel-netcdf@1.14.0 +cxx +fortran +pic +shared %nvhpc@25.7 ^openmpi@4.1.5 && \
+    ln -s $(spack location -i parallel-netcdf@1.14.0) /usr/local/pnetcdf
+
+################
+# Build netCDF #
+################
+FROM parallel_netcdf AS netcdf
+
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install netcdf-c@4.9.2 %nvhpc@25.7 ^parallel-netcdf@1.14.0 ^openmpi@4.1.5 && \
+    ln -s $(spack location -i netcdf-c@4.9.2) /usr/local/netcdf_c
+
+# Install netcdf-fortran; it will install the netcdf-c and openmpi dependency by default
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install netcdf-fortran@4.6.1 %nvhpc@25.7 ^netcdf-c@4.9.2 ^openmpi@4.1.5 && \
+    ln -s $(spack location -i netcdf-fortran@4.6.1) /usr/local/netcdf_fortran
+
+#############
+# Build PIO #
+#############
+FROM netcdf AS parallelio
+
+# Install parallelio; it will install the parallel-netcdf dependency by default
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install parallelio@2.6.6 +pnetcdf +fortran +mpi +shared +ncint %nvhpc@25.7 ^parallel-netcdf@1.14.0 ^openmpi@4.1.5 && \
+    ln -s $(spack location -i parallelio@2.6.6) /usr/local/pio
+
+##############
+# Build ESMF #
+##############
+FROM parallelio AS esmf
+
+# Install ESMF; it will install its parallelio and parallel-netcdf dependencies by default
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install py-cython@3.0.12 && \
+    spack install esmf@8.8.1 +pnetcdf +mpi +shared %nvhpc@25.7 ^parallelio@2.6.6 ^parallel-netcdf@1.14.0 ^openmpi@4.1.5 && \
+    ln -s $(spack location -i esmf@8.8.1) /usr/local/esmf
+
+################
+# Build LAPACK #
+################
+FROM esmf AS final_image
+
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install netlib-lapack@3.12.1 %nvhpc@25.7 && \
+    ln -s $(spack location -i netlib-lapack@3.12.1) /usr/local/lapack
+
+################################################
+# Set up environment variables for CI workflow #
+################################################
+ENV CXX=nvc++
+ENV CC=nvc
+ENV FC=nvfortran
+ENV NETCDF_C_PATH="/usr/local/netcdf_c"
+ENV NETCDF_FORTRAN_PATH="/usr/local/netcdf_fortran"
+ENV PNETCDF="/usr/local/pnetcdf"
+ENV PIO="/usr/local/pio"
+ENV ESMFMKFILE="/usr/local/esmf/lib/esmf.mk"
+ENV LAPACK="/usr/local/lapack"
+ENV PIO_VERSION_MAJOR=2
+ENV PIO_TYPENAME_VALID_VALUES="netcdf, pnetcdf, netcdf4c, netcdf4p"
+ENV PATH="/usr/local:/usr/local/bin:$MPI_ROOT/bin:${PATH}"
+ENV USER=robot
+# Set the default compiler for nvcc wrapper
+ENV NVCC_WRAPPER_DEFAULT_COMPILER=nvc++
+
+##########################
+# Miscellaneous settings #
+##########################
+WORKDIR /tmp
+
+LABEL maintainer="Jian Sun"
+LABEL description="Ubuntu 24.04 container with nvhpc/25.7 software stack for StormSPEED CAM"
+
+CMD ["/bin/bash"]

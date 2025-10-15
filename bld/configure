@@ -79,6 +79,7 @@ OPTIONS
                         Makefile defaults.  E.g. -cppdefs '-DVAR1 -DVAR2'
      -cpl               Coupling framework [mct | nuopc].  Default: mct.
      -dyn <name>        Dynamical core option: [fv | se | fv3 | mpas].  Default: fv.
+     -se_dyn_target <name> hydro/nonhydro HPC target: [cam | preqx | preqx_acc | preqx_kokkos | theta-l | theta-l_kokkos].  Default: cam.
      -edit_chem_mech    Invokes CAMCHEM_EDITOR to allow the user to edit the chemistry mechanism file
      -hgrid <name>      Specify horizontal grid.  Use nlatxnlon for spectral grids;
                         dlatxdlon for fv grids (dlat and dlon are the grid cell size
@@ -248,6 +249,7 @@ GetOptions(
     "cpl=s"                     => \$opts{'cpl'},
     "debug"                     => \$opts{'debug'},
     "dyn=s"                     => \$opts{'dyn'},
+    "se_dyn_target=s"           => \$opts{'se_dyn_target'},
     "edit_chem_mech"            => \$opts{'edit_chem_mech'},
     "esmf_libdir=s"             => \$opts{'esmf_libdir'},
     "fc=s"                      => \$opts{'fc'},
@@ -629,8 +631,37 @@ if ($dyn_pkg eq 'fv3' and $spmd eq 'OFF') {
     die "configure: FATAL: the fv3 dycore requires at least 6 tasks SPMD must not be switched off.$eol";
 }
 
-if ($dyn_pkg eq 'se' and $smp eq 'ON') {
-    die "CAM configure: ERROR: The SE dycore does not currently work with threading on. $eol";
+my $se_dyn_target = '';
+my $se_bld_target =  '';
+
+if ($dyn_pkg eq 'se') {
+    if ( $smp eq 'ON') {
+	die "CAM configure: ERROR: The SE dycore does not currently work with threading on. $eol";
+    }
+    if (defined $opts{'se_dyn_target'}) {
+	$se_dyn_target = $opts{'se_dyn_target'};
+    }
+
+    print  "se_dyn_target=  $se_dyn_target\n";
+    if (substr($opts{'se_dyn_target'},0,5) eq 'preqx') {
+	# preqx, preqx_acc, preqx_kokkos use 'preqx' namelist defaults
+	$cfg_ref->set('se_dyn_target', 'preqx');
+	$se_bld_target =  'preqx';
+    }
+    if (substr($opts{'se_dyn_target'},0,5) eq 'theta') {
+	# theta-l (f code) and theta-l_kokkos (cxx code) use 'theta-l' namelist defaults
+	$cfg_ref->set('se_dyn_target', 'theta-l');
+	$se_bld_target =  'theta-l';
+    }
+    if (substr($opts{'se_dyn_target'},0,3) eq 'cam') {
+	$cfg_ref->set('se_dyn_target', 'cam');
+	$se_bld_target =  'cam';
+    }
+    print  "SE dycore target options:\n";
+    print  "  build target:    $se_bld_target\n";
+    my $temp = $cfg_ref->get('se_dyn_target');
+    print  "  namelist target: $temp\n";
+
 }
 
 if ($print>=2) { print "Dynamics package: $dyn_pkg$eol"; }
@@ -1132,7 +1163,7 @@ my $hgrid;
 if ($dyn_pkg eq 'fv') {
     $hgrid = '1.9x2.5';
 }
-elsif ($dyn_pkg eq 'se') {
+elsif ($dyn_pkg eq 'se' or $dyn_pkg eq 'se-preq' or $dyn_pkg eq 'se-nh') {
     $hgrid = 'ne16np4';
 }
 elsif ($dyn_pkg eq 'mpas') {
@@ -1759,21 +1790,61 @@ $cfg_cppdefs .= " -DNUM_COMP_INST_ESP=1";
 # buffers to overlap. This method works in all CAM compilers.
 if ($dyn_pkg eq 'se') {
 
-    my $csnp = $cfg_ref->get('csnp');
-    $cfg_cppdefs .= " -DCAM  -D_WK_GRAD -DNP=$csnp -DHAVE_F2003_PTR_BND_REMAP";
+    if($se_dyn_target eq 'cam') {
+	my $csnp = $cfg_ref->get('csnp');
+	$cfg_cppdefs .= " -DCAM  -D_WK_GRAD -DNP=$csnp -DHAVE_F2003_PTR_BND_REMAP";
 
-    # Check to see if physics grid is being used
-    my $npg = $cfg_ref->get('npg');
-    if ($npg > 0) {
-        $cfg_cppdefs .= " -DFVM_TRACERS";
+	# Check to see if physics grid is being used
+	my $npg = $cfg_ref->get('npg');
+	if ($npg > 0) {
+	    $cfg_cppdefs .= " -DFVM_TRACERS";
+	}
+
+	if ($smp eq 'ON') {
+	    $cfg_cppdefs .= " -D_OPENMP";
+	}
+
+	if ($spmd eq 'ON') {
+	    $cfg_cppdefs .= " -D_MPI";
+	}
+
+	$cfg_cppdefs .= " -D_PRIM";
     }
 
-    if ($smp eq 'ON') {
-        $cfg_cppdefs .= " -D_OPENMP";
-    }
+    if($se_dyn_target eq 'preqx') {
 
-    if ($spmd eq 'ON') {
-        $cfg_cppdefs .= " -D_MPI";
+	my $csnp = $cfg_ref->get('csnp');
+	$cfg_cppdefs .= " -DCAM  -DNP=$csnp -DHAVE_F2003_PTR_BND_REMAP";
+
+	# Check to see if physics grid is being used
+	my $npg = $cfg_ref->get('npg');
+
+	if ($smp eq 'ON') {
+	    $cfg_cppdefs .= " -D_OPENMP";
+	}
+
+	if ($spmd eq 'ON') {
+	    $cfg_cppdefs .= " -D_MPI";
+	}
+
+	$cfg_cppdefs .= " -D_PRIM";
+    }
+    if($se_dyn_target eq 'theta-l' or $se_dyn_target eq 'theta-l_kokkos') {
+	my $csnp = $cfg_ref->get('csnp');
+	$cfg_cppdefs .= " -DCAM  -DNP=$csnp -DHAVE_F2003_PTR_BND_REMAP -DHOMME_ENABLE_COMPOSE -DMODEL_THETA_L";
+
+	# Check to see if physics grid is being used
+	my $npg = $cfg_ref->get('npg');
+
+	if ($smp eq 'ON') {
+	    $cfg_cppdefs .= " -D_OPENMP -DHORIZ_OPENMP";
+	}
+
+	if ($spmd eq 'ON') {
+	    $cfg_cppdefs .= " -DHAVE_MPI -D_MPI";
+	}
+
+	$cfg_cppdefs .= " -D_PRIM";
     }
 }
 
@@ -2166,6 +2237,8 @@ sub write_filepath
 	print $fh "$camsrcdir/src/physics/pumas-frozen\n";
     }
 
+    my $KOKKOSROOT = "$ENV{'Kokkos_ROOT'}";
+
     # This directory contains much of the code for physics packages,
     # as well as the cam specific interface modules that may need to
     # be overridden by modules from directories that occur earlier
@@ -2191,9 +2264,40 @@ sub write_filepath
     print $fh "$camsrcdir/src/atmos_phys/schemes/holtslag_boville\n";
 
     # Dynamics package and test utilities
-    print $fh "$camsrcdir/src/dynamics/$dyn\n";
-    if($dyn eq 'se') {
+    if ($dyn eq 'se' and ($se_dyn_target eq 'preqx' or$se_dyn_target eq 'theta-l' or $se_dyn_target eq 'theta-l_kokkos')) {
+	print $fh "$camsrcdir/src/dynamics/senh\n";
+    } else {
+	print $fh "$camsrcdir/src/dynamics/$dyn\n";
+    }
+    if($se_dyn_target eq 'cam') {
        print $fh "$camsrcdir/src/dynamics/se/dycore\n";
+    }
+    if($se_dyn_target eq 'preqx') {
+	   print $fh "$camsrcdir/src/dynamics/senh/cam_mods\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/preqx\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/preqx/share\n";
+    }
+    if($se_dyn_target eq 'theta-l') {
+       print $fh "$KOKKOSROOT/include\n";
+	   print $fh "$camsrcdir/src/dynamics/senh/cam_mods\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share/compose\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/theta-l\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/theta-l/share\n";
+    }
+    if ($se_dyn_target eq 'theta-l_kokkos') {
+	   print $fh "$KOKKOSROOT/include\n";
+	   print $fh "$camsrcdir/src/dynamics/senh/cam_mods\n";
+	   print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share/compose\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share/cxx\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share/cxx/mpi\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share/cxx/utilities\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share/cxx/vector\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/theta-l_kokkos\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/theta-l_kokkos/cxx\n";
+       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/theta-l_kokkos/share\n";
     }
     print $fh "$camsrcdir/src/dynamics/tests\n";
     if($inic_val) {
@@ -2225,7 +2329,18 @@ sub write_cppdefs
 
     $fh->open(">$file") or die "** can't open cpp defs file: $file\n";
 
-    print $fh "$make_cppdefs\n";
+    print $fh "$make_cppdefs ";
+
+    my $dyn           = $cfg_ref->get('dyn');
+    if ($dyn eq "se" and $opts{"se_dyn_target"} eq "theta-l") {
+        print $fh " -DMODEL_THETA_L -DHOMME_ENABLE_COMPOSE "
+    }
+
+    if ($dyn eq "se" and $opts{"se_dyn_target"} eq "theta-l_kokkos") {
+        print $fh " -DKOKKOS_TARGET -DMODEL_THETA_L -DHOMME_ENABLE_COMPOSE -DCOMPOSE_PORT "
+    }
+
+    print $fh "\n";
 
     $fh->close;
 }
@@ -2358,7 +2473,7 @@ sub set_horiz_grid
     my $dyn_pkg = $cfg_ref->get('dyn');
     my $hgrid   = $cfg_ref->get('hgrid');
 
-    if ( $dyn_pkg eq 'se') {
+    if ( $dyn_pkg eq 'se' or $dyn_pkg eq 'se-preq' or $dyn_pkg eq 'se-nh') {
 
         # For SE dycore parse the parameters out of the grid specifier string.
 

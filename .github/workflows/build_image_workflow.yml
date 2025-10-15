@@ -1,0 +1,79 @@
+# Building an image takes long time so only activating this workflow when necessary
+name: Build the images containing software stacks for StormSPEED CAM on CIRRUS
+
+#workflow dispatch adds a button to run on Github
+#This workflow is only triggered manually when desired (e.g., an update of the base image)
+#This may only work when this file is present on the main branch
+on:
+  # pull_request: # Uncomment only if you want to rebuild the image and push it to Harbor
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  build-images-on-CIRRUS:
+    name: Build the images on CIRRUS for linux/amd64 architecture
+    runs-on: ${{ matrix.runner }} # CIRRUS CPU/GPU runner
+    strategy:
+      fail-fast: false
+      matrix:
+        dockerfile:
+          - Dockerfile.almalinux9.6_intel2024_openmpi5.0.8_cpu
+          - Dockerfile.opensuse15_gcc12_openmpi5.0.8_cpu
+          - Dockerfile.opensuse15_gcc12_openmpi5.0.8_cuda12.9
+          - Dockerfile.ubuntu24.04_nvhpc25.7_openmpi5.0.8_cuda12.9
+          - Dockerfile.ubuntu24.04_nvhpc25.7_openmpi4.1.5_cpu
+        include:
+          - dockerfile: Dockerfile.almalinux9.6_intel2024_openmpi5.0.8_cpu
+            runner: gha-runner-stormspeed
+          - dockerfile: Dockerfile.opensuse15_gcc12_openmpi5.0.8_cpu
+            runner: gha-runner-stormspeed
+          - dockerfile: Dockerfile.ubuntu24.04_nvhpc25.7_openmpi4.1.5_cpu
+            runner: gha-runner-stormspeed
+          - dockerfile: Dockerfile.opensuse15_gcc12_openmpi5.0.8_cuda12.9
+            runner: gha-runner-gpu-stormspeed
+          - dockerfile: Dockerfile.ubuntu24.04_nvhpc25.7_openmpi5.0.8_cuda12.9
+            runner: gha-runner-gpu-stormspeed
+    steps:
+      #This step sets up a varibale to use later in the image tag
+      - name: Get short sha
+        run: echo "SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
+        
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      #This step is necessary in the CIRRUS system
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          platforms: linux/amd64
+          driver: remote
+          endpoint: tcp://buildkitd.arc-systems.svc:1234
+
+      # Log in to the CIRRUS hosted container registry instead of dockerhub
+      - name: registry login
+        uses: docker/login-action@v3
+        with:
+          registry: hub.k8s.ucar.edu/stormspeed
+          username: ${{ secrets.HUB_USER }} #robot account for your project in cirrus registry
+          password: ${{ secrets.HUB_PASSWORD }} #set up in the github CI settings
+
+      - name: Set image name and tag
+        run: |
+            IMAGE_NAME=$(basename "${{ matrix.dockerfile }}" | sed 's/^Dockerfile\.//')
+            echo "IMAGE_NAME=${IMAGE_NAME}" >> $GITHUB_ENV
+
+      # Use the docker/build-push-action to build and push the image; the raw docker build and push commands does not work on CIRRUS
+      - name: Build the Docker images
+        uses: docker/build-push-action@v6
+        with:
+          context: . # use the local workspace rather than a remote git URL; avoid a fresh clone and submodule update inside BuildKit
+          push: true
+          tags: hub.k8s.ucar.edu/stormspeed/${{ env.IMAGE_NAME }}:${{ env.SHORT_SHA }}
+          file: dockerfiles/${{ matrix.dockerfile }}
+          no-cache: true # Do not use cache for the build
+          #to utilize better image build caching using hub.k8s.ucar.edu
+          # cache-from: "type=registry,ref=hub.k8s.ucar.edu/stormspeed/${{ env.IMAGE_NAME }}:cache"
+          # cache-to: "type=registry,ref=hub.k8s.ucar.edu/stormspeed/${{ env.IMAGE_NAME }}:cache,image-manifest=true,mode=max"

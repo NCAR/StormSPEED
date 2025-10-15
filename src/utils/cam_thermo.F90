@@ -567,7 +567,7 @@ CONTAINS
       real(r8), optional, intent(in)  :: dp_dry(:, :)
       ! sum_species: sum species
       real(r8),           intent(out) :: sum_species(:, :)
-      ! factor: to moist factor 
+      ! factor: to moist factor
       real(r8), optional, intent(out) :: factor(:, :)
       ! Local variables
       real(r8) :: factor_loc(SIZE(tracer, 1), SIZE(tracer, 2))
@@ -883,7 +883,7 @@ CONTAINS
      real(r8), dimension(SIZE(tracer, 1), SIZE(tracer, 2))     :: pmid_local, t_v_local, dp_local, R_dry
      real(r8), dimension(SIZE(tracer, 1), SIZE(tracer, 2) + 1) :: pint
      character(len=*), parameter                               :: subname = 'get_gz_from_dp_dry_ptop_temp_1hd: '
-     
+
 
      call get_pmid_from_dp(tracer, mixing_ratio, active_species_idx, &
                               dp_dry, ptop, pmid_local, pint=pint, dp=dp_local)
@@ -1024,7 +1024,7 @@ CONTAINS
    !
    subroutine get_ps_1hd(tracer_mass, active_species_idx, dp_dry, ps, ptop)
      use air_composition,  only: dry_air_species_num
-     
+
      real(r8), intent(in)   :: tracer_mass(:,:,:)                      ! Tracer array (q*dp)
      real(r8), intent(in)   :: dp_dry(:,:)                             ! dry pressure level thickness
      real(r8), intent(out)  :: ps(:)                                   ! surface pressure
@@ -1612,7 +1612,7 @@ CONTAINS
       real(r8), intent(out), optional :: te (:)
       ! KE: vertically integrated kinetic energy
       real(r8), intent(out), optional :: ke (:)
-      ! SE: vertically integrated enthalpy (pressure coordinate) 
+      ! SE: vertically integrated enthalpy (pressure coordinate)
       !     or internal energy (z coordinate)
       real(r8), intent(out), optional :: se (:)
       ! PO: vertically integrated PHIS term (pressure coordinate)

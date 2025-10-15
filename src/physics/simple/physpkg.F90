@@ -608,7 +608,7 @@ contains
     !     physics_dme_adjust assumes moist. This is done in p_d_coupling for
     !     other dynamics. Bundy, Feb 2004.
     !
-    moist_mixing_ratio_dycore = dycore_is('LR').or. dycore_is('FV3')
+    moist_mixing_ratio_dycore = dycore_is('LR').or. dycore_is('FV3').or.dycore_is('SENH')
     !
     ! update cp/cv for energy computation based in updated water variables
     !

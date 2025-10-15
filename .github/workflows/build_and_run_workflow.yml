@@ -1,0 +1,176 @@
+name: Build and run on CIRRUS
+
+on:
+  push:
+    branches:
+      - stormspeed
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-run-on-CIRRUS:
+    name: Run ${{ matrix.image }} on ${{ matrix.runner }}
+    env:
+      TMP_DIR: tmp
+      TMP_OUTPUT: case_output.log
+      GENERATE_BASELINE: true
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_ENDPOINT_URL: ${{ secrets.AWS_ENDPOINT_URL }}
+      AWS_DEFAULT_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+    strategy:
+      fail-fast: false
+      matrix:
+        compset: [ FADIAB ]
+        res: [ ne30_ne30_mg17 ]
+        dycore: [ theta-l, theta-l_kokkos ]
+        image: [
+          opensuse15_gcc12_openmpi5.0.8_cpu:bd1e777,
+          opensuse15_gcc12_openmpi5.0.8_cuda12.9:bd1e777,
+          almalinux9.6_intel2024_openmpi5.0.8_cpu:bd1e777,
+          ubuntu24.04_nvhpc25.7_openmpi4.1.5_cpu:bd1e777,
+          ubuntu24.04_nvhpc25.7_openmpi5.0.8_cuda12.9:bd1e777
+        ]
+        include:
+          - image: opensuse15_gcc12_openmpi5.0.8_cpu:bd1e777
+            runner: gha-runner-stormspeed
+            compiler: gnu
+          - image: almalinux9.6_intel2024_openmpi5.0.8_cpu:bd1e777
+            runner: gha-runner-stormspeed
+            compiler: intel
+          - image: ubuntu24.04_nvhpc25.7_openmpi4.1.5_cpu:bd1e777
+            runner: gha-runner-stormspeed
+            compiler: nvhpc
+          - image: opensuse15_gcc12_openmpi5.0.8_cuda12.9:bd1e777
+            runner: gha-runner-gpu-stormspeed
+            compiler: gnu
+          - image: ubuntu24.04_nvhpc25.7_openmpi5.0.8_cuda12.9:bd1e777
+            runner: gha-runner-gpu-stormspeed
+            compiler: nvhpc
+        exclude:
+          - image: opensuse15_gcc12_openmpi5.0.8_cuda12.9:bd1e777
+            dycore: theta-l
+          - image: ubuntu24.04_nvhpc25.7_openmpi5.0.8_cuda12.9:bd1e777
+            dycore: theta-l
+    runs-on: ${{ matrix.runner }}
+    container:
+      image: hub.k8s.ucar.edu/stormspeed/${{ matrix.image }}
+      # Only set options for GPU runner
+      options: ${{ matrix.runner == 'gha-runner-gpu-stormspeed' && '--gpus all' }}
+      credentials:
+        username: ${{ secrets.hub_user }}
+        password: ${{ secrets.hub_password }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout code from a pull request or push
+        uses: actions/checkout@v4
+
+      - name: Set up some git configurations
+        run: |
+          # it can be any user name and email address
+          git config --global user.email "example_user@example.com"
+          git config --global user.name "example_user"
+
+      - name: Checkout individual components
+        run: |
+          # Use -C option to specify the workspace directory; otherwise root_dir is set to '.' and the checkout will fail
+          ./bin/git-fleximod -C ${GITHUB_WORKSPACE} update
+
+      - name: Create ${{ matrix.compset }} with ${{ matrix.dycore }} at ${{ matrix.res }} resolution
+        run: |
+          #####################
+          # Create a new case #
+          #####################
+          cd cime/scripts
+          ./create_newcase --case /$TMP_DIR/ci_test --machine cirrus --compset ${{ matrix.compset }} \
+            --res ${{ matrix.res }} --compiler ${{ matrix.compiler }} --run-unsupported
+
+      - name: Build
+        run: |
+          ############################
+          # Customize configurations #
+          ############################
+          cd /$TMP_DIR/ci_test
+          ./xmlchange NTASKS=16
+          ./xmlchange CAM_TARGET=${{ matrix.dycore }}
+          ./xmlchange STOP_OPTION=ndays,STOP_N=1,RESUBMIT=0
+          ./xmlchange DOUT_S='FALSE'
+          if [ "${{ matrix.runner }}" == "gha-runner-gpu-stormspeed" ]; then
+            ./xmlchange GPU_TYPE=a10
+            ./xmlchange KOKKOS_GPU_OFFLOAD=TRUE
+            ./xmlchange OVERSUBSCRIBE_GPU=FALSE
+          fi
+          ./case.setup
+          #########
+          # Build #
+          #########
+          ./case.build
+
+      - name: Run
+        run: |
+          ########################
+          # Output daily average #
+          ########################
+          cd /$TMP_DIR/ci_test
+          cat <<EOF > user_nl_cam
+          se_statefreq = 488,
+          mfilt=1,
+          ndens=1,
+          nhtfrq=-24,
+          inithist='ENDOFRUN'
+          /
+          EOF
+          cat <<EOF > user_nl_cice
+          empty_htapes = .true.,
+          fincl1 = '',
+          /
+          EOF
+          ################
+          # Run the test #
+          ################
+          export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PIO/lib:$NETCDF_FORTRAN_PATH/lib:$NETCDF_C_PATH/lib:$LAPACK/lib:$LAPACK/lib64:$PNETCDF/lib
+          if [ "${{ matrix.runner }}" == "gha-runner-gpu-stormspeed" ]; then
+            export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CUDA_ROOT/lib64:$CUDA_ROOT/lib64/stubs
+          else
+            export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$MKLROOT/lib
+          fi
+          ./case.submit --no-batch 2>&1 | tee "$TMP_OUTPUT"
+      
+      - name: Check the test PASS/FAIL status
+        if: always()
+        run: |
+          cd /$TMP_DIR/ci_test
+          # Check the last 5 lines for 'failed' or 'error:' (case-insensitive)
+          if tail -n 5 "$TMP_OUTPUT" | grep -iE 'failed|error:'; then
+            echo "Test failed"
+            cat /tmp/ci_test/run/cesm.log*
+            exit 911
+          else
+            echo "Test passed"
+          fi
+
+      - name: Upload logs to GitHub artifacts
+        if: failure() 
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs.${{ matrix.compset }}.${{ matrix.dycore }}.${{ matrix.compiler }}.${{ matrix.runner }}
+          path: |
+            /tmp/ci_test/run/cesm.log*
+            /tmp/ci_test/run/atm.log*
+          retention-days: 7
+
+      - name: Upload the netCDF output files to CIRRUS storage
+        if: env.GENERATE_BASELINE == 'true'
+        run: |
+          aws s3 --no-verify-ssl --endpoint-url $AWS_ENDPOINT_URL sync /$TMP_DIR/ci_test/run/ s3://stormspeed/baselines/${{ matrix.runner }}/${{ matrix.compset }}_${{ matrix.res }}_${{ matrix.compiler }}_${{ matrix.dycore }}/ --region $AWS_DEFAULT_REGION --exclude "*" --include "*cam.h0a*.nc" --include "*cam.h0i*.nc" --include "*cam.i*.nc"
+
+      - name: Extract the netCDF output files from CIRRUS storage
+        if: env.GENERATE_BASELINE != 'true'
+        run: |
+          aws s3 --no-verify-ssl --endpoint-url $AWS_ENDPOINT_URL sync s3://stormspeed/baselines/${{ matrix.runner }}/${{ matrix.compset }}_${{ matrix.res }}_${{ matrix.compiler }}_${{ matrix.dycore }}/ /$TMP_DIR/ci_test/baselines/ --region $AWS_DEFAULT_REGION --exclude "*" --include "*cam.h0a*.nc" --include "*cam.h0i*.nc" --include "*cam.i*.nc"

@@ -392,15 +392,8 @@ subroutine radiation_init(pbuf2d)
    call rad_data_init(pbuf2d) ! initialize output fields for offline driver
    call radsw_init()
    call radlw_init()
-!<<<<<<< HEAD
-!!+++ARH
-!   !call cloud_rad_props_init(pbuf2d)
-!   call cloud_rad_props_init()
-!!---ARH
-!=======
+
    call cloud_rad_props_init(tiny)
-!
-!>>>>>>> cam6_4_120
 
    cld_idx      = pbuf_get_index('CLD')
    cldfsnow_idx = pbuf_get_index('CLDFSNOW',errcode=err)

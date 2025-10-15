@@ -90,7 +90,7 @@ use geopotential_temp,         only: geopotential_temp_run !CCPP version
     !
     ! original code for backwards compatability with FV
     !
-    if (.not.(dycore_is('MPAS') .or. dycore_is('SE'))) then
+    if (.not.(dycore_is('MPAS') .or. dycore_is('SE') .or. dycore_is('SENH'))) then
 
       !dry air gas constant over gravity
       rog(:ncol,:) = rair(:ncol,:) / gravit

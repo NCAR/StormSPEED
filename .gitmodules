@@ -140,17 +140,17 @@ fxDONOTUSEurl = https://github.com/ESCOMP/mizuRoute
 
 [submodule "ccs_config"]
 path = ccs_config
-url = https://github.com/ESMCI/ccs_config_cesm.git
-fxtag = ccs_config_cesm1.0.63
+url = https://github.com/jtruesdal/ccs_config_cesm.git
+fxtag = ccs_config_cesm1.0.63_nh.01
 fxrequired = ToplevelRequired
-fxDONOTUSEurl = https://github.com/ESMCI/ccs_config_cesm.git
+fxDONOTUSEurl = https://github.com/jtruesdal/ccs_config_cesm.git
 
 [submodule "cime"]
 path = cime
 url = https://github.com/ESMCI/cime
 fxtag = cime6.1.126
 fxrequired = ToplevelRequired
-fxDONOTUSEurl = https://github.com/ESMCI/cime
+fxDONOTUSEurl = https://github.com/ESMCI/cime.git
 
 [submodule "cmeps"]
 path = components/cmeps
@@ -201,9 +201,24 @@ fxtag = fi_250428
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/ESCOMP/FMS_interface
 
+[submodule "kokkos"]
+path = libraries/kokkos
+url = https://github.com/E3SM-Project/kokkos
+fxtag = 6a19eb9 
+fxrequired = ToplevelRequired
+fxDONOTUSEurl = https://github.com/E3SM-Project/kokkos
+
 [submodule "tools/CUPiD"]
 path = tools/CUPiD
 url = https://github.com/NCAR/CUPiD.git
 fxtag = v0.3.1
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/NCAR/CUPiD.git
+
+[submodule "senh/dycore"]
+path = src/dynamics/senh/dycore
+url = https://github.com/E3SM-Project/E3SM.git
+fxrequired = AlwaysRequired
+fxsparse = ../.e3sm_sparse_checkout
+fxtag = cec3bb6
+fxDONOTUSEurl = https://github.com/E3SM-Project/E3SM.git
