@@ -16,8 +16,8 @@ concurrency:
 
 jobs:
   build-and-run-on-CIRRUS:
-    # Run the CI workflow on CIRRUS only when the 'ready_for_ci' label is added to a pull request
-    if: github.event_name == 'pull_request_target' && github.event.label.name == 'ready_for_ci'
+    # Run the CI workflow on CIRRUS only when (1) it is a push action or (2) the 'ready_for_ci' label is added to a pull request
+    if: github.event_name == 'push' || (github.event_name == 'pull_request_target' && github.event.label.name == 'ready_for_ci')
     name: Run ${{ matrix.image }} on ${{ matrix.runner }}
     env:
       TMP_DIR: tmp
@@ -73,7 +73,16 @@ jobs:
       run:
         shell: bash
     steps:
-      - name: Checkout code from a pull request or push
+      # This step is for pull_request_target event; must have 'ref' line to checkout the PR code.
+      - name: Checkout PR code
+        if: github.event_name == 'pull_request_target'
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      # This step is for push event; the default behavior will check out the push code correctly.
+      - name: Checkout push code
+        if: github.event_name == 'push'
         uses: actions/checkout@v4
 
       - name: Set up some git configurations
