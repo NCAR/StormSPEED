@@ -6,6 +6,8 @@ on:
       - stormspeed
   pull_request_target:
     types: [labeled] # Only trigger when a label is added
+    branches:
+      - stormspeed
   workflow_dispatch:
 
 concurrency:
