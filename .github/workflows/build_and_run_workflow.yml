@@ -4,7 +4,8 @@ on:
   push:
     branches:
       - stormspeed
-  pull_request:
+  pull_request_target:
+    types: [labeled] # Only trigger when a label is added or removed
   workflow_dispatch:
 
 concurrency:
@@ -13,6 +14,10 @@ concurrency:
 
 jobs:
   build-and-run-on-CIRRUS:
+    # This 'if' condition is the key:
+    # 1. It checks that the event was a label being ADDED.
+    # 2. It checks that the label name is exactly 'ready_for_ci'.
+    if: github.event.action == 'labeled' && github.event.label.name == 'ready_for_ci'
     name: Run ${{ matrix.image }} on ${{ matrix.runner }}
     env:
       TMP_DIR: tmp
