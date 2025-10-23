@@ -11,12 +11,12 @@ use cam_history_support,     only: max_fieldname_len
 use cam_initfiles,           only: initial_file_get_id, topo_file_get_id, pertlim
 use cam_logfile,             only: iulog
 use cam_map_utils,           only: iMap
-use control_mod_cam,         only: hypervis_subcycle_q, integration, statefreq, runtype, use_moisture
+use control_mod_cam,         only: hypervis_subcycle_q, integration, statefreq, runtype, use_moisture, refined_mesh
 use dimensions_mod_cam,      only: nelemd, nlev, np, npsq, ne, ne_x, ne_y, fv_nphys,qsize
 use dyn_grid,                only: timelevel, dom_mt, hvcoord, ini_grid_hdim_name
 !jtuse dyn_grid,                only: get_horiz_grid_dim_d, dyn_decomp, fv_nphys, ini_grid_name
 use dyn_grid,                only: get_horiz_grid_dim_d, dyn_decomp, ini_grid_name
-use dyn_tests_utils,         only: vcoord=>vc_moist_pressure, vc_moist_pressure
+use dyn_tests_utils,         only: vcoord=>vc_moist_pressure, vc_moist_pressure, vc_dycore, string_vc, vc_str_lgth
 use edge_mod,                only: edgevpack_nlyr, edgevunpack_nlyr, edge_g
 use element_mod,             only: element_t
 use element_state,           only: elem_state_t
@@ -114,17 +114,13 @@ subroutine dyn_readnl(NLFileName)
   use fvm_mod,        only: fvm_get_test_type
   use native_mapping, only: native_mapping_readnl
 #endif
-  use dimensions_mod_cam, only: qsize, qsize_d, ntrac, ntrac_d, npsq, ne, npart, lcp_moist
+  use dimensions_mod_cam, only: qsize, qsize_d, ntrac, ntrac_d, npsq, ne, npart, lcp_moist, set_mesh_dimensions
   use constituents,   only: pcnst
   use params_mod,     only: SFCURVE, SPHERE_COORDS, Z2_NO_TASK_MAPPING
   use physical_constants, only: lx, ly
   use physical_constants, only: scale_factor, scale_factor_inv, &
                                 domain_size, laplacian_rigid_factor, &
                                 DD_PI, rearth, rrearth
-!!XXgoldyXX: v For future CSLAM / physgrid commit
-!    use dp_grids,       only: fv_nphys, fv_nphys2, nphys_pts, write_phys_grid, phys_grid_file
-!!XXgoldyXX: ^ For future CSLAM / physgrid commit
-
   ! Dummy argument
   character(len=*), intent(in) :: NLFileName
 
@@ -134,13 +130,6 @@ subroutine dyn_readnl(NLFileName)
   integer         :: LFTfreq=0            ! leapfrog-trapazoidal frequency (shallow water only)
                                           ! interspace a lf-trapazoidal step every LFTfreq leapfrogs
                                           ! 0 = disabled
-
-
-
-!!$  ! hyperviscosity parameters used for smoothing topography
-!!$  integer                      :: se_smooth_phis_numcycle = -1   ! -1 = disable
-!!$  integer                      :: se_smooth_phis_p2filt = -1     ! -1 = disable
-!!$  real (r8)                    :: se_smooth_phis_nudt = 0
 
   ! Physgrid parameters
   integer                      :: se_fv_phys_remap_alg
@@ -250,11 +239,11 @@ subroutine dyn_readnl(NLFileName)
  integer                          :: se_vert_remap_u_alg = -2   ! remap for dynamics. default -2 means inherit vert_remap_q_alg
  real (r8)                        :: se_vtheta_thresh = 100.d0  ! threshold for virtual potential temperature minimum limiter
  integer                          :: se_vthreads
+ logical                          :: se_refined_mesh
 #ifndef MODEL_THETA_L
   integer                         :: se_fine_ne
   real(r8)                        :: se_hypervis_power
   real(r8)                        :: se_max_hypervis_courant
-  logical                         :: se_refined_mesh
 #endif
  integer                          :: se_z2_map_method       ! If zoltan2 is used,
                                                             ! Task mapping method to be used by zoltan2.
@@ -319,21 +308,13 @@ subroutine dyn_readnl(NLFileName)
       se_vert_remap_u_alg,     &
       se_vtheta_thresh,        &
       se_vthreads,             &
+      se_refined_mesh,         &
 #ifndef MODEL_THETA_L
       se_fine_ne,              & ! For refined meshes
       se_hypervis_power,       &
       se_max_hypervis_courant, &
-      se_refined_mesh,         &
 #endif
       se_z2_map_method
- !!XXgoldyXX: v For future physgrid commit
- !!XXgoldyXX: ^ For future physgrid commit
- !         se_fv_nphys,          & ! Linear size of FV physics grid
- !         se_write_phys_grid,   &
- !         se_phys_grid_file,    &
- !!XXgoldyXX: v For future CSLAM / physgrid commit
- !    namelist /cslam_nl/ se_tracer_transport_method, se_cslam_ideal_test, se_cslam_test_type
- !!XXgoldyXX: ^ For future CSLAM / physgrid commit
 
  !--------------------------------------------------------------------------
 
@@ -343,8 +324,8 @@ subroutine dyn_readnl(NLFileName)
  se_fine_ne              = -1
  se_hypervis_power       = 0
  se_max_hypervis_courant = 1.0e99_r8
- se_refined_mesh         = .false.
 #endif
+ se_refined_mesh         = .false.
  se_COORD_TRANSFORM_METHOD = SPHERE_COORDS
  se_Z2_MAP_METHOD = Z2_NO_TASK_MAPPING
  se_ftype                = 0
@@ -376,14 +357,6 @@ subroutine dyn_readnl(NLFileName)
  se_topology             = "cube"
  se_tstep_type           = 5
  se_vert_remap_q_alg     = 1
- !!XXgoldyXX: v For future CSLAM / physgrid commit
- !    character(len=METHOD_LEN)     :: se_tracer_transport_method
- !    character(len=METHOD_LEN)     :: se_cslam_ideal_test
- !    character(len=METHOD_LEN)     :: se_cslam_test_type
- !    character(len=METHOD_LEN)     :: se_write_phys_grid
- !    character(len=shr_kind_cl)    :: se_phys_grid_file
- !    integer                       :: se_fv_nphys = 0
- !!XXgoldyXX: ^ For future CSLAM / physgrid commit
 
  ! Read the namelist (dyn_se_inparm)
  call MPI_barrier(mpicom, ierr)
@@ -423,6 +396,7 @@ subroutine dyn_readnl(NLFileName)
  call MPI_bcast(se_lcp_moist, 1, mpi_logical, masterprocid, mpicom, ierr)
  call MPI_bcast(se_write_restart_unstruct, 1, mpi_logical, masterprocid, mpicom, ierr)
  call MPI_bcast(se_limiter_option, 1, mpi_integer, masterprocid, mpicom, ierr)
+ call MPI_bcast(se_mesh_file, SHR_KIND_CL,  mpi_character, masterprocid, mpicom, ierr)
  call MPI_bcast(se_lx, 1, mpi_real8, masterprocid, mpicom, ierr)
  call MPI_bcast(se_ly, 1, mpi_real8, masterprocid, mpicom, ierr)
  call MPI_bcast(se_ne, 1, mpi_integer, masterprocid, mpicom, ierr)
@@ -457,11 +431,11 @@ subroutine dyn_readnl(NLFileName)
  call MPI_bcast(se_vert_remap_u_alg, 1, mpi_integer, masterprocid, mpicom, ierr)
  call MPI_bcast(se_vtheta_thresh, 1, mpi_real8, masterprocid, mpicom, ierr)
  call MPI_bcast(se_vthreads, 1, mpi_integer, masterprocid, mpicom, ierr)
+ call MPI_bcast(se_refined_mesh, 1, mpi_logical, masterprocid, mpicom, ierr)
 #ifndef MODEL_THETA_L
  call MPI_bcast(se_fine_ne, 1, mpi_integer, masterprocid, mpicom, ierr)
  call MPI_bcast(se_hypervis_power, 1, mpi_real8, masterprocid, mpicom, ierr)
  call MPI_bcast(se_max_hypervis_courant, 1, mpi_real8, masterprocid, mpicom, ierr)
- call MPI_bcast(se_refined_mesh, 1, mpi_logical, masterprocid, mpicom, ierr)
 #endif
  call MPI_bcast(se_z2_map_method, 1, mpi_integer, masterprocid, mpicom, ierr)
 
@@ -474,6 +448,11 @@ subroutine dyn_readnl(NLFileName)
 !jt initialize nh dycore
  par = initmp(se_npes)
  call initomp()
+
+ ! Set se_ne = 0 for refined mesh runs since element count is determined from mesh file
+ if (se_refined_mesh) then
+    se_ne = 0
+ end if
 
  ! Set HOMME defaults
  call homme_set_defaults()
@@ -514,75 +493,7 @@ subroutine dyn_readnl(NLFileName)
     endif
  endif
 
- ! set defautl for dynamics remap
- if (se_vert_remap_u_alg == -2) se_vert_remap_u_alg = se_vert_remap_q_alg
-
- ! more thread error checks:
-#ifdef HORIZ_OPENMP
- if(par%masterproc) write(iulog,*)'-DHORIZ_OPENMP enabled'
-#else
- if(par%masterproc) write(iulog,*)'-DHORIZ_OPENMP disabled'
-#endif
-#ifdef COLUMN_OPENMP
- if(par%masterproc) write(iulog,*)'-DCOLUMN_OPENMP enabled'
-#else
- if(par%masterproc) write(iulog,*)'-DCOLUMN_OPENMP disabled'
-#endif
-
- if (se_topology == "plane" .and. (se_mesh_file /= "/dev/null" .and. se_mesh_file /= "none")) then
-    call endrun("RRM grids not yet supported for plane")
- end if
-
- if (se_ne /=0 .or. se_ne_x /=0 .or. se_ne_y /=0) then
-    if (se_mesh_file /= "none" .and. se_mesh_file /= "/dev/null") then
-       write (*,*) "namelist_mod: se_mesh_file:",trim(se_mesh_file), &
-            " and ne/ne_x/ne_y:",se_ne,se_ne_x,se_ne_y," are both specified in the input file."
-       write (*,*) "Specify one or the other, but not both."
-       call endrun("Do not specify ne (or ne_x, ne_y) if using a mesh file input.")
-    end if
- end if
- if (par%masterproc) write (iulog,*) "SE_Mesh File:", trim(se_mesh_file)
-!!$ if (se_ne.eq.0 .and. se_ne_x .eq. 0 .and. se_ne_y .eq. 0) then
-!!$#ifndef HOMME_WITHOUT_PIOLIBRARY
-!!$    call set_mesh_dimensions()
-!!$    if (par%masterproc) write (iulog,*) "Opening Mesh File:", trim(mesh_file)
-!!$    call MeshOpen(mesh_file, par)
-!!$#else
-!!$    call endrun("Build is without PIO library, mesh runs (ne=0) are not supported.")
-!!$#endif
-!!$ end if
- ! set map
- if (se_cubed_sphere_map<0) then
-#if ( defined MODEL_THETA_C || defined MODEL_THETA_L )
-    se_cubed_sphere_map=2  ! theta model default = element local
-#else
-    se_cubed_sphere_map=0  ! default is equi-angle gnomonic
-#endif
- endif
- if (par%masterproc) write (iulog,*) "Reference element projection: se_cubed_sphere_map=",se_cubed_sphere_map
-
- ! set geometric factors
- ! Ideally this stuff moves into a separate sub routine
- ! Along with all the other things that are test case specific (rearth/Omega scaling for small-earth experiments, etc.)
- if (se_geometry == "sphere") then
-    scale_factor = rearth
-    scale_factor_inv = rrearth
-    domain_size = 4.0D0*DD_PI
-    laplacian_rigid_factor = rrearth
- end if
-
  ftype = se_ftype
-
-#ifdef _PRIM
- if (se_limiter_option==8 .or. se_limiter_option==84 .or. se_limiter_option == 9) then
-    if (se_hypervis_subcycle_q/=1 .and. se_transport_alg == 0) then
-       call endrun('limiter 8,84,9 require hypervis_subcycle_q=1')
-    endif
- endif
- if (se_transport_alg == 0 .and. se_dt_remap_factor > 0 .and. se_dt_remap_factor < se_dt_tracer_factor) then
-    call endrun('Only SL transport supports vertical remap time step < tracer time step.')
- end if
-#endif
 
  coord_transform_method = se_coord_transform_method
  cubed_sphere_map = se_cubed_sphere_map
@@ -636,11 +547,11 @@ subroutine dyn_readnl(NLFileName)
  vert_remap_u_alg = se_vert_remap_u_alg
  vtheta_thresh = se_vtheta_thresh
  vthreads = se_vthreads
+ refined_mesh = se_refined_mesh
 #ifndef MODEL_THETA_L
  fine_ne = se_fine_ne
  hypervis_power = se_hypervis_power
  max_hypervis_courant = se_max_hypervis_courant
- refined_mesh = se_refined_mesh
 #endif
  z2_map_method = se_z2_map_method
 
@@ -656,9 +567,9 @@ subroutine dyn_readnl(NLFileName)
  ! HOMME wants 'none' to indicate no mesh file
  if (len_trim(se_mesh_file) == 0) then
     se_mesh_file = 'none'
-!!$      if (se_refined_mesh) then
-!!$         call endrun('dyn_readnl ERROR: se_refined_mesh=.true. but no se_mesh_file')
-!!$      end if
+      if (se_refined_mesh) then
+         call endrun('dyn_readnl ERROR: se_refined_mesh=.true. but no se_mesh_file')
+      end if
  end if
 
  write_restart_unstruct = se_write_restart_unstruct
@@ -672,9 +583,9 @@ subroutine dyn_readnl(NLFileName)
     write(iulog, '(a,i0)') 'dyn_readnl: se_hypervis_subcycle = ',se_hypervis_subcycle
     write(iulog, '(a,i0)') 'dyn_readnl: se_hypervis_subcycle_q = ',se_hypervis_subcycle_q
     write(iulog, '(a,i0)') 'dyn_readnl: se_limiter_option = ',se_limiter_option
-!!$    if (.not. se_refined_mesh) then
-    write(iulog, '(a,i0)') 'dyn_readnl: se_ne = ',se_ne
-!!$    end if
+    if (.not. se_refined_mesh) then
+       write(iulog, '(a,i0)') 'dyn_readnl: se_ne = ',se_ne
+    end if
     write(iulog, '(a,i0)') 'dyn_readnl: se_npes = ',se_npes
     write(iulog, '(a,i0)') 'dyn_readnl: se_nsplit = ',se_nsplit
     write(iulog, '(a,e9.2)') 'dyn_readnl: se_nu = ',se_nu
@@ -689,36 +600,11 @@ subroutine dyn_readnl(NLFileName)
     write(iulog, '(a,i0)') 'dyn_readnl: se_vert_remap_q_alg = ',se_vert_remap_q_alg
     write(iulog,'(a,l1)') 'dyn_readnl: write restart data on unstructured grid = ', &
          se_write_restart_unstruct
-!!$    if (se_refined_mesh) then
-!!$      write(iulog, *) 'dyn_readnl: Refined mesh simulation'
-!!$      write(iulog, *) 'dyn_readnl: se_mesh_file = ',trim(se_mesh_file)
-!jt      if (abs(se_hypervis_power) < 1.0e-12_r8) then
-!jt        write(iulog, '(a,e11.4)') 'dyn_readnl: se_hypervis_power = ',se_hypervis_power, ', (tensor hyperviscosity)'
-!jt        write(iulog, '(a,e11.4)') 'dyn_readnl: se_hypervis_scaling = ',se_hypervis_scaling
-!jt      else if (abs(se_hypervis_power - 3.322_r8) < 1.0e-12_r8) then
-!jt        write(iulog, '(a,e11.4)') 'dyn_readnl: se_hypervis_power = ',se_hypervis_power, ', (scalar hyperviscosity)'
-!jt        write(iulog, '(a,i0)') 'dyn_readnl: se_fine_ne = ',se_fine_ne
-!jt      else
-!jt        write(iulog, '(a,i0)') 'dyn_readnl: se_hypervis_power = ',se_hypervis_power
-!jt        write(iulog, '(a,e11.4)') 'dyn_readnl: se_hypervis_scaling = ',se_hypervis_scaling
-!jt        write(iulog, '(a,e11.4)') 'dyn_readnl: se_fine_ne = ',se_fine_ne
-!jt      end if
-!jt      write(iulog, '(a,e11.4)') 'dyn_readnl: se_max_hypervis_courant = ',se_max_hypervis_courant
-!!$    end if
+    if (se_refined_mesh) then
+      write(iulog, *) 'dyn_readnl: Refined mesh simulation'
+      write(iulog, *) 'dyn_readnl: se_mesh_file = ',trim(se_mesh_file)
+    end if
 
-
-!!XXgoldyXX: v For future physgrid commit
-!      write(iulog,*) 'dyn_readnl: fv_nphys = ', fv_nphys, ', nphys_pts = ', nphys_pts
-!      if (fv_nphys > 0) then
-!        if (trim(write_phys_grid) == 'grid') then
-!          write(iulog,*) "dyn_readnl: write physics grid file = ", trim(phys_grid_file)
-!        else if (trim(write_phys_grid) == 'interp') then
-!          write(iulog,*) "dyn_readnl: write physics interp file = ", trim(phys_grid_file)
-!        else
-!          write(iulog,*) "dyn_readnl: do not write physics grid or interp file"
-!        end if
-!      end if
-!!XXgoldyXX: ^ For future physgrid commit
  end if
 
 #ifndef MODEL_THETA_L
@@ -756,53 +642,81 @@ end subroutine dyn_register
 
 subroutine dyn_init(dyn_in, dyn_out)
 
+    use air_composition,    only: thermodynamic_active_species_num, thermodynamic_active_species_idx
+    use air_composition,    only: thermodynamic_active_species_idx_dycore
+    use air_composition,    only: thermodynamic_active_species_liq_idx,thermodynamic_active_species_ice_idx
+    use air_composition,    only: thermodynamic_active_species_liq_idx_dycore,thermodynamic_active_species_ice_idx_dycore
+    use air_composition,    only: thermodynamic_active_species_liq_num, thermodynamic_active_species_ice_num
     use dyn_grid,         only: elem
     use cam_control_mod,  only: aqua_planet, ideal_phys, adiabatic
     use cam_instance,     only: inst_index
-!jt    use native_mapping,   only: create_native_mapping_files
     use cam_pio_utils,    only: clean_iodesc_list
-    use constituents,     only: pcnst
+    use constituents,     only: pcnst, cnst_name, cnst_longname
     use dimensions_mod_cam,only: cnst_longname_gll, cnst_name_gll
     use prim_driver_mod,  only: prim_init2
     use parallel_mod_cam, only: par
     use control_mod_cam,  only: runtype
-!jt    use comsrf,           only: sgh, sgh30
     use element_ops,      only: set_thermostate
-!jt    use nctopo_util_mod,  only: nctopo_util_driver
 
     type (dyn_import_t), intent(out) :: dyn_in
     type (dyn_export_t), intent(out) :: dyn_out
 
-    integer :: ithr, nets, nete, ie, k, tlev
-    real(r8), parameter :: Tinit=300.0_r8
-    type(hybrid_t) :: hybrid
-    real(r8) :: temperature(np,np,nlev),ps(np,np)
+    integer                          :: ithr, nets, nete, ie, k, tlev, m
+    real(r8), parameter              :: Tinit=300.0_r8
+    type(hybrid_t)                   :: hybrid
+    real(r8)                         :: temperature(np,np,nlev),ps(np,np)
+    character (len=vc_str_lgth)      :: vc_str
+    character(len=*), parameter      :: sub = 'dyn_init'
    !----------------------------------------------------------------------------
-
-  !use_moisturefor homme routines
+  
+   vc_dycore = vc_moist_pressure
+   if (masterproc) then
+     call string_vc(vc_dycore,vc_str)
+     write(iulog,*) sub//': vertical coordinate dycore   : ',trim(vc_str)
+   end if
+   !use_moisturefor homme routines
    use_moisture = vcoord == vc_moist_pressure
 
-    ! Initialize the import/export objects
-   dyn_in%elem  => elem
-!jt   dyn_in%fvm   => fvm
-
-   dyn_out%elem => elem
-!jt   dyn_out%fvm  => fvm
-
-!jt   ! Create mapping files using SE basis functions if requested
-!jt   call create_native_mapping_files(par, elem, 'native')
-!jt   call create_native_mapping_files(par, elem, 'bilin')
-
-   ! allocate and set condenstate vars
+   ! Now allocate and set condenstate vars
    allocate(cnst_name_gll(pcnst))     ! constituent names for gll tracers
    allocate(cnst_longname_gll(pcnst)) ! long name of constituents for gll tracers
 
-   call set_phis(dyn_in)
+    do m=1,pcnst
+       if (m.le.thermodynamic_active_species_num) then
+          thermodynamic_active_species_idx_dycore(m) = thermodynamic_active_species_idx(m)
+       end if
+       cnst_name_gll    (m)                = cnst_name    (m)
+       cnst_longname_gll(m)                = cnst_longname(m)
+    end do
 
-   if (initial_run) then
-      call read_inidat(dyn_in)
-      call clean_iodesc_list()
-   end if
+    do m=1,thermodynamic_active_species_liq_num
+       thermodynamic_active_species_liq_idx_dycore(m) = thermodynamic_active_species_liq_idx(m)
+       if (masterproc) then
+          write(iulog,*) sub//": m,thermodynamic_active_species_idx_liq_dycore: ",m,thermodynamic_active_species_liq_idx_dycore(m)
+       end if
+    end do
+    do m=1,thermodynamic_active_species_ice_num
+       thermodynamic_active_species_ice_idx_dycore(m) = thermodynamic_active_species_ice_idx(m)
+       if (masterproc) then
+          write(iulog,*) sub//": m,thermodynamic_active_species_idx_ice_dycore: ",m,thermodynamic_active_species_ice_idx_dycore(m)
+       end if
+    end do
+
+    ! Initialize the import/export objects
+    if(par%dynproc) then
+       dyn_in%elem  => elem
+       dyn_out%elem => elem
+    else
+       nullify(dyn_in%elem)
+       nullify(dyn_out%elem)
+    end if
+
+    call set_phis(dyn_in)
+
+    if (initial_run) then
+       call read_inidat(dyn_in)
+       call clean_iodesc_list()
+    end if
 
     if(par%dynproc) then
 
@@ -818,13 +732,6 @@ subroutine dyn_init(dyn_in, dyn_out)
        nets=dom_mt(ithr)%start
        nete=dom_mt(ithr)%end
        hybrid = hybrid_create_cam(par,ithr,hthreads)
-
-
-!!$       ! scale PS to achieve prescribed dry mass
-!!$       if (runtype == 0) then
-!!$          ! new run, scale mass to value given in namelist, if needed
-!!$          call prim_set_mass(elem, TimeLevel,hybrid,hvcoord,nets,nete)
-!!$       endif
 
        call t_startf('prim_init2')
        call prim_init2(elem,hybrid,nets,nete, TimeLevel, hvcoord)
@@ -945,11 +852,6 @@ end subroutine dyn_final
 
 subroutine read_inidat(dyn_in)
 
-  use air_composition,    only: thermodynamic_active_species_num, thermodynamic_active_species_idx
-  use air_composition,    only: thermodynamic_active_species_idx_dycore
-  use air_composition,    only: thermodynamic_active_species_liq_idx,thermodynamic_active_species_ice_idx
-  use air_composition,    only: thermodynamic_active_species_liq_idx_dycore,thermodynamic_active_species_ice_idx_dycore
-  use air_composition,    only: thermodynamic_active_species_liq_num, thermodynamic_active_species_ice_num
   use aoa_tracers,             only: aoa_tracers_implements_cnst, aoa_tracers_init_cnst
   use constituents,            only: cnst_name, cnst_read_iv, qmin,cnst_is_a_water_species
   use cam_control_mod,         only: ideal_phys, aqua_planet
@@ -972,7 +874,6 @@ subroutine read_inidat(dyn_in)
   use microp_driver,           only: microp_driver_implements_cnst, microp_driver_init_cnst
   use phys_control,            only: phys_getopts
   use prim_si_mod,             only: prim_set_mass
-  use rk_stratiform_cam,       only: rk_stratiform_cam_implements_cnst, rk_stratiform_cam_init_cnst
 
   use shr_vmath_mod,           only: shr_vmath_log
   use tracers,                 only: tracers_implements_cnst, tracers_init_cnst
@@ -1043,7 +944,6 @@ subroutine read_inidat(dyn_in)
     tl = 1
 
     fh_ini  => initial_file_get_id()
-!jt   fh_topo => topo_file_get_id()
 
     if(iam < par%nprocs) then
        elem=> dyn_in%elem
@@ -1051,33 +951,9 @@ subroutine read_inidat(dyn_in)
        nullify(elem)
     end if
 
-    allocate(tmp(npsq,nlev,nelemd))
-    allocate(tmp_point(1,nlev)) ! To find input at a single location
     allocate(qtmp(np,np,nlev,nelemd,pcnst))
-!jt    allocate(qtmp(npsq*nelemd,nlev))
-    tmp = 0.0_r8
+
     qtmp = 0.0_r8
-
-    do m=1,pcnst
-       if (m.le.thermodynamic_active_species_num) then
-          thermodynamic_active_species_idx_dycore(m) = thermodynamic_active_species_idx(m)
-       end if
-       cnst_name_gll    (m)                = cnst_name    (m)
-       cnst_longname_gll(m)                = cnst_longname(m)
-    end do
-
-    do m=1,thermodynamic_active_species_liq_num
-       thermodynamic_active_species_liq_idx_dycore(m) = thermodynamic_active_species_liq_idx(m)
-       if (masterproc) then
-          write(iulog,*) subname//": m,thermodynamic_active_species_idx_liq_dycore: ",m,thermodynamic_active_species_liq_idx_dycore(m)
-       end if
-    end do
-    do m=1,thermodynamic_active_species_ice_num
-       thermodynamic_active_species_ice_idx_dycore(m) = thermodynamic_active_species_ice_idx(m)
-       if (masterproc) then
-          write(iulog,*) subname//": m,thermodynamic_active_species_idx_ice_dycore: ",m,thermodynamic_active_species_ice_idx_dycore(m)
-       end if
-    end do
 
     if (par%dynproc) then
       if(elem(1)%idxP%NumUniquePts <=0 .or. elem(1)%idxP%NumUniquePts > np*np) then
@@ -1510,43 +1386,7 @@ subroutine read_inidat(dyn_in)
       end if
    end if
 
-!!$   ! store Q values:
-!!$   !
-!!$   ! if CSLAM is NOT active then state%Qdp for all constituents
-!!$   ! if CSLAM active then we only advect water vapor and condensate
-!!$   ! loading tracers in state%qdp
-!!$
-!!$   if (fv_nphys > 0) then
-!!$      do ie = 1, nelemd
-!!$         do nq = 1, thermodynamic_active_species_num
-!!$            m_cnst = thermodynamic_active_species_idx(nq)
-!!$            do k = 1, nlev
-!!$               do j = 1, np
-!!$                  do i = 1, np
-!!$                     elem(ie)%state%Qdp(i,j,k,nq,:) = &
-!!$                                 elem(ie)%state%dp3d(i,j,k,1)*qtmp(i,j,k,ie,m_cnst)
-!!$                  end do
-!!$               end do
-!!$            end do
-!!$         end do
-!!$      end do
-!!$   else
-!!$      do ie = 1, nelemd
-!!$         do m_cnst = 1, qsize
-!!$            do k = 1, nlev
-!!$               do j = 1, np
-!!$                  do i = 1, np
-!!$                     elem(ie)%state%Qdp(i,j,k,m_cnst,:)=&
-!!$                        elem(ie)%state%dp3d(i,j,k,1)*qtmp(i,j,k,ie,m_cnst)
-!!$                  end do
-!!$               end do
-!!$            end do
-!!$         end do
-!!$      end do
-!!$   end if
-!!$
-
-   !$omp parallel do private(ie, ps, t, m_cnst)
+   !$omp parallel do private(ie, ps)
    do ie=1,nelemd
       ps=elem(ie)%state%ps_v(:,:,tl)
 #ifdef MODEL_THETA_L
@@ -1560,8 +1400,6 @@ subroutine read_inidat(dyn_in)
    end do
 
    ! Cleanup
-   deallocate(tmp)
-   deallocate(tmp_point)
    deallocate(qtmp)
 !!$   if (fv_nphys>0) then
 !!$      deallocate(phis_tmp)

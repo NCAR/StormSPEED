@@ -17,8 +17,15 @@ WORKDIR /opt
 RUN dnf -y update && \
     dnf -y groupinstall "Development Tools" && \
     dnf -y install bzip2 bzip2-devel xz xz-devel gmp-devel mpfr-devel libmpc-devel zlib-devel && \
-    dnf -y install python3 git make wget gzip perl && \
+    dnf -y install python3 git make wget gzip perl unzip curl --allowerasing && \
     dnf -y install gcc-gfortran
+
+# Install AWS CLI v2 for AlmaLinux 9.6
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
+    unzip awscliv2.zip && \
+    ./aws/install && \
+    rm -rf awscliv2.zip aws && \
+    aws --version
 
 # Clone Spack with tag v1.0.0
 RUN git clone --depth=2 --branch v1.0.0 https://github.com/spack/spack.git
@@ -47,12 +54,14 @@ RUN . /opt/spack/share/spack/setup-env.sh && \
 FROM intel_compiler AS xml2_cmake
 
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install cmake@3.31.8 %gcc
+    spack install cmake@3.31.8 %gcc && \
+    ln -s $(spack location -i cmake@3.31.8)/bin/cmake /usr/local/bin/cmake
     
 # Install xmllint that is required by CIME
 # Somehow libxml2 will be built by gcc anyway during other stage, so we just use gcc here to avoid confliction
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install libxml2@2.13.5 %gcc
+    spack install libxml2@2.13.5 %gcc && \
+    ln -s $(spack location -i libxml2@2.13.5)/bin/xmllint /usr/local/bin/xmllint
 
 #########################
 # Build ucx and openmpi #
@@ -63,7 +72,8 @@ RUN . /opt/spack/share/spack/setup-env.sh && \
     spack install ucx@1.18.1 %intel-oneapi-compilers@2024.2.1
 
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install openmpi@5.0.8 fabrics=cma,ucx %intel-oneapi-compilers@2024.2.1 ^ucx@1.18.1
+    spack install openmpi@5.0.8 fabrics=cma,ucx %intel-oneapi-compilers@2024.2.1 ^ucx@1.18.1 && \
+    ln -s $(spack location -i openmpi@5.0.8) /usr/local/openmpi
 
 #############
 # Build MKL #
@@ -71,7 +81,8 @@ RUN . /opt/spack/share/spack/setup-env.sh && \
 FROM ucx_openmpi AS mkl
 
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install intel-oneapi-mkl@2024.2.2 %intel-oneapi-compilers@2024.2.1 ^openmpi@5.0.8
+    spack install intel-oneapi-mkl@2024.2.2 %intel-oneapi-compilers@2024.2.1 ^openmpi@5.0.8 && \
+    ln -s $(spack location -i intel-oneapi-mkl@2024.2.2)/mkl/2024.2 /usr/local/mkl
 
 #########################
 # Build parallel-netcdf #
@@ -79,7 +90,8 @@ RUN . /opt/spack/share/spack/setup-env.sh && \
 FROM mkl AS parallel_netcdf
 
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install parallel-netcdf@1.14.0 +cxx +fortran +pic +shared %intel-oneapi-compilers@2024.2.1 ^openmpi@5.0.8
+    spack install parallel-netcdf@1.14.0 +cxx +fortran +pic +shared %intel-oneapi-compilers@2024.2.1 ^openmpi@5.0.8 && \
+    ln -s $(spack location -i parallel-netcdf@1.14.0) /usr/local/pnetcdf
 
 ################
 # Build netCDF #
@@ -87,11 +99,13 @@ RUN . /opt/spack/share/spack/setup-env.sh && \
 FROM parallel_netcdf AS netcdf
 
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install netcdf-c@4.9.2 %intel-oneapi-compilers@2024.2.1 ^openmpi@5.0.8 ^parallel-netcdf@1.14.0
+    spack install netcdf-c@4.9.2 %intel-oneapi-compilers@2024.2.1 ^openmpi@5.0.8 ^parallel-netcdf@1.14.0 && \
+    ln -s $(spack location -i netcdf-c@4.9.2) /usr/local/netcdf_c
 
 # Install netcdf-fortran; it will install the netcdf-c and openmpi dependency by default
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install netcdf-fortran@4.6.1 %intel-oneapi-compilers@2024.2.1 ^netcdf-c@4.9.2 ^openmpi@5.0.8
+    spack install netcdf-fortran@4.6.1 %intel-oneapi-compilers@2024.2.1 ^netcdf-c@4.9.2 ^openmpi@5.0.8 && \
+    ln -s $(spack location -i netcdf-fortran@4.6.1) /usr/local/netcdf_fortran
 
 #############
 # Build PIO #
@@ -100,7 +114,8 @@ FROM netcdf AS parallelio
 
 # Install parallelio; it will install the parallel-netcdf dependency by default
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install parallelio@2.6.6 +pnetcdf +fortran +mpi +shared +ncint %intel-oneapi-compilers@2024.2.1 ^parallel-netcdf@1.14.0
+    spack install parallelio@2.6.6 +pnetcdf +fortran +mpi +shared +ncint %intel-oneapi-compilers@2024.2.1 ^parallel-netcdf@1.14.0 && \
+    ln -s $(spack location -i parallelio@2.6.6) /usr/local/pio
 
 ##############
 # Build ESMF #
@@ -109,23 +124,43 @@ FROM parallelio AS esmf
 
 # Install ESMF; it will install its parallelio and parallel-netcdf dependencies by default
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install esmf@8.8.1 +pnetcdf +mpi +shared %intel-oneapi-compilers@2024.2.1 ^parallelio@2.6.6 ^parallel-netcdf@1.14.0
+    spack install esmf@8.8.1 +pnetcdf +mpi +shared %intel-oneapi-compilers@2024.2.1 ^parallelio@2.6.6 ^parallel-netcdf@1.14.0 && \
+    ln -s $(spack location -i esmf@8.8.1) /usr/local/esmf
 
 ################
 # Build LAPACK #
 ################
-FROM esmf AS lapack
+FROM esmf AS final_image
 
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install netlib-lapack@3.12.1 %intel-oneapi-compilers@2024.2.1
+    spack install netlib-lapack@3.12.1 %intel-oneapi-compilers@2024.2.1 && \
+    ln -s $(spack location -i netlib-lapack@3.12.1) /usr/local/lapack
 
+################################################
+# Set up environment variables for CI workflow #
+################################################
+ENV CXX=icpx
+ENV CC=icx
+ENV FC=ifort
+ENV MPI_ROOT="/usr/local/openmpi"
+ENV NETCDF_C_PATH="/usr/local/netcdf_c"
+ENV NETCDF_FORTRAN_PATH="/usr/local/netcdf_fortran"
+ENV PNETCDF="/usr/local/pnetcdf"
+ENV PIO="/usr/local/pio"
+ENV ESMFMKFILE="/usr/local/esmf/lib/esmf.mk"
+ENV LAPACK="/usr/local/lapack"
+ENV PIO_VERSION_MAJOR=2
+ENV PIO_TYPENAME_VALID_VALUES="netcdf, pnetcdf, netcdf4c, netcdf4p"
+ENV MKLROOT="/usr/local/mkl"
+ENV PATH="/usr/local:/usr/local/bin:$MPI_ROOT/bin:${PATH}"
+ENV USER=robot
+
+##########################
+# Miscellaneous settings #
+##########################
 WORKDIR /tmp
 
 LABEL maintainer="Jian Sun"
 LABEL description="AlmaLinux 9.6 container with intel/2024.2.1 software stack for StormSPEED CAM"
-
-ENV CXX=icpx
-ENV CC=icx
-ENV FC=ifort
 
 CMD ["/bin/bash"]

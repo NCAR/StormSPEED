@@ -37,6 +37,10 @@ jobs:
           - dockerfile: Dockerfile.ubuntu24.04_nvhpc25.7_openmpi5.0.8_cuda12.9
             runner: gha-runner-gpu-stormspeed
     steps:
+      #This step sets up a varibale to use later in the image tag
+      - name: Get short sha
+        run: echo "SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
+        
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -59,10 +63,7 @@ jobs:
       - name: Set image name and tag
         run: |
             IMAGE_NAME=$(basename "${{ matrix.dockerfile }}" | sed 's/^Dockerfile\.//')
-            IMAGE_OS=$(echo "${IMAGE_NAME}" | cut -d'_' -f1)
-            IMAGE_TAG=$(echo "${IMAGE_NAME}" | cut -d'_' -f2-)
-            echo "IMAGE_OS=${IMAGE_OS}" >> $GITHUB_ENV
-            echo "IMAGE_TAG=${IMAGE_TAG}" >> $GITHUB_ENV
+            echo "IMAGE_NAME=${IMAGE_NAME}" >> $GITHUB_ENV
 
       # Use the docker/build-push-action to build and push the image; the raw docker build and push commands does not work on CIRRUS
       - name: Build the Docker images
@@ -70,7 +71,7 @@ jobs:
         with:
           context: . # use the local workspace rather than a remote git URL; avoid a fresh clone and submodule update inside BuildKit
           push: true
-          tags: hub.k8s.ucar.edu/stormspeed/${{ env.IMAGE_OS }}:${{ env.IMAGE_TAG }}
+          tags: hub.k8s.ucar.edu/stormspeed/${{ env.IMAGE_NAME }}:${{ env.SHORT_SHA }}
           file: dockerfiles/${{ matrix.dockerfile }}
           no-cache: true # Do not use cache for the build
           #to utilize better image build caching using hub.k8s.ucar.edu
