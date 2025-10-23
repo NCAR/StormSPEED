@@ -5,7 +5,7 @@ on:
     branches:
       - stormspeed
   pull_request_target:
-    types: [labeled] # Only trigger when a label is added
+    types: [labeled, synchronize] # Only trigger when a label is added or new commits after labeling
     branches:
       - stormspeed
   workflow_dispatch:
@@ -17,7 +17,7 @@ concurrency:
 jobs:
   build-and-run-on-CIRRUS:
     # Run the CI workflow on CIRRUS only when (1) it is a push action or (2) the 'ready_for_ci' label is added to a pull request
-    if: github.event_name == 'push' || (github.event_name == 'pull_request_target' && github.event.label.name == 'ready_for_ci')
+    if: github.event_name == 'push' || (github.event_name == 'pull_request_target' && contains(github.event.pull_request.labels.*.name, 'ready_for_ci'))
     name: Run ${{ matrix.image }} on ${{ matrix.runner }}
     env:
       TMP_DIR: tmp
