@@ -82,7 +82,6 @@ jobs:
           echo "GITHUB_REPOSITORY=${{ github.repository }}" >> $GITHUB_ENV
           echo "GITHUB_ACTOR=${{ github.actor }}" >> $GITHUB_ENV
 
-      - name: Checkout code from a pull request or push
       # This step is for pull_request_target event; must have 'ref' line to checkout the PR code.
       - name: Checkout PR code
         if: github.event_name == 'pull_request_target'
