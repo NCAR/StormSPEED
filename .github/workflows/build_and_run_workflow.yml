@@ -73,7 +73,7 @@ jobs:
       run:
         shell: bash
     steps:
-      # Tis step is for pull_request_target event; must have 'ref' line to checkout the PR code.
+      # This step is for pull_request_target event; must have 'ref' line to checkout the PR code.
       - name: Checkout PR code
         if: github.event_name == 'pull_request_target'
         uses: actions/checkout@v4
