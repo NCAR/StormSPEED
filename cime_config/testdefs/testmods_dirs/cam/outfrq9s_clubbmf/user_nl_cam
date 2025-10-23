@@ -4,6 +4,9 @@ nhtfrq=9,9,9,9,9,9
 !nhtfrq=1,1,1,1,1,1
 inithist='ENDOFRUN'
 
+deep_scheme = 'off'
+use_gw_convect_dp = .false.
+use_gw_movmtn_pbl = .false.
 
 do_clubb_mf = .true.
 do_clubb_mf_diag = .true.
