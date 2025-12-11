@@ -86,10 +86,7 @@ type (snapshot_type)    ::  cnst_snapshot(pcnst)
 type (snapshot_type)    ::  tend_snapshot(6)
 type (snapshot_type)    ::  cam_in_snapshot(pcnst+31)   ! needs to be bigger than pcnst because cam_in is split by constituent.
 type (snapshot_type)    ::  cam_out_snapshot(30)
-!+++ARH
-!type (snapshot_type_nd) ::  pbuf_snapshot(300)
 type (snapshot_type_nd) ::  pbuf_snapshot(350)
-!---ARH
 
 contains
 

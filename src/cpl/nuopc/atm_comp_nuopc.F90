@@ -917,14 +917,6 @@ contains
           call export_fields( gcomp, model_mesh, model_clock, cam_out, rc=rc )
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
        else
-!+++ARH
-!       if (masterproc) then
-!          write(iam+1000,*) '--------------'
-!          write(iam+1000,*) 'DataInitialize'
-!          write(iam+1000,*) '  cam_run1 sets cam_out'
-!          write(iam+1000,*) '  nstep=',get_nstep()
-!       end if
-!---ARH
           call cam_read_srfrest( gcomp, clock, rc=rc )
           if (ChkErr(rc,__LINE__,u_FILE_u)) return
           call import_fields( gcomp, cam_in, restart_init=.true., rc=rc )
@@ -1108,14 +1100,6 @@ contains
        call import_fields( gcomp, cam_in, rc=rc)
        if (ChkErr(rc,__LINE__,u_FILE_u)) return
        call t_stopf  ('CAM_import')
-!+++ARH
-!       if (masterproc) then
-!          write(iam+1000,*) '--------------'
-!          write(iam+1000,*) 'Model Advance'
-!          write(iam+1000,*) '  CAM_import sets cam_in'
-!          write(iam+1000,*) '  nstep=',get_nstep()
-!       end if
-!---ARH
     end if
 
     dosend = .false.
@@ -1170,15 +1154,6 @@ contains
             yr_spec=yr_sync, mon_spec=mon_sync, day_spec=day_sync, sec_spec=tod_sync)
        call t_stopf  ('CAM_run4')
 
-!+++ARH
-!       if (masterproc) then
-!          write(iam+1000,*) '--------------'
-!          write(iam+1000,*) 'ModelAdvance'
-!          write(iam+1000,*) '  cam_run2,cam_run3,cam_run4'
-!          write(iam+1000,*) '  nstep=',get_nstep()
-!       end if
-!---ARH
-
        ! Advance cam time step
 
        call t_startf ('CAM_adv_timestep')
@@ -1190,16 +1165,6 @@ contains
        call t_startf ('CAM_run1')
        call cam_run1 ( cam_in, cam_out )
        call t_stopf  ('CAM_run1')
-
-!+++ARH
-!       if (masterproc) then
-!          write(iam+1000,*) '--------------'
-!          write(iam+1000,*) 'ModelAdvance'
-!          write(iam+1000,*) '  CAM_adv_timestep,cam_run1'
-!          write(iam+1000,*) '  nstep=',get_nstep()
-!       end if
-!---ARH
-
     end do
 
     if (mediator_present) then

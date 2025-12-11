@@ -4930,13 +4930,6 @@ end subroutine clubb_init_cnst
         call endrun(subr//':  Fatal error in CLUBB library')
       end if
 
-!+++ARH  ! clip negative water
-      do k=1,pverp
-        do i=1,ncol
-          if (rtm_in(i,k) < rcm_inout(i,k)) rtm_in(i,k) = rcm_inout(i,k)
-        end do
-      end do
-
       if ( do_rainturb ) then
         call t_startf('clubb_tend_cam:do_rainturb')
 
@@ -5872,19 +5865,14 @@ end subroutine clubb_init_cnst
 
     do k=1,pverp
       do i=1,ncol
-        ! comment out for kinemtatic fluxes
-        !wpthlp_output(i,k)  = (wpthlp(i,k)-(apply_const*wpthlp_const))*rho(i,k)*cpair !  liquid water potential temperature flux
-        !wprtp_output(i,k)   = (wprtp(i,k)-(apply_const*wprtp_const))*rho(i,k)*latvap  !  total water mixig ratio flux
-        wpthlp_output(i,k)  = wpthlp(i,k)
-        wprtp_output(i,k)   = wprtp(i,k)
+        wpthlp_output(i,k)  = (wpthlp(i,k)-(apply_const*wpthlp_const))*rho(i,k)*cpair !  liquid water potential temperature flux
+        wprtp_output(i,k)   = (wprtp(i,k)-(apply_const*wprtp_const))*rho(i,k)*latvap  !  total water mixig ratio flux
         rtpthlp_output(i,k) = rtpthlp(i,k)-(apply_const*rtpthlp_const)                !  rtpthlp output
         wp3_output(i,k)     = wp3(i,k) - (apply_const*wp3_const)                      !  wp3 output
         tke(i,k)            = 0.5_r8*(up2(i,k)+vp2(i,k)+wp2(i,k))                     !  turbulent kinetic energy
         if (do_clubb_mf) then
-          ! comment out for kinemtatic fluxes
-          !mf_thlflx_output(i,k) = mf_thlflx_output(i,k)*rho(i,k)*cpair
-          !mf_qtflx_output(i,k)  = mf_qtflx_output(i,k)*rho(i,k)*latvap
-
+          mf_thlflx_output(i,k) = mf_thlflx_output(i,k)*rho(i,k)*cpair
+          mf_qtflx_output(i,k)  = mf_qtflx_output(i,k)*rho(i,k)*latvap
           mf_precc_output(i,k)  = mf_precc_output(i,k)/rhoh2o
         end if
       enddo
@@ -5939,6 +5927,8 @@ end subroutine clubb_init_cnst
           deepcu(i,k) = 0._r8
         endif
 
+        !  While shallow convection is never called, CLUBB+MF uses the shallow cloud fraction and
+        !  shallow in-cloud mixing ratio pbuf variables to couple with radiation.
         if (do_clubb_mf_rad) then
           shalcu(i,k) = clubb_mf_cldfrac_fac*mf_cloudfrac_output(i,k)
           sh_icwmr(i,k) = mf_qc_output(i,k)
@@ -5948,10 +5938,10 @@ end subroutine clubb_init_cnst
           shalcu(i,k) = 0._r8
         endif
 
-        !  using the deep convective cloud fraction, and CLUBB cloud fraction (variable
-        !  "cloud_frac"), compute the convective cloud fraction.  This follows the formulation
-        !  found in macrophysics code.  Assumes that convective cloud is all nonstratiform cloud
-        !  from CLUBB plus the deep convective cloud fraction
+        !  using the deep convective cloud fraction, CLUBB cloud fraction (variable
+        !  "cloud_frac") and CLUBB+MF cloud fraction ("shalcu") compute the convective cloud
+        !  fraction.  This follows the formulation found in macrophysics code.  Assumes that convective
+        !  cloud is all nonstratiform cloud from CLUBB or CLUBB+MF plus the deep convective cloud fraction
         concld(i,k) = min(cloud_frac(i,k)-alst(i,k)+deepcu(i,k)+shalcu(i,k),0.80_r8)
       enddo
     enddo
