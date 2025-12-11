@@ -1229,18 +1229,6 @@ subroutine timemgr_time_inc(ymd1, tod1, ymd2, tod2, inc_s, inc_h, inc_d)
    ! set esmf time object
    date1 = TimeSetymd( ymd1, tod1, "date1" )
 
-!++jtb
-   if (present(inc_s)) then
-      if ((inc_s >= 10*365*86400) .OR. (inc_s == -999999)) then
-         ymd2 = ymd1 + 500 * 10000
-         tod2 = 0
-         if (masterproc) write(iulog,*) "500 year inc", ymd1,ymd2
-         RETURN
-      end if
-   end if
-!--jtb   
-
-
    ! set esmf time interval object
    if (present(inc_s)) then
       call ESMF_TimeIntervalSet(t_interval, s=inc_s, rc=rc)

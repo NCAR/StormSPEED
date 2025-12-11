@@ -2328,7 +2328,7 @@
 <clubb_mf_nup                      > 10      </clubb_mf_nup>
 <clubb_mf_max_L0                   > 10.e3   </clubb_mf_max_L0>
 <clubb_mf_fdd                      > 0.0     </clubb_mf_fdd>
-<do_clubb_mf_coldpool              > .false  </do_clubb_mf_coldpool>
+<do_clubb_mf_coldpool              > .false.  </do_clubb_mf_coldpool>
 <clubb_mf_ddalph                   > 2.e2    </clubb_mf_ddalph>
 <clubb_mf_ddbeta                   > 1.0     </clubb_mf_ddbeta>
 <clubb_mf_pwfac                    > 1.0     </clubb_mf_pwfac>
@@ -2345,14 +2345,6 @@
 <do_clubb_mf_coldpool_perplume     > .false. </do_clubb_mf_coldpool_perplume>
 <clubb_mf_kseed                    > 1       </clubb_mf_kseed>
 <do_clubb_mf_aloft                 > .false. </do_clubb_mf_aloft>
-
-<!-- Set radiation intervals based on mpas hgrids -->
-<iradlw hgrid="mpasa15"  > 10 </iradlw>
-<iradsw hgrid="mpasa15"  > 10 </iradsw>
-<iradlw hgrid="mpasa7p5" > 10 </iradlw>
-<iradsw hgrid="mpasa7p5" > 10 </iradsw>
-<iradlw hgrid="mpas3p75" > 10 </iradlw>
-<iradsw hgrid="mpas3p75" > 10 </iradsw>
 
 <!-- Set radiation intervals based on mpas hgrids -->
 <iradlw hgrid="mpasa15"  > 10 </iradlw>

@@ -4424,7 +4424,7 @@ Default: 2.0
 
 <entry id="clubb_mf_b0" type="real" category="conv"
        group="clubb_mf_nl" valid_values="" >
-Real: expoential coefficient relating ztop/cape to entrainment length scale
+Real: exponential coefficient relating ztop/cape to entrainment length scale
 Default: 0.5
 </entry>
 
@@ -4448,7 +4448,7 @@ Default: 10
 
 <entry id="clubb_mf_max_L0" type="real" category="conv"
        group="clubb_mf_nl" valid_values="" >
-Real: limiter on entrainmnet length scale + threshold to diable TKE enhanced entrainmnet
+Real: limiter on entrainment length scale + threshold to disable TKE enhanced entrainmnet
 Default: 10.e3
 </entry>
 
@@ -4550,7 +4550,7 @@ Default: 1
 
 <entry id="do_clubb_mf_aloft" type="logical" category="conv"
        group="clubb_mf_nl" valid_values="" >
-If .true. turn on elevated convective initiliazation
+If .true. turn on elevated convective initialization
 Default: .false.
 </entry>
 
@@ -6353,13 +6353,13 @@ Default: set by build-namelist.
 
 <entry id="scm_ana_frc_path" type="char*128" input_pathname="abs" category="scam"
        group="scam_nl" valid_values="" >
-templatefull path for analysis forcing dataset.
+template path for analysis forcing dataset.
 Default: set by build-namelist.
 </entry>
 
 <entry id="scm_use_ana_iop" type="logical" category="scam"
        group="scam_nl" valid_values="">
-Force scam to compute large-scale forcing from renalysis or 3D model output
+Force scam to compute large-scale forcing from reanalysis or 3D model output
 Default: FALSE
 </entry>
 
