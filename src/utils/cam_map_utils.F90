@@ -673,6 +673,7 @@ contains
     character(len=SHR_KIND_CL)    :: errmsg
     character(len=32)             :: errfmt
     character(len=*), parameter   :: subname = 'cam_filemap_get_filemap: '
+    integer                       :: istat
 
     ! This shouldn't happen but, who knows what evil lurks in the hearts of SEs
     if (associated(filemap)) then
@@ -689,7 +690,11 @@ contains
     end if
 
     ! Allocate output filemap (dof)
-    allocate(filemap(product(fieldlens)))
+    allocate(filemap(product( int(fieldlens,kind=iMap) )), stat=istat)
+    if (istat/=0) then
+       call endrun(subname//': ERROR allocating array: filemap(product( int(fieldlens,kind=iMap) ))')
+    end if
+
     filemap = 0
 
     ! Find map source dimensions in input array

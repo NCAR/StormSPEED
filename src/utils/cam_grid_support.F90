@@ -2856,7 +2856,7 @@ contains
   !
   !---------------------------------------------------------------------------
   subroutine cam_grid_set_map(this, map, src, dest)
-    use spmd_utils,      only: mpi_sum, mpi_integer, mpicom
+    use spmd_utils,      only: mpi_sum, mpi_integer, mpi_integer8, mpicom
     ! Dummy arguments
     class(cam_grid_t)                      :: this
     integer(iMap),     pointer             :: map(:,:)
@@ -2866,7 +2866,8 @@ contains
     ! Local variables
     integer                                :: dims(2)
     integer                                :: dstrt, dend
-    integer                                :: gridlen, gridloc, ierr
+    integer(iMap)                          :: gridlen, gridloc
+    integer                                :: ierr
 
     ! Check to make sure the map meets our needs
     call this%coord_lengths(dims)
@@ -2888,8 +2889,8 @@ contains
     else
       gridloc = count((map(dstrt,:) /= 0) .and. (map(dend,:) /= 0))
     end if
-    call MPI_Allreduce(gridloc, gridlen, 1, MPI_INTEGER, MPI_SUM, mpicom, ierr)
-    if (gridlen /= product(dims)) then
+    call MPI_Allreduce(gridloc, gridlen, 1, MPI_INTEGER8, MPI_SUM, mpicom, ierr)
+    if (gridlen /= product(int(dims,iMap))) then
       call endrun('cam_grid_set_map: Bad map size for '//trim(this%name))
     else
       if (.not. associated(this%map)) then
