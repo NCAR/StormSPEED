@@ -11,7 +11,7 @@ module restart_dynamics
 ! adjustments into the run.  The restart file containing the unstructured
 ! grid format may also be used for an initial run.
 
-use shr_kind_mod,     only: r8 => shr_kind_r8
+use shr_kind_mod,     only: r8 => shr_kind_r8, i8 => shr_kind_i8
 use spmd_utils,       only: iam, masterproc
 use control_mod_cam,  only: theta_hydrostatic_mode
 
@@ -302,7 +302,7 @@ subroutine write_elem()
    ! local variables
    integer          :: i, ie, j, k
    integer          :: ierr
-   integer, pointer :: ldof(:)
+   integer(i8), pointer :: ldof(:)
 
    type(io_desc_t)  :: iodesc2d, iodesc3d
    real(kind=r8), pointer :: var3d(:,:,:,:), var2d(:,:,:)
@@ -906,7 +906,7 @@ subroutine read_elem()
    integer :: ncol
    integer :: i, ie, ii, j, k, m
 
-   integer, pointer :: ldof(:)
+   integer(i8), pointer :: ldof(:)
 
    type(io_desc_t) :: iodesc2d, iodesc3d
    real(r8), allocatable :: var3d(:), var2d(:)
@@ -1390,9 +1390,11 @@ function get_restart_decomp(elem, lev) result(ldof)
 
    type(element_t), intent(in) :: elem(:)
    integer,         intent(in) :: lev
-   integer,         pointer    :: ldof(:)
+   integer(i8),     pointer    :: ldof(:)
 
-   integer :: i, j, k, ie
+   integer     :: i, j, k, ie
+   integer(i8) :: base ! force integer(i8) calculation
+
    !----------------------------------------------------------------------------
 
    allocate(ldof(nelemd*np*np*lev))
@@ -1400,8 +1402,9 @@ function get_restart_decomp(elem, lev) result(ldof)
    j = 1
    do k = 1, lev
       do ie = 1, nelemd
+         base = int(elem(ie)%GlobalID-1, i8)*np*np + int(k-1, i8)*nelem_tot*np*np
          do i = 1, np*np
-            ldof(j) = (elem(ie)%GlobalID-1)*np*np + (k-1)*nelem_tot*np*np + i
+            ldof(j) = base + i
             j = j + 1
          end do
       end do
