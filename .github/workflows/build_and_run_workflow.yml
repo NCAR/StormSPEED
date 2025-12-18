@@ -11,12 +11,25 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
+  debug-pull-request-target:
+    if: github.event_name == 'pull_request_target'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Debug Access
+        run: |
+          echo "Event: ${{ github.event_name }}"
+          echo "Actor: ${{ github.actor }}"
+          echo "Ref: ${{ github.ref }}"
+
   build-and-run-on-CIRRUS:
-    # Run the CI workflow on CIRRUS only when (1) it is a push action or (2) the 'ready_for_ci' label is added to a pull request
+    # Logic to run the CI workflow on CIRRUS
+    #   1. Always run on direct pushes to stormspeed
+    #   2. Run if the label 'ready_for_ci' was JUST added
+    #   3. Run if new code is pushed AND the 'ready_for_ci' label is already there
     if: >-
       github.event_name == 'push' || 
       (github.event_name == 'pull_request_target' && (
@@ -24,6 +37,11 @@ jobs:
         (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'ready_for_ci'))
       ))
     name: Run ${{ matrix.image }} on ${{ matrix.runner }}
+    # Permissions required for the 'remove label' step to work
+    permissions:
+      contents: read        # To checkout code
+      pull-requests: write  # To remove labels and comment
+      issues: write         # Fallback for some label operations
     env:
       TMP_DIR: tmp
       TMP_OUTPUT: case_output.log
@@ -174,7 +192,7 @@ jobs:
             echo "Test passed"
           fi
 
-      - name: Upload logs to GitHub artifacts
+      - name: Upload logs to GitHub artifacts when the CI test fails
         if: failure() 
         uses: actions/upload-artifact@v4
         with:
@@ -183,6 +201,37 @@ jobs:
             /tmp/ci_test/run/cesm.log*
             /tmp/ci_test/run/atm.log*
           retention-days: 7
+
+      - name: Remove label and comment when the CI test fails
+        if: failure() && github.event_name == 'pull_request_target'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labelName = 'ready_for_ci';
+            
+            // 1. Try to remove the label
+            console.log(`Build failed. Attempting to remove label: ${labelName}`);
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                name: labelName
+              });
+            } catch (error) {
+              // Ignore 404 errors (if the label was already removed or didn't exist)
+              if (error.status !== 404) {
+                console.log(`Warning: Could not remove label. Error: ${error.message}`);
+              }
+            }
+
+            // 2. Post a comment to notify the user
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `❌ **CI Test Failed**\n\nI have removed the \`${labelName}\` label to prevent wasted resources.\n\n**Action Required:**\n1. Check the GitHub Actions logs for errors.\n2. Fix the issues and push new commits.\n3. Re-apply the \`${labelName}\` label to restart the build.`
+            });
 
       - name: Upload the netCDF output files to CIRRUS storage
         if: env.GENERATE_BASELINE == 'true'
