@@ -219,7 +219,7 @@ jobs:
                 name: labelName
               });
             } catch (error) {
-              // Ignore 404 errors (if the label was already removed or didn't exist)
+              // Ignore 404 errors: either the label was already removed or it never existed on this PR.
               if (error.status !== 404) {
                 console.log(`Warning: Could not remove label. Error: ${error.message}`);
               }
