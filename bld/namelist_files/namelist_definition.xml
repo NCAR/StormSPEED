@@ -3160,7 +3160,7 @@ Default: .true. for CAM6; all others =&gt; .false.
 <entry id="cldfrc2m_do_avg_aist_algs" type="logical" category="conv"
        group="cldfrc2m_nl" valid_values="" >
 For small ice cloud concentrations, take the geometric mean of the iceopt=4 and iceopt=5 area fractions
-Default: .true. for CAM_DEV; all others .false.
+Default: .true. for CAM7; all others .false.
 </entry>
 
 <entry id="zmconv_momcu" type="real" category="conv"
