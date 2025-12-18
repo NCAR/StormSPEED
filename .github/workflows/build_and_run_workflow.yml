@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - stormspeed
-  pull_request_target:
+  pull_request:
     types: [labeled, synchronize] # Only trigger when a label is added or new commits after labeling
     branches:
       - stormspeed
@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   debug-pull-request-target:
-    if: github.event_name == 'pull_request_target'
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Debug Access
