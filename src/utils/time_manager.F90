@@ -26,8 +26,10 @@ public ::&
    get_curr_date,            &! return date components at end of current timestep
    get_prev_date,            &! return date components at beginning of current timestep
    get_start_date,           &! return components of the start date
+!+++arh
    get_stop_date,            &! return components of the stop date
    get_run_duration,         &! return run duration in whole days and remaining seconds
+
    get_ref_date,             &! return components of the reference date
    get_perp_date,            &! return components of the perpetual date, and current time of day
    get_curr_time,            &! return components of elapsed time since reference date at end of current timestep
@@ -690,6 +692,9 @@ subroutine get_start_date(yr, mon, day, tod)
    call chkrc(rc, sub//': error return from ESMF_TimeGet')
 
 end subroutine get_start_date
+!=========================================================================================
+
+!+++arh manually add get_stop_date & get_run_duration (mpas build failure)
 
 !=========================================================================================
 
@@ -747,6 +752,8 @@ subroutine get_run_duration(nday, nsec)
 end subroutine get_run_duration
 
 !=========================================================================================
+
+!---arh
 
 subroutine get_ref_date(yr, mon, day, tod)
 
@@ -1214,8 +1221,9 @@ subroutine timemgr_time_inc(ymd1, tod1, ymd2, tod2, inc_s, inc_h, inc_d)
 
    type(ESMF_Time) :: date1
    type(ESMF_Time) :: date2
+
    type(ESMF_TimeInterval) :: t_interval
-   integer :: year, month, day
+   integer :: year, month, day 
 !-----------------------------------------------------------------------------------------
 
    ! set esmf time object

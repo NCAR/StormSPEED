@@ -81,6 +81,8 @@
   use physics_buffer,    only: pbuf_get_index
 
   call addfld( 'CMFMC',      (/ 'ilev' /), 'A', 'kg/m2/s',  'Moist convection (deep+shallow) mass flux'                 )
+  call addfld ('ICWMRSH',    (/ 'lev' /),  'A', 'kg/kg',    'Shallow Convection in-cloud water mixing ratio '           )
+  call addfld( 'PRECSH',     horiz_only,   'A', 'm/s',      'Shallow Convection precipitation rate'                     )
   call addfld( 'CLDTOP',     horiz_only,   'I', '1',        'Vertical index of cloud top'                               )
   call addfld( 'CLDBOT',     horiz_only,   'I', '1',        'Vertical index of cloud base'                              )
   call addfld( 'PCLDTOP',    horiz_only,   'A', 'Pa',       'Pressure of cloud top'                                     )
@@ -200,7 +202,7 @@
       if( cnb2(i) > cnb(i)) cnb(i) = cnb2(i)
       if( cnb(i) == 1._r8 ) cnb(i) = cnt(i)
       pcnt(i) = state%pmid(i,int(cnt(i)))
-      pcnb(i) = state%pmid(i,int(cnb(i)))     
+      pcnb(i) = state%pmid(i,int(cnb(i)))
    end do
    
    ! ----------------------------------------------- !

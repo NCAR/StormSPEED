@@ -724,7 +724,7 @@
 
    ftem(:ncol,:pver) = ptend_loc%s(:ncol,:pver)/cpair
 
-   call outfld( 'ICWMRSH ', icwmr                    , pcols   , lchnk )
+!   call outfld( 'ICWMRSH ', icwmr                    , pcols   , lchnk ) ! For CLUBB-MF, need to output ICWMRSH in clubb_intr
 
    call outfld( 'CMFDT  ', ftem                      , pcols   , lchnk )
    call outfld( 'CMFDQ  ', ptend_loc%q(1,1,1)        , pcols   , lchnk )
