@@ -630,8 +630,10 @@ module clubb_mf
        end do
 
        kmid = 1
-!+++arh
-       !do while (zm(kmid) < 9.E3_r8)
+       ! Use a pressure-based criterion to locate the mid-level within the
+       ! troposphere. A threshold of ~500 hPa is preferred over the previous
+       ! fixed height (9 km) because it better represents the tropopause
+       ! location across different atmospheric conditions.
        do while (p_zm(kmid) > 500.E2_r8)
          kmid = kmid+1
        end do
