@@ -4108,7 +4108,9 @@ if ($dyn eq 'fv') {
 
 # FV3 dycore
 if ( $dyn eq 'fv3') {
-
+    add_default($nl, 'fv3_a_imp');
+    add_default($nl, 'fv3_p_fac');
+    add_default($nl, 'fv3_use_logp');
     add_default($nl, 'fv3_adjust_dry_mass');
     add_default($nl, 'fv3_beta');
     add_default($nl, 'fv3_clock_grain');
