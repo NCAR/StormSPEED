@@ -1223,7 +1223,7 @@ subroutine timemgr_time_inc(ymd1, tod1, ymd2, tod2, inc_s, inc_h, inc_d)
    type(ESMF_Time) :: date2
 
    type(ESMF_TimeInterval) :: t_interval
-   integer :: year, month, day 
+   integer :: year, month, day
 !-----------------------------------------------------------------------------------------
 
    ! set esmf time object
