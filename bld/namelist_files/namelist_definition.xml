@@ -9379,7 +9379,7 @@ and the semi-implicit solver is used. Proper range is 0 to 0.25.
 Default: 0.05
 </entry>
 
-<entry id="fv3_use_logp" type="real" category="dyn_fv3"
+<entry id="fv3_use_logp" type="logical" category="dyn_fv3"
      group="fv_core_nml" valid_values="" >
 Logical: Enables a variant of the Lin pressure-gradient force 
 algorithm, which uses the logarithm of pressure instead of the Exner
