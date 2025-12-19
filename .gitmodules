@@ -101,14 +101,11 @@
 
 [submodule "clubb"]
 	path = src/physics/clubb
-#	url = https://github.com/larson-group/clubb_release
-        url = https://github.com/adamrher/clubb_release
+    url = https://github.com/adamrher/clubb_release
 	fxrequired = AlwaysRequired
-        fxsparse = ../.clubb_sparse_checkout
-#       fxtag = clubb_4ncar_20240605_73d60f6_gpufixes_posinf
+    fxsparse = ../.clubb_sparse_checkout
 	fxtag = d224307f798b654f5312a9f035568c8a99ca400c
-#	fxDONOTUSEurl = https://github.com/larson-group/clubb_release
-        fxDONOTUSEurl = https://github.com/adamrher/clubb_release
+    fxDONOTUSEurl = https://github.com/adamrher/clubb_release
 
 [submodule "cism"]
 path = components/cism
