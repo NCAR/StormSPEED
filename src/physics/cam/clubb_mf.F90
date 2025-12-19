@@ -1460,7 +1460,7 @@ module clubb_mf
          do k=kstart,nz
            ! return if no convection at k=2
            if (k == 2 .and. ac(k) == 0._r8 .and. .not.aloft) then
-             sqt(k) = 0_r8
+             sqt(k) = 0._r8
              sthl(k) = 0._r8
              ztopm1(:) = zm(1)
              ddcp(:) = 0._r8
