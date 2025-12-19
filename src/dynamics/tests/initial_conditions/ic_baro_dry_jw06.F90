@@ -172,7 +172,7 @@ contains
     if (l3d_vars) then
       if (lu) nlev = size(U, 2)
       if (lv) nlev = size(V, 2)
-      if (lv) nlev = size(W, 2)
+      if (lw) nlev = size(W, 2)
       if (lt) nlev = size(T, 2)
       if (lq) nlev = size(Q, 2)
 
