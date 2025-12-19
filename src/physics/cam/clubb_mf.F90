@@ -38,7 +38,7 @@ module clubb_mf
   !      2 = wpthlp_clubb L0
   !      3 = test plume L0
   !      4 = lel
-  !      4 = cape
+  !      5 = cape
   !      6 = ztopm1
   !      7 = rel.hum. at 500 hPa
   !      8 = column int. rel.hum.
@@ -630,8 +630,10 @@ module clubb_mf
        end do
 
        kmid = 1
-!+++arh
-       !do while (zm(kmid) < 9.E3_r8)
+       ! Use a pressure-based criterion to locate the mid-level within the
+       ! troposphere. A threshold of ~500 hPa is preferred over the previous
+       ! fixed height (9 km) because it better represents the tropopause
+       ! location across different atmospheric conditions.
        do while (p_zm(kmid) > 500.E2_r8)
          kmid = kmid+1
        end do
@@ -1460,7 +1462,7 @@ module clubb_mf
          do k=kstart,nz
            ! return if no convection at k=2
            if (k == 2 .and. ac(k) == 0._r8 .and. .not.aloft) then
-             sqt(k) = 0_r8
+             sqt(k) = 0._r8
              sthl(k) = 0._r8
              ztopm1(:) = zm(1)
              ddcp(:) = 0._r8

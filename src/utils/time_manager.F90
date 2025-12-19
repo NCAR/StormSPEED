@@ -694,7 +694,16 @@ subroutine get_start_date(yr, mon, day, tod)
 end subroutine get_start_date
 !=========================================================================================
 
-!+++arh manually add get_stop_date & get_run_duration (mpas build failure)
+! NOTE: The following wrappers (e.g., get_stop_date) are maintained to satisfy
+!       external MPAS build/link requirements.  Some MPAS configurations expect
+!       these specific time_manager entry points to be available; if they are
+!       missing, the MPAS build fails with unresolved symbol errors.
+!
+!       These routines follow the same pattern as get_start_date/get_prev_date
+!       and simply expose ESMF_Clock/ESMF_Time state through the legacy CAM
+!       interface used by MPAS.  Do not remove or rename them unless the MPAS
+!       coupling/interface code has been updated to stop referencing them and
+!       the build has been verified without these wrappers.
 
 !=========================================================================================
 
@@ -1223,7 +1232,7 @@ subroutine timemgr_time_inc(ymd1, tod1, ymd2, tod2, inc_s, inc_h, inc_d)
    type(ESMF_Time) :: date2
 
    type(ESMF_TimeInterval) :: t_interval
-   integer :: year, month, day 
+   integer :: year, month, day
 !-----------------------------------------------------------------------------------------
 
    ! set esmf time object

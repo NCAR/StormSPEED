@@ -95,8 +95,8 @@ subroutine cloud_rad_props_init(tiny_out)
 #endif
    real(r8), intent(out) :: tiny_out
 
-   character(len=256) :: liquidfile 
-   character(len=256) :: icefile 
+   character(len=256) :: liquidfile
+   character(len=256) :: icefile
    character(len=256) :: locfn
 
    integer :: ncid, dimid, f_nlwbands, f_nswbands, ierr
