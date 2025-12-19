@@ -38,7 +38,7 @@ module clubb_mf
   !      2 = wpthlp_clubb L0
   !      3 = test plume L0
   !      4 = lel
-  !      4 = cape
+  !      5 = cape
   !      6 = ztopm1
   !      7 = rel.hum. at 500 hPa
   !      8 = column int. rel.hum.
