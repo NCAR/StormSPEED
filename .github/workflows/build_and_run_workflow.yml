@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - stormspeed
-  pull_request_target:
+  pull_request:
     types: [labeled, synchronize] # Only trigger when a label is added or new commits after labeling
     branches:
       - stormspeed
@@ -15,16 +15,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  debug-pull-request-target:
-    if: github.event_name == 'pull_request_target'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Debug Access
-        run: |
-          echo "Event: ${{ github.event_name }}"
-          echo "Actor: ${{ github.actor }}"
-          echo "Ref: ${{ github.ref }}"
-
   build-and-run-on-CIRRUS:
     # Logic to run the CI workflow on CIRRUS
     #   1. Always run on direct pushes to stormspeed
@@ -32,7 +22,7 @@ jobs:
     #   3. Run if new code is pushed AND the 'ready_for_ci' label is already there
     if: >-
       github.event_name == 'push' || 
-      (github.event_name == 'pull_request_target' && (
+      (github.event_name == 'pull_request' && (
         (github.event.action == 'labeled' && github.event.label.name == 'ready_for_ci') ||
         (github.event.action == 'synchronize' && contains(github.event.pull_request.labels.*.name, 'ready_for_ci'))
       ))
@@ -96,16 +86,8 @@ jobs:
       run:
         shell: bash
     steps:
-      # This step is for pull_request_target event; must have 'ref' line to checkout the PR code.
-      - name: Checkout PR code
-        if: github.event_name == 'pull_request_target'
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      # This step is for push event; the default behavior will check out the push code correctly.
+      # This default behavior will check out the push and pull_request code correctly.
       - name: Checkout push code
-        if: github.event_name == 'push'
         uses: actions/checkout@v4
 
       - name: Set up some git configurations
@@ -203,7 +185,7 @@ jobs:
           retention-days: 7
 
       - name: Remove label and comment when the CI test fails
-        if: failure() && github.event_name == 'pull_request_target'
+        if: failure() && github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
