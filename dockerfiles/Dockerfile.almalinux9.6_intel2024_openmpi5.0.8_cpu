@@ -12,13 +12,20 @@ SHELL ["/bin/bash", "-c"]
 
 WORKDIR /opt
 
-# Install python3 and git as prerequisite for Spack
+# Install python3.13 (needed for git-fleximod) and git as prerequisite for Spack
 # Install the basic compilers (gcc/11.5.0) to build other packages below
 RUN dnf -y update && \
     dnf -y groupinstall "Development Tools" && \
+    dnf -y install epel-release && \
     dnf -y install bzip2 bzip2-devel xz xz-devel gmp-devel mpfr-devel libmpc-devel zlib-devel && \
-    dnf -y install python3 git make wget gzip perl unzip curl --allowerasing && \
-    dnf -y install gcc-gfortran
+    dnf -y install python3.13 python3.13-devel python3.13-pip && \
+    dnf -y install git make wget gzip perl unzip curl pkg-config --allowerasing && \
+    dnf -y install gcc-gfortran && \
+    dnf clean all && \
+    rm -rf /var/cache/dnf
+
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.13 80 && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 80
 
 # Install AWS CLI v2 for AlmaLinux 9.6
 RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
@@ -30,12 +37,6 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2
 # Clone Spack with tag v1.0.0
 RUN git clone --depth=2 --branch v1.0.0 https://github.com/spack/spack.git
 
-# Install Python 3.13.5 through Spack (needed for git-fleximod)
-RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install python@3.13.5 && \
-    alternatives --install /usr/bin/python python $(spack location -i python@3.13.5)/bin/python3.13 80 && \
-    alternatives --install /usr/bin/python3 python3 $(spack location -i python@3.13.5)/bin/python3.13 80
-
 ########################
 # Build intel compiler #
 ########################
@@ -46,16 +47,14 @@ RUN . /opt/spack/share/spack/setup-env.sh && \
     spack install intel-oneapi-compilers@2024.2.1 && \
     update-alternatives --install /usr/bin/icpx icpx $(spack location -i intel-oneapi-compilers@2024.2.1)/compiler/2024.2/bin/icpx 120 && \
     update-alternatives --install /usr/bin/icx icx $(spack location -i intel-oneapi-compilers@2024.2.1)/compiler/2024.2/bin/icx 120 && \
-    update-alternatives --install /usr/bin/ifort ifort $(spack location -i intel-oneapi-compilers@2024.2.1)/compiler/2024.2/bin/ifort 120
+    update-alternatives --install /usr/bin/ifort ifort $(spack location -i intel-oneapi-compilers@2024.2.1)/compiler/2024.2/bin/ifort 120 && \
+    mkdir -p /usr/local/intel-oneapi-compiler && \
+    ln -s $(spack location -i intel-oneapi-compilers@2024.2.1)/compiler/2024.2 /usr/local/intel-oneapi-compiler/2024.2
 
 ########################
 # Build libxml2, cmake #
 ########################
 FROM intel_compiler AS xml2_cmake
-
-RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install cmake@3.31.8 %gcc && \
-    ln -s $(spack location -i cmake@3.31.8)/bin/cmake /usr/local/bin/cmake
     
 # Install xmllint that is required by CIME
 # Somehow libxml2 will be built by gcc anyway during other stage, so we just use gcc here to avoid confliction
@@ -63,10 +62,43 @@ RUN . /opt/spack/share/spack/setup-env.sh && \
     spack install libxml2@2.13.5 %gcc && \
     ln -s $(spack location -i libxml2@2.13.5)/bin/xmllint /usr/local/bin/xmllint
 
+# Spack may not find cmake3.31.8
+RUN curl -L -O https://github.com/Kitware/CMake/releases/download/v3.31.8/cmake-3.31.8-linux-x86_64.tar.gz && \
+    tar -zxvf cmake-3.31.8-linux-x86_64.tar.gz --strip-components=1 -C /usr/local && \
+    rm -f cmake-3.31.8-linux-x86_64.tar.gz
+
 #########################
 # Build ucx and openmpi #
 #########################
 FROM xml2_cmake AS ucx_openmpi
+
+# Set the Intel compilers as externals to avoid building them from source
+RUN cat <<'EOF' > /root/.spack/packages.yaml
+packages:
+  intel-oneapi-compilers:
+    buildable: false
+    externals:
+    - spec: intel-oneapi-compilers@2024.2.1 languages:='c,c++,fortran'
+      prefix: /usr/local/intel-oneapi-compiler/2024.2
+      extra_attributes:
+        compilers:
+          c: /usr/local/intel-oneapi-compiler/2024.2/bin/icx
+          cxx: /usr/local/intel-oneapi-compiler/2024.2/bin/icpx
+          fortran: /usr/local/intel-oneapi-compiler/2024.2/bin/ifort
+  gcc:
+    externals:
+    - spec: gcc@11.5.0 languages:='c,c++,fortran'
+      prefix: /usr
+      extra_attributes:
+        compilers:
+          c: /usr/bin/gcc
+          cxx: /usr/bin/g++
+          fortran: /usr/bin/gfortran
+EOF
+
+# Tell Spack to scan the OS for Python/CMake and never compile it from source
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack external find --not-buildable python cmake
 
 RUN . /opt/spack/share/spack/setup-env.sh && \
     spack install ucx@1.18.1 %intel-oneapi-compilers@2024.2.1
@@ -107,6 +139,10 @@ RUN . /opt/spack/share/spack/setup-env.sh && \
     spack install netcdf-fortran@4.6.1 %intel-oneapi-compilers@2024.2.1 ^netcdf-c@4.9.2 ^openmpi@5.0.8 && \
     ln -s $(spack location -i netcdf-fortran@4.6.1) /usr/local/netcdf_fortran
 
+# Symlink the netcdf-c and netcdf-fortran installation directories to /usr/local so that CMake find_package works in a CAM build
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack view symlink -i /usr/local netcdf-c netcdf-fortran
+
 #############
 # Build PIO #
 #############
@@ -122,9 +158,21 @@ RUN . /opt/spack/share/spack/setup-env.sh && \
 ##############
 FROM parallelio AS esmf
 
+# Use toolchains mechanism to set the Intel compilers as the default compilers for ESMF
+RUN cat <<'EOF' > /root/.spack/toolchains.yaml
+toolchains:
+  intel-oneapi-2024:
+    - spec: '%c=intel-oneapi-compilers@2024.2.1'
+      when: '%c'
+    - spec: '%cxx=intel-oneapi-compilers@2024.2.1'
+      when: '%cxx'
+    - spec: '%fortran=intel-oneapi-compilers@2024.2.1'
+      when: '%fortran'
+EOF
+
 # Install ESMF; it will install its parallelio and parallel-netcdf dependencies by default
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install esmf@8.8.1 +pnetcdf +mpi +shared %intel-oneapi-compilers@2024.2.1 ^parallelio@2.6.6 ^parallel-netcdf@1.14.0 && \
+    spack install "esmf@8.8.1 +pnetcdf +mpi +shared %intel-oneapi-2024 ^parallelio@2.6.6 ^parallel-netcdf@1.14.0" && \
     ln -s $(spack location -i esmf@8.8.1) /usr/local/esmf
 
 ################
@@ -154,6 +202,10 @@ ENV PIO_TYPENAME_VALID_VALUES="netcdf, pnetcdf, netcdf4c, netcdf4p"
 ENV MKLROOT="/usr/local/mkl"
 ENV PATH="/usr/local:/usr/local/bin:$MPI_ROOT/bin:${PATH}"
 ENV USER=robot
+# Force OpenMPI wrappers to use the Intel backend compilers
+ENV OMPI_CC=icx
+ENV OMPI_CXX=icpx
+ENV OMPI_FC=ifort
 
 ##########################
 # Miscellaneous settings #

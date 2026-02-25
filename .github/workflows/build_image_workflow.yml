@@ -23,8 +23,8 @@ jobs:
           - Dockerfile.almalinux9.6_intel2024_openmpi5.0.8_cpu
           - Dockerfile.opensuse15_gcc12_openmpi5.0.8_cpu
           - Dockerfile.opensuse15_gcc12_openmpi5.0.8_cuda12.9
-          - Dockerfile.ubuntu24.04_nvhpc25.7_openmpi5.0.8_cuda12.9
           - Dockerfile.ubuntu24.04_nvhpc25.7_openmpi4.1.5_cpu
+          - Dockerfile.ubuntu24.04_nvhpc26.1_openmpi5.0.8_cuda12.9
         include:
           - dockerfile: Dockerfile.almalinux9.6_intel2024_openmpi5.0.8_cpu
             runner: gha-runner-stormspeed
@@ -34,10 +34,10 @@ jobs:
             runner: gha-runner-stormspeed
           - dockerfile: Dockerfile.opensuse15_gcc12_openmpi5.0.8_cuda12.9
             runner: gha-runner-gpu-stormspeed
-          - dockerfile: Dockerfile.ubuntu24.04_nvhpc25.7_openmpi5.0.8_cuda12.9
+          - dockerfile: Dockerfile.ubuntu24.04_nvhpc26.1_openmpi5.0.8_cuda12.9
             runner: gha-runner-gpu-stormspeed
     steps:
-      #This step sets up a varibale to use later in the image tag
+      #This step sets up a variable to use later in the image tag
       - name: Get short sha
         run: echo "SHORT_SHA=$(echo $GITHUB_SHA | cut -c1-7)" >> $GITHUB_ENV
         

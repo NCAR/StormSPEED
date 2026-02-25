@@ -5,9 +5,9 @@ on:
     branches:
       - stormspeed
   pull_request:
-    types: [labeled, synchronize] # Only trigger when a label is added or new commits after labeling
-    branches:
-      - stormspeed
+   types: [labeled, synchronize] # Only trigger when a label is added or new commits after labeling
+   branches:
+     - stormspeed
   workflow_dispatch:
 
 concurrency:
@@ -47,32 +47,32 @@ jobs:
         res: [ ne30_ne30_mg17 ]
         dycore: [ theta-l, theta-l_kokkos ]
         image: [
-          opensuse15_gcc12_openmpi5.0.8_cpu:bd1e777,
-          opensuse15_gcc12_openmpi5.0.8_cuda12.9:bd1e777,
-          almalinux9.6_intel2024_openmpi5.0.8_cpu:bd1e777,
-          ubuntu24.04_nvhpc25.7_openmpi4.1.5_cpu:bd1e777,
-          ubuntu24.04_nvhpc25.7_openmpi5.0.8_cuda12.9:bd1e777
+          opensuse15_gcc12_openmpi5.0.8_cpu:970927a,
+          opensuse15_gcc12_openmpi5.0.8_cuda12.9:970927a,
+          almalinux9.6_intel2024_openmpi5.0.8_cpu:970927a,
+          ubuntu24.04_nvhpc25.7_openmpi4.1.5_cpu:970927a,
+          ubuntu24.04_nvhpc26.1_openmpi5.0.8_cuda12.9:970927a
         ]
         include:
-          - image: opensuse15_gcc12_openmpi5.0.8_cpu:bd1e777
+          - image: opensuse15_gcc12_openmpi5.0.8_cpu:970927a
             runner: gha-runner-stormspeed
             compiler: gnu
-          - image: almalinux9.6_intel2024_openmpi5.0.8_cpu:bd1e777
+          - image: almalinux9.6_intel2024_openmpi5.0.8_cpu:970927a
             runner: gha-runner-stormspeed
             compiler: intel
-          - image: ubuntu24.04_nvhpc25.7_openmpi4.1.5_cpu:bd1e777
+          - image: ubuntu24.04_nvhpc25.7_openmpi4.1.5_cpu:970927a
             runner: gha-runner-stormspeed
             compiler: nvhpc
-          - image: opensuse15_gcc12_openmpi5.0.8_cuda12.9:bd1e777
+          - image: opensuse15_gcc12_openmpi5.0.8_cuda12.9:970927a
             runner: gha-runner-gpu-stormspeed
             compiler: gnu
-          - image: ubuntu24.04_nvhpc25.7_openmpi5.0.8_cuda12.9:bd1e777
+          - image: ubuntu24.04_nvhpc26.1_openmpi5.0.8_cuda12.9:970927a
             runner: gha-runner-gpu-stormspeed
             compiler: nvhpc
         exclude:
-          - image: opensuse15_gcc12_openmpi5.0.8_cuda12.9:bd1e777
+          - image: opensuse15_gcc12_openmpi5.0.8_cuda12.9:970927a
             dycore: theta-l
-          - image: ubuntu24.04_nvhpc25.7_openmpi5.0.8_cuda12.9:bd1e777
+          - image: ubuntu24.04_nvhpc26.1_openmpi5.0.8_cuda12.9:970927a
             dycore: theta-l
     runs-on: ${{ matrix.runner }}
     container:
@@ -166,7 +166,7 @@ jobs:
         run: |
           cd /$TMP_DIR/ci_test
           # Check the last 5 lines for 'failed' or 'error:' (case-insensitive)
-          if tail -n 5 "$TMP_OUTPUT" | grep -iE 'failed|error:'; then
+          if [ ! -f "$TMP_OUTPUT" ] || tail -n 5 "$TMP_OUTPUT" | grep -iE 'failed|error:'; then
             echo "Test failed"
             cat /tmp/ci_test/run/cesm.log*
             exit 911
