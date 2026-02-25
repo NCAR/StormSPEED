@@ -9,18 +9,24 @@ SHELL ["/bin/bash", "-c"]
 
 WORKDIR /opt
 
-# Install python3 and git as prerequisite for Spack
+# Install python3 (needed for git-fleximod) and git as prerequisite for Spack
 # Install the basic compilers (gcc/7.5.0) to build other packages below
 # Then we install gcc/12.3.0 and use it as default compiler
-RUN zypper --non-interactive refresh && \
+RUN zypper --non-interactive addrepo https://download.opensuse.org/repositories/devel:languages:python:Factory/15.6/devel:languages:python:Factory.repo && \
+    zypper --non-interactive --gpg-auto-import-keys refresh && \
     zypper --non-interactive update && \
     zypper --non-interactive install -t pattern devel_basis && \
     zypper --non-interactive install bzip2 libbz2-devel xz xz-devel gmp-devel mpfr-devel mpc-devel zlib-devel && \
-    zypper --non-interactive install python3 git make wget gzip unzip curl && \
+    zypper --non-interactive install python313 python313-devel && \
+    zypper --non-interactive install git make wget gzip unzip curl pkg-config && \
     zypper --non-interactive install gcc12 gcc12-c++ gcc12-fortran && \
-    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 120 && \
+    zypper --non-interactive clean -a
+
+RUN update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 120 && \
     update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 120 && \
-    update-alternatives --install /usr/bin/gfortran gfortran /usr/bin/gfortran-12 120
+    update-alternatives --install /usr/bin/gfortran gfortran /usr/bin/gfortran-12 120 && \
+    update-alternatives --install /usr/bin/python python /usr/bin/python3.13 80 && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 80
 
 # Install AWS CLI v2
 RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
@@ -29,14 +35,8 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2
     rm -rf awscliv2.zip aws && \
     aws --version
 
-# Clone Spack with tag v1.0.0
-RUN git clone --depth=2 --branch v1.0.0 https://github.com/spack/spack.git
-
-# Install Python 3.13.5 through Spack (needed for git-fleximod)
-RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install python@3.13.5 && \
-    update-alternatives --install /usr/bin/python python $(spack location -i python@3.13.5)/bin/python3.13 80 && \
-    update-alternatives --install /usr/bin/python3 python3 $(spack location -i python@3.13.5)/bin/python3.13 80
+# Clone Spack with tag v1.1.0
+RUN git clone --depth=2 --branch v1.1.0 https://github.com/spack/spack.git
 
 ########################
 # Build libxml2, cmake #
@@ -48,14 +48,33 @@ RUN . /opt/spack/share/spack/setup-env.sh && \
     spack install libxml2@2.13.5 && \
     ln -s $(spack location -i libxml2@2.13.5)/bin/xmllint /usr/local/bin/xmllint
 
-RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install cmake@3.31.8 && \
-    ln -s $(spack location -i cmake@3.31.8)/bin/cmake /usr/local/bin/cmake
+# Spack may not find cmake3.31.8
+RUN curl -L -O https://github.com/Kitware/CMake/releases/download/v3.31.8/cmake-3.31.8-linux-x86_64.tar.gz && \
+    tar -zxvf cmake-3.31.8-linux-x86_64.tar.gz --strip-components=1 -C /usr/local && \
+    rm -f cmake-3.31.8-linux-x86_64.tar.gz
 
 ##############
 # Build cuda #
 ##############
 FROM xml2_cmake AS cuda
+
+# Set GCC compilers as externals to avoid building them from source
+RUN cat <<'EOF' > /root/.spack/packages.yaml
+packages:
+  gcc:
+    externals:
+    - spec: gcc@12.3.0 languages:='c,c++,fortran'
+      prefix: /usr
+      extra_attributes:
+        compilers:
+          c: /usr/bin/gcc
+          cxx: /usr/bin/g++
+          fortran: /usr/bin/gfortran
+EOF
+
+# Tell Spack to scan the OS for Python/CMake and never compile it from source
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack external find --not-buildable python cmake
 
 # Install CUDA 12.9.0
 RUN . /opt/spack/share/spack/setup-env.sh && \
@@ -73,10 +92,10 @@ RUN . /opt/spack/share/spack/setup-env.sh && \
 FROM cuda AS ucx_openmpi
 
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install ucx@1.18.1 +cuda +cma +dm cuda_arch=86 ^cuda@12.9.0
+    spack install ucx@1.18.1 +cuda +cma +dm cuda_arch=86 %gcc@12.3.0 ^cuda@12.9.0
 
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install openmpi@5.0.8 fabrics=cma,ucx,ofi +cuda cuda_arch=86 ^ucx@1.18.1 ^cuda@12.9.0 && \
+    spack install openmpi@5.0.8 fabrics=cma,ucx,ofi +cuda cuda_arch=86 %gcc@12.3.0 ^ucx@1.18.1 ^cuda@12.9.0 && \
     ln -s $(spack location -i openmpi@5.0.8) /usr/local/openmpi
 
 #########################
@@ -85,7 +104,7 @@ RUN . /opt/spack/share/spack/setup-env.sh && \
 FROM ucx_openmpi AS parallel_netcdf
 
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install parallel-netcdf@1.14.0 +cxx +fortran +pic +shared ^openmpi@5.0.8 && \
+    spack install parallel-netcdf@1.14.0 +cxx +fortran +pic +shared %gcc@12.3.0 ^openmpi@5.0.8 && \
     ln -s $(spack location -i parallel-netcdf@1.14.0) /usr/local/pnetcdf
 
 ################
@@ -94,13 +113,17 @@ RUN . /opt/spack/share/spack/setup-env.sh && \
 FROM parallel_netcdf AS netcdf
 
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install netcdf-c@4.9.2 ^openmpi@5.0.8 ^parallel-netcdf@1.14.0 && \
+    spack install netcdf-c@4.9.2 %gcc@12.3.0 ^openmpi@5.0.8 ^parallel-netcdf@1.14.0 && \
     ln -s $(spack location -i netcdf-c@4.9.2) /usr/local/netcdf_c
 
 # Install netcdf-fortran; it will install the netcdf-c and openmpi dependency by default
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install netcdf-fortran@4.6.1 ^netcdf-c@4.9.2 ^openmpi@5.0.8 && \
+    spack install netcdf-fortran@4.6.1 %gcc@12.3.0 ^netcdf-c@4.9.2 ^openmpi@5.0.8 && \
     ln -s $(spack location -i netcdf-fortran@4.6.1) /usr/local/netcdf_fortran
+
+# Symlink the netcdf-c and netcdf-fortran installation directories to /usr/local so that CMake find_package works in a CAM build
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack view symlink -i /usr/local netcdf-c netcdf-fortran
 
 #############
 # Build PIO #
@@ -109,7 +132,7 @@ FROM netcdf AS parallelio
 
 # Install parallelio; it will install the parallel-netcdf dependency by default
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install parallelio@2.6.6 +pnetcdf +fortran +mpi +shared +ncint ^parallel-netcdf@1.14.0 && \
+    spack install parallelio@2.6.6 +pnetcdf +fortran +mpi +shared +ncint %gcc@12.3.0 ^parallel-netcdf@1.14.0 && \
     ln -s $(spack location -i parallelio@2.6.6) /usr/local/pio
 
 ##############
@@ -117,9 +140,21 @@ RUN . /opt/spack/share/spack/setup-env.sh && \
 ##############
 FROM parallelio AS esmf
 
+# Use toolchains mechanism to set the GCC compilers as the default compilers for ESMF
+RUN cat <<'EOF' > /root/.spack/toolchains.yaml
+toolchains:
+  gcc-123:
+    - spec: '%c=gcc@12.3.0'
+      when: '%c'
+    - spec: '%cxx=gcc@12.3.0'
+      when: '%cxx'
+    - spec: '%fortran=gcc@12.3.0'
+      when: '%fortran'
+EOF
+
 # Install ESMF; it will install its parallelio and parallel-netcdf dependencies by default
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install esmf@8.8.1 +pnetcdf +mpi +shared ^parallelio@2.6.6 ^parallel-netcdf@1.14.0 && \
+    spack install "esmf@8.8.1 +pnetcdf +mpi +shared %gcc-123 ^parallelio@2.6.6 ^parallel-netcdf@1.14.0" && \
     ln -s $(spack location -i esmf@8.8.1) /usr/local/esmf
 
 ################
@@ -128,7 +163,7 @@ RUN . /opt/spack/share/spack/setup-env.sh && \
 FROM esmf AS final_image
 
 RUN . /opt/spack/share/spack/setup-env.sh && \
-    spack install netlib-lapack@3.12.1 && \
+    spack install netlib-lapack@3.12.1 %gcc@12.3.0 && \
     ln -s $(spack location -i netlib-lapack@3.12.1) /usr/local/lapack
 
 ################################################
@@ -149,6 +184,10 @@ ENV PIO_VERSION_MAJOR=2
 ENV PIO_TYPENAME_VALID_VALUES="netcdf, pnetcdf, netcdf4c, netcdf4p"
 ENV PATH="/usr/local:/usr/local/bin:$MPI_ROOT/bin:$CUDA_ROOT/bin:${PATH}"
 ENV USER=robot
+# Force OpenMPI wrappers to use the GCC backend compilers
+ENV OMPI_CC=gcc
+ENV OMPI_CXX=g++
+ENV OMPI_FC=gfortran
 
 ##########################
 # Miscellaneous settings #
