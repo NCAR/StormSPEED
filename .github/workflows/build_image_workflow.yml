@@ -5,7 +5,7 @@ name: Build the images containing software stacks for StormSPEED CAM on CIRRUS
 #This workflow is only triggered manually when desired (e.g., an update of the base image)
 #This may only work when this file is present on the main branch
 on:
-  pull_request: # Uncomment only if you want to rebuild the image and push it to Harbor
+  # pull_request: # Uncomment only if you want to rebuild the image and push it to Harbor
   workflow_dispatch:
 
 concurrency:
