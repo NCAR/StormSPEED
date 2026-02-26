@@ -1,0 +1,211 @@
+#############################################################################################################
+# Base image                                                                                                #
+# - Do not try to install nvhpc and cuda from source;                                                       #
+# - It may not build some packages below and you need to switch back to gcc compiler;                       #
+# - NVIDIA also does not provide OpenSUSE image; use Ubuntu instead and good to test a different OS system. #
+#############################################################################################################
+FROM nvcr.io/nvidia/nvhpc:25.7-devel-cuda12.9-ubuntu24.04 AS spack_base
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+SHELL ["/bin/bash", "-c"]
+
+WORKDIR /opt
+
+# Install python3 (needed for git-fleximod) as prerequisite for Spack
+# This image also comes with gcc/13.3.0 compiler
+RUN apt-get update && \
+    apt-get install -y unzip curl pkg-config && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository -y ppa:deadsnakes/ppa && \
+    apt-get update && \
+    apt-get install -y python3.13 python3.13-dev python3.13-venv && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.13 80 && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.13 80
+
+# Install AWS CLI v2
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
+    unzip awscliv2.zip && \
+    ./aws/install && \
+    rm -rf awscliv2.zip aws && \
+    aws --version
+
+# Link CUDA 
+RUN ln -s /opt/nvidia/hpc_sdk/Linux_x86_64/25.7/cuda /usr/local/cuda && \
+    ln -s /opt/nvidia/hpc_sdk/Linux_x86_64/25.7/math_libs /usr/local/math_libs
+
+# Clean up unused packages
+RUN cd /opt/nvidia/hpc_sdk/Linux_x86_64/25.7 && \
+    rm -rf profilers
+
+# Clone Spack with tag v1.1.0
+RUN git clone --depth=2 --branch v1.1.0 https://github.com/spack/spack.git
+
+#################
+# Build libxml2 #
+#################
+FROM spack_base AS xml2
+
+# Install xmllint that is required by CIME
+# This image comes with cmake/3.28.3
+# The xmllint built by NVHPC does not work; so we switch to gcc
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install libxml2@2.13.5 %gcc && \
+    ln -s $(spack location -i libxml2@2.13.5)/bin/xmllint /usr/local/bin/xmllint
+
+#################
+# Build openmpi #
+#################
+FROM xml2 AS openmpi
+
+# Avoid building CUDA since it is already provided by the base image
+# Also set the nvhpc compilers as externals to avoid building them from source
+RUN cat <<'EOF' > /root/.spack/packages.yaml
+packages:
+  cuda:
+    buildable: false
+    externals:
+    - spec: cuda@12.9
+      prefix: /opt/nvidia/hpc_sdk/Linux_x86_64/25.7/cuda
+  nvhpc:
+    buildable: false
+    externals:
+    - spec: nvhpc@25.7 languages:='c,c++,fortran'
+      prefix: /opt/nvidia/hpc_sdk/Linux_x86_64/25.7/compilers
+      extra_attributes:
+        compilers:
+          c: /opt/nvidia/hpc_sdk/Linux_x86_64/25.7/compilers/bin/nvc
+          cxx: /opt/nvidia/hpc_sdk/Linux_x86_64/25.7/compilers/bin/nvc++
+          fortran: /opt/nvidia/hpc_sdk/Linux_x86_64/25.7/compilers/bin/nvfortran
+  gcc:
+    externals:
+    - spec: gcc@13.3.0 languages:='c,c++,fortran'
+      prefix: /usr
+      extra_attributes:
+        compilers:
+          c: /usr/bin/gcc
+          cxx: /usr/bin/g++
+          fortran: /usr/bin/gfortran
+EOF
+
+# Tell Spack to scan the OS for Python and never compile it from source
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack external find --not-buildable python
+
+# Skip installing ucx as NVHPC can not build it
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install openmpi@5.0.8 fabrics=cma,ucx,ofi +cuda cuda_arch=86 %nvhpc@25.7 && \
+    ln -s $(spack location -i openmpi@5.0.8) /usr/local/openmpi
+
+#########################
+# Build parallel-netcdf #
+#########################
+FROM openmpi AS parallel_netcdf
+
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install parallel-netcdf@1.14.1 +cxx +fortran +pic +shared %nvhpc@25.7 ^openmpi@5.0.8 && \
+    ln -s $(spack location -i parallel-netcdf@1.14.1) /usr/local/pnetcdf
+
+################
+# Build netCDF #
+################
+FROM parallel_netcdf AS netcdf
+
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install netcdf-c@4.9.3 %nvhpc@25.7 ^openmpi@5.0.8 ^parallel-netcdf@1.14.1 && \
+    ln -s $(spack location -i netcdf-c@4.9.3) /usr/local/netcdf_c
+
+# Install netcdf-fortran; it will install the netcdf-c and openmpi dependency by default
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install netcdf-fortran@4.6.2 %nvhpc@25.7 ^netcdf-c@4.9.3 ^openmpi@5.0.8 && \
+    ln -s $(spack location -i netcdf-fortran@4.6.2) /usr/local/netcdf_fortran
+
+# Symlink the netcdf-c and netcdf-fortran installation directories to /usr/local so that CMake find_package works in a CAM build
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack view symlink -i /usr/local netcdf-c netcdf-fortran
+
+#############
+# Build PIO #
+#############
+FROM netcdf AS parallelio
+
+# Install parallelio; it will install the parallel-netcdf dependency by default
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install parallelio@2.6.6 +pnetcdf +fortran +mpi +shared +ncint %nvhpc@25.7 ^parallel-netcdf@1.14.1 ^openmpi@5.0.8 && \
+    ln -s $(spack location -i parallelio@2.6.6) /usr/local/pio
+
+##############
+# Build ESMF #
+##############
+FROM parallelio AS esmf
+
+# Use toolchains mechanism to set the NVHPC compilers as the default compilers for ESMF
+RUN cat <<'EOF' > /root/.spack/toolchains.yaml
+toolchains:
+  nvhpc-257:
+    - spec: '%c=nvhpc@25.7'
+      when: '%c'
+    - spec: '%cxx=nvhpc@25.7'
+      when: '%cxx'
+    - spec: '%fortran=nvhpc@25.7'
+      when: '%fortran'
+EOF
+
+# Install ESMF; it will install its parallelio and parallel-netcdf dependencies by default
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install py-cython@3.1.3 && \
+    # Patch the ESMF package.py to treat NVHPC as PGI instead of throwing an error
+    sed -i 's/raise InstallError(msg.format(self.pkg.compiler.name))/env.set("ESMF_COMPILER", "pgi")/g' $(spack location --package-dir esmf)/package.py && \
+    spack install "esmf@8.9.0 +pnetcdf +mpi +shared %nvhpc-257 ^parallelio@2.6.6 ^parallel-netcdf@1.14.1 ^openmpi@5.0.8" && \
+    ln -s $(spack location -i esmf@8.9.0) /usr/local/esmf
+
+################
+# Build LAPACK #
+################
+FROM esmf AS final_image
+
+RUN . /opt/spack/share/spack/setup-env.sh && \
+    spack install netlib-lapack@3.12.1 %nvhpc@25.7 && \
+    ln -s $(spack location -i netlib-lapack@3.12.1) /usr/local/lapack
+
+################################################
+# Set up environment variables for CI workflow #
+################################################
+ENV CXX=nvc++
+ENV CC=nvc
+ENV FC=nvfortran
+ENV MPI_ROOT="/usr/local/openmpi"
+ENV NETCDF_C_PATH="/usr/local/netcdf_c"
+ENV NETCDF_FORTRAN_PATH="/usr/local/netcdf_fortran"
+ENV PNETCDF="/usr/local/pnetcdf"
+ENV PIO="/usr/local/pio"
+ENV ESMFMKFILE="/usr/local/esmf/lib/esmf.mk"
+ENV LAPACK="/usr/local/lapack"
+ENV PIO_VERSION_MAJOR=2
+ENV PIO_TYPENAME_VALID_VALUES="netcdf, pnetcdf, netcdf4c, netcdf4p"
+ENV CUDA_ROOT="/usr/local/cuda"
+ENV CUBLAS_ROOT="/usr/local/math_libs"
+ENV PATH="/usr/local:/usr/local/bin:$MPI_ROOT/bin:$CUDA_ROOT/bin:${PATH}"
+ENV USER=robot
+# Set the default compiler for nvcc wrapper
+ENV NVCC_WRAPPER_DEFAULT_COMPILER=nvc++
+# Make sure nvc++ can find cuda headers
+ENV CPATH="${CUDA_ROOT}/include:${CPATH}"
+ENV CPLUS_INCLUDE_PATH="${CUDA_ROOT}/include:${CPLUS_INCLUDE_PATH}"
+# Force OpenMPI wrappers to use the NVHPC backend compilers
+ENV OMPI_CC=nvc
+ENV OMPI_CXX=nvc++
+ENV OMPI_FC=nvfortran
+
+##########################
+# Miscellaneous settings #
+##########################
+WORKDIR /tmp
+
+LABEL maintainer="Jian Sun"
+LABEL description="Ubuntu 24.04 container with nvhpc/25.7 and cuda/12.9 software stack for StormSPEED CAM"
+
+CMD ["/bin/bash"]

@@ -5,7 +5,7 @@ name: Build the images containing software stacks for StormSPEED CAM on CIRRUS
 #This workflow is only triggered manually when desired (e.g., an update of the base image)
 #This may only work when this file is present on the main branch
 on:
-  # pull_request: # Uncomment only if you want to rebuild the image and push it to Harbor
+  pull_request: # Uncomment only if you want to rebuild the image and push it to Harbor
   workflow_dispatch:
 
 concurrency:
@@ -24,6 +24,7 @@ jobs:
           - Dockerfile.opensuse15_gcc12_openmpi5.0.8_cpu
           - Dockerfile.opensuse15_gcc12_openmpi5.0.8_cuda12.9
           - Dockerfile.ubuntu24.04_nvhpc25.7_openmpi4.1.5_cpu
+          - Dockerfile.ubuntu24.04_nvhpc25.7_openmpi5.0.8_cuda12.9
           - Dockerfile.ubuntu24.04_nvhpc26.1_openmpi5.0.8_cuda12.9
         include:
           - dockerfile: Dockerfile.almalinux9.6_intel2024_openmpi5.0.8_cpu
@@ -33,6 +34,8 @@ jobs:
           - dockerfile: Dockerfile.ubuntu24.04_nvhpc25.7_openmpi4.1.5_cpu
             runner: gha-runner-stormspeed
           - dockerfile: Dockerfile.opensuse15_gcc12_openmpi5.0.8_cuda12.9
+            runner: gha-runner-gpu-stormspeed
+          - dockerfile: Dockerfile.ubuntu24.04_nvhpc25.7_openmpi5.0.8_cuda12.9
             runner: gha-runner-gpu-stormspeed
           - dockerfile: Dockerfile.ubuntu24.04_nvhpc26.1_openmpi5.0.8_cuda12.9
             runner: gha-runner-gpu-stormspeed

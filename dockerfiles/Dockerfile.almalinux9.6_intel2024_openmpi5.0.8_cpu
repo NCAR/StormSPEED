@@ -34,8 +34,8 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2
     rm -rf awscliv2.zip aws && \
     aws --version
 
-# Clone Spack with tag v1.0.0
-RUN git clone --depth=2 --branch v1.0.0 https://github.com/spack/spack.git
+# Clone Spack with tag v1.1.0
+RUN git clone --depth=2 --branch v1.1.0 https://github.com/spack/spack.git
 
 ########################
 # Build intel compiler #
