@@ -47,32 +47,38 @@ jobs:
         res: [ ne30_ne30_mg17 ]
         dycore: [ theta-l, theta-l_kokkos ]
         image: [
-          opensuse15_gcc12_openmpi5.0.8_cpu:970927a,
-          opensuse15_gcc12_openmpi5.0.8_cuda12.9:970927a,
-          almalinux9.6_intel2024_openmpi5.0.8_cpu:970927a,
-          ubuntu24.04_nvhpc25.7_openmpi4.1.5_cpu:970927a,
-          ubuntu24.04_nvhpc26.1_openmpi5.0.8_cuda12.9:970927a
+          opensuse15_gcc12_openmpi5.0.8_cpu:e9f55f1,
+          opensuse15_gcc12_openmpi5.0.8_cuda12.9:e9f55f1,
+          almalinux9.6_intel2024_openmpi5.0.8_cpu:e9f55f1,
+          ubuntu24.04_nvhpc25.7_openmpi4.1.5_cpu:e9f55f1,
+          ubuntu24.04_nvhpc25.7_openmpi5.0.8_cuda12.9:e9f55f1,
+          ubuntu24.04_nvhpc26.1_openmpi5.0.8_cuda12.9:e9f55f1
         ]
         include:
-          - image: opensuse15_gcc12_openmpi5.0.8_cpu:970927a
+          - image: opensuse15_gcc12_openmpi5.0.8_cpu:e9f55f1
             runner: gha-runner-stormspeed
             compiler: gnu
-          - image: almalinux9.6_intel2024_openmpi5.0.8_cpu:970927a
+          - image: almalinux9.6_intel2024_openmpi5.0.8_cpu:e9f55f1
             runner: gha-runner-stormspeed
             compiler: intel
-          - image: ubuntu24.04_nvhpc25.7_openmpi4.1.5_cpu:970927a
+          - image: ubuntu24.04_nvhpc25.7_openmpi4.1.5_cpu:e9f55f1
             runner: gha-runner-stormspeed
             compiler: nvhpc
-          - image: opensuse15_gcc12_openmpi5.0.8_cuda12.9:970927a
+          - image: opensuse15_gcc12_openmpi5.0.8_cuda12.9:e9f55f1
             runner: gha-runner-gpu-stormspeed
             compiler: gnu
-          - image: ubuntu24.04_nvhpc26.1_openmpi5.0.8_cuda12.9:970927a
+          - image: ubuntu24.04_nvhpc25.7_openmpi5.0.8_cuda12.9:e9f55f1
+            runner: gha-runner-gpu-stormspeed
+            compiler: nvhpc
+          - image: ubuntu24.04_nvhpc26.1_openmpi5.0.8_cuda12.9:e9f55f1
             runner: gha-runner-gpu-stormspeed
             compiler: nvhpc
         exclude:
-          - image: opensuse15_gcc12_openmpi5.0.8_cuda12.9:970927a
+          - image: opensuse15_gcc12_openmpi5.0.8_cuda12.9:e9f55f1
             dycore: theta-l
-          - image: ubuntu24.04_nvhpc26.1_openmpi5.0.8_cuda12.9:970927a
+          - image: ubuntu24.04_nvhpc25.7_openmpi5.0.8_cuda12.9:e9f55f1
+            dycore: theta-l
+          - image: ubuntu24.04_nvhpc26.1_openmpi5.0.8_cuda12.9:e9f55f1
             dycore: theta-l
     runs-on: ${{ matrix.runner }}
     container:

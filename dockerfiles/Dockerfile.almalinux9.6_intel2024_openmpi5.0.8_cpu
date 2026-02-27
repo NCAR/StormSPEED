@@ -34,8 +34,8 @@ RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2
     rm -rf awscliv2.zip aws && \
     aws --version
 
-# Clone Spack with tag v1.0.0
-RUN git clone --depth=2 --branch v1.0.0 https://github.com/spack/spack.git
+# Clone Spack with tag v1.1.0
+RUN git clone --depth=2 --branch v1.1.0 https://github.com/spack/spack.git
 
 ########################
 # Build intel compiler #
@@ -49,7 +49,7 @@ RUN . /opt/spack/share/spack/setup-env.sh && \
     update-alternatives --install /usr/bin/icx icx $(spack location -i intel-oneapi-compilers@2024.2.1)/compiler/2024.2/bin/icx 120 && \
     update-alternatives --install /usr/bin/ifort ifort $(spack location -i intel-oneapi-compilers@2024.2.1)/compiler/2024.2/bin/ifort 120 && \
     mkdir -p /usr/local/intel-oneapi-compiler && \
-    ln -s $(spack location -i intel-oneapi-compilers@2024.2.1)/compiler/2024.2 /usr/local/intel-oneapi-compiler/2024.2
+    ln -s $(spack location -i intel-oneapi-compilers@2024.2.1) /usr/local/intel-oneapi-compilers
 
 ########################
 # Build libxml2, cmake #
@@ -79,12 +79,12 @@ packages:
     buildable: false
     externals:
     - spec: intel-oneapi-compilers@2024.2.1 languages:='c,c++,fortran'
-      prefix: /usr/local/intel-oneapi-compiler/2024.2
+      prefix: /usr/local/intel-oneapi-compilers
       extra_attributes:
         compilers:
-          c: /usr/local/intel-oneapi-compiler/2024.2/bin/icx
-          cxx: /usr/local/intel-oneapi-compiler/2024.2/bin/icpx
-          fortran: /usr/local/intel-oneapi-compiler/2024.2/bin/ifort
+          c: /usr/local/intel-oneapi-compilers/compiler/2024.2/bin/icx
+          cxx: /usr/local/intel-oneapi-compilers/compiler/2024.2/bin/icpx
+          fortran: /usr/local/intel-oneapi-compilers/compiler/2024.2/bin/ifort
   gcc:
     externals:
     - spec: gcc@11.5.0 languages:='c,c++,fortran'
