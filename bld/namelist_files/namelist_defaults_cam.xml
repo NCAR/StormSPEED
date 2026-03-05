@@ -32,6 +32,7 @@
 <dtime dyn="se"    hgrid="ne60np4" > 900</dtime>
 <dtime dyn="se"    hgrid="ne120np4"> 450</dtime>
 <dtime dyn="se"    hgrid="ne240np4"> 225</dtime>
+<dtime dyn="se"    hgrid="ne1024np4"> 100</dtime>
 <dtime dyn="se"    hgrid="ne0np4CONUS.ne30x8">225</dtime>
 <dtime dyn="se"    hgrid="ne0np4.ARCTIC.ne30x4">450</dtime>
 <dtime dyn="se"    hgrid="ne0np4.ARCTICGRIS.ne30x8">225</dtime>
@@ -2029,6 +2030,7 @@
 <drydep_srf_file hgrid="ne120np4" npg="2">atm/cam/chem/trop_mam/atmsrf_ne120np4.pg2_200109.nc</drydep_srf_file>
 <drydep_srf_file hgrid="ne120np4" npg="3">atm/cam/chem/trop_mam/atmsrf_ne120np4.pg3_c210324.nc</drydep_srf_file>
 <drydep_srf_file hgrid="ne240np4"        >atm/cam/chem/trop_mam/atmsrf_ne240np4_110920.nc</drydep_srf_file>
+<drydep_srf_file hgrid="ne1024np4" npg="2">atm/cam/chem/trop_mam/atmsrf_ne1024.pg2_260211.nc</drydep_srf_file>
 
 <drydep_srf_file hgrid="ne0np4CONUS.ne30x8"      >atm/cam/chem/trop_mam/atmsrf_ne0np4conus30x8_161116.nc</drydep_srf_file>
 <drydep_srf_file hgrid="ne0np4.ARCTIC.ne30x4"    >atm/cam/chem/trop_mam/atmsrf_ne30x4_ARCTIC_191011.nc</drydep_srf_file>
@@ -3462,7 +3464,7 @@
 <se_tstep se_dyn_target="theta-l" hgrid="ne240np4"   >  37.5 </se_tstep>
 <se_tstep se_dyn_target="theta-l" hgrid="ne256np4"   >  33 </se_tstep>
 <se_tstep se_dyn_target="theta-l" hgrid="ne512np4"   >  16 </se_tstep>
-<se_tstep se_dyn_target="theta-l" hgrid="ne1024np4"  >   8 </se_tstep>
+<se_tstep se_dyn_target="theta-l" hgrid="ne1024np4"  >   8.33333333333333 </se_tstep>
 <se_tstep se_dyn_target="theta-l" hgrid="ne0np4.ARCTIC.ne30x4"       >   37.5 </se_tstep>
 <se_tstep se_dyn_target="theta-l" hgrid="ne0np4.ARCTICGRIS.ne30x8" > 18.75 </se_tstep>
 <se_tstep se_dyn_target="preqx"                      > -1  </se_tstep>
