@@ -86,7 +86,12 @@ type (snapshot_type)    ::  cnst_snapshot(pcnst)
 type (snapshot_type)    ::  tend_snapshot(6)
 type (snapshot_type)    ::  cam_in_snapshot(pcnst+31)   ! needs to be bigger than pcnst because cam_in is split by constituent.
 type (snapshot_type)    ::  cam_out_snapshot(30)
-type (snapshot_type_nd) ::  pbuf_snapshot(300)
+! pbuf_snapshot must be large enough to hold all pbuf fields that can be written by the
+! snapshot logic.  npbuf_all (currently 310) covers the hard-wired pbuf fields; the extra
+! margin here allows for additional data-driven pbuf fields and future expansion.
+! If new pbuf fields are added to the model or more fields are snapshotted, increase this
+! bound so that it remains >= the maximum number of pbuf entries used.
+type (snapshot_type_nd) ::  pbuf_snapshot(350)
 
 contains
 

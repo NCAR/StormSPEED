@@ -29,6 +29,8 @@
     use physconst,        only: stebol, latvap
     use scamMod
     use cam_abortutils,   only: endrun
+    use cam_logfile,      only: iulog
+    use spmd_utils,       only: masterproc
 
     implicit none
     save

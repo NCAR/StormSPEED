@@ -2316,9 +2316,35 @@
 <!-- CLUBB+MF options -->
 <do_clubb_mf                       > .false. </do_clubb_mf>
 <do_clubb_mf_diag                  > .false. </do_clubb_mf_diag>
+<do_clubb_mf_precip                > .false. </do_clubb_mf_precip>
+<do_clubb_mf_rad                   > .false. </do_clubb_mf_rad>
+<do_clubb_mf_addtke                > .false. </do_clubb_mf_addtke>
 <clubb_mf_L0                       > 50.0    </clubb_mf_L0>
-<clubb_mf_ent0                     > 0.22    </clubb_mf_ent0>
+<clubb_mf_ent0                     > 0.2     </clubb_mf_ent0>
+<clubb_mf_alphturb                 > 0.0     </clubb_mf_alphturb>
+<clubb_mf_Lopt                     > 0       </clubb_mf_Lopt>
+<clubb_mf_a0                       > 2.0     </clubb_mf_a0>
+<clubb_mf_b0                       > 0.5     </clubb_mf_b0>
 <clubb_mf_nup                      > 10      </clubb_mf_nup>
+<clubb_mf_max_L0                   > 10.e3   </clubb_mf_max_L0>
+<clubb_mf_fdd                      > 0.0     </clubb_mf_fdd>
+<do_clubb_mf_coldpool              > .false.  </do_clubb_mf_coldpool>
+<clubb_mf_ddalph                   > 2.e2    </clubb_mf_ddalph>
+<clubb_mf_ddbeta                   > 1.0     </clubb_mf_ddbeta>
+<clubb_mf_pwfac                    > 1.0     </clubb_mf_pwfac>
+<clubb_mf_ddexp                    > 3.0     </clubb_mf_ddexp>
+<clubb_mf_cldfrac_fac              > 1.0     </clubb_mf_cldfrac_fac>
+<do_clubb_mf_ustar                 > .false. </do_clubb_mf_ustar>
+<do_clubb_mf_mixd                  > .false. </do_clubb_mf_mixd>
+<clubb_mf_up_ndt                   > 1       </clubb_mf_up_ndt>
+<clubb_mf_cp_ndt                   > 1       </clubb_mf_cp_ndt>
+<do_clubb_mf_rhtke                 > .false. </do_clubb_mf_rhtke>
+<do_clubb_mf_cmt                   > .false. </do_clubb_mf_cmt>
+<do_clubb_mf_lscale_perplume       > .false. </do_clubb_mf_lscale_perplume>
+<do_clubb_mf_coldpool_init         > .false. </do_clubb_mf_coldpool_init>
+<do_clubb_mf_coldpool_perplume     > .false. </do_clubb_mf_coldpool_perplume>
+<clubb_mf_kseed                    > 1       </clubb_mf_kseed>
+<do_clubb_mf_aloft                 > .false. </do_clubb_mf_aloft>
 
 <!-- Set radiation intervals based on mpas hgrids -->
 <iradlw hgrid="mpasa15"  > 10 </iradlw>
@@ -2426,6 +2452,9 @@
 <cld_macmic_num_steps microphys="mg2" clubb_sgs="1" dtime="225" > 1 </cld_macmic_num_steps>
 <cld_macmic_num_steps microphys="mg3" clubb_sgs="1" dtime="450" > 2 </cld_macmic_num_steps>
 <cld_macmic_num_steps microphys="mg3" clubb_sgs="1" dtime="225" > 1 </cld_macmic_num_steps>
+<!-- ARH - SCAM time-stepping -->
+<cld_macmic_num_steps microphys="mg2" clubb_sgs="1" scam="1"    > 6 </cld_macmic_num_steps>
+<cld_macmic_num_steps microphys="mg3" clubb_sgs="1" scam="1"    > 6 </cld_macmic_num_steps>
 
 <!-- Ice nucleation -->
 <nucleate_ice_subgrid                                  >1.0D0</nucleate_ice_subgrid>
@@ -2965,7 +2994,7 @@
   'T', 'bc_a1', 'bc_a4', 'dst_a1', 'dst_a2', 'dst_a3', 'ncl_a1', 'ncl_a2', 'ncl_a3',
   'num_a1', 'num_a2', 'num_a3', 'num_a4', 'pom_a1', 'pom_a4', 'so4_a1', 'so4_a2', 'so4_a3', 'soa_a1', 'soa_a2'
 </scm_relax_fincl>
-<scm_relax_fincl   phys="cam_dev"scam="1"  >
+<scm_relax_fincl   phys="cam7"   scam="1"  >
   'T', 'bc_a1', 'bc_a4', 'dst_a1', 'dst_a2', 'dst_a3', 'ncl_a1', 'ncl_a2', 'ncl_a3',
   'num_a1', 'num_a2', 'num_a3', 'num_a4', 'pom_a1', 'pom_a4', 'so4_a1', 'so4_a2', 'so4_a3', 'soa_a1', 'soa_a2'
 </scm_relax_fincl>
@@ -3349,8 +3378,8 @@
 <se_refined_mesh hgrid="ne0np4.ARCTICGRIS.ne30x8" > .true. </se_refined_mesh>
 <se_refined_mesh hgrid="ne0np4.MIDWEST.ne30x5" > .true. </se_refined_mesh>
 
-<se_nsplit se_dyn_target="cam"                                                >  2 </se_nsplit>
-<se_nsplit se_dyn_target="cam" hgrid="ne16np4"                                >  1 </se_nsplit>
+<se_nsplit                                                                    >  2 </se_nsplit>
+<se_nsplit hgrid="ne16np4"                                                    >  1 </se_nsplit>
 
 <se_nsplit hgrid="ne5np4"   waccm_phys="1"                                    >  3  </se_nsplit>
 <se_nsplit hgrid="ne16np4"  waccmx="1" model_top="none"                       >  3  </se_nsplit>
@@ -3379,7 +3408,6 @@
 
 <se_nsplit hgrid="ne0np4TESTONLY.ne5x4"> 7 </se_nsplit>
 <se_nsplit waccmx="1" hgrid="ne120np4" nlev="273" > 10 </se_nsplit>
-
 
 <se_rsplit                                          > 3 </se_rsplit>
 <se_rsplit waccm_phys="1" waccmx="0"                > 2 </se_rsplit>

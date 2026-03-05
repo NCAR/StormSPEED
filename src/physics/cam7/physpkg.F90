@@ -1509,6 +1509,10 @@ contains
     real(r8),pointer :: prec_sed(:)     ! total precip from cloud sedimentation
     real(r8),pointer :: snow_sed(:)     ! snow from cloud ice sedimentation
 
+    ! CLUBB+MF
+    real(r8),pointer :: prec_sh(:)      ! total precipitation from Hack convection
+    real(r8),pointer :: snow_sh(:)      ! snow from Hack convection
+
     ! Local copies for substepping
     real(r8) :: prec_pcw_macmic(pcols)
     real(r8) :: snow_pcw_macmic(pcols)
@@ -1518,6 +1522,10 @@ contains
     ! carma precipitation variables
     real(r8) :: prec_sed_carma(pcols)          ! total precip from cloud sedimentation (CARMA)
     real(r8) :: snow_sed_carma(pcols)          ! snow from cloud ice sedimentation (CARMA)
+
+    ! CLUBB+MF
+    real(r8) :: prec_sh_macmic(pcols)
+    real(r8) :: snow_sh_macmic(pcols)
 
     logical :: labort                            ! abort flag
 
@@ -1605,6 +1613,9 @@ contains
       call pbuf_get_field(pbuf, prec_str_idx, prec_str_sc, col_type=col_type_subcol)
       call pbuf_get_field(pbuf, snow_str_idx, snow_str_sc, col_type=col_type_subcol)
     end if
+
+    call pbuf_get_field(pbuf, prec_sh_idx, prec_sh )
+    call pbuf_get_field(pbuf, snow_sh_idx, snow_sh )
 
     if (dlfzm_idx > 0) then
        call pbuf_get_field(pbuf, dlfzm_idx, dlfzm)
@@ -1722,6 +1733,10 @@ contains
        prec_pcw_macmic = 0._r8
        snow_pcw_macmic = 0._r8
 
+       ! CLUBB+MF
+       prec_sh_macmic = 0._r8
+       snow_sh_macmic = 0._r8
+
        ! contrail parameterization
        ! see Chen et al., 2012: Global contrail coverage simulated
        !                        by CAM5 with the inventory of 2006 global aircraft emissions, JAMES
@@ -1756,7 +1771,7 @@ contains
 
              ! Since we "added" the reserved liquid back in this routine, we need
              ! to account for it in the energy checker
-             flx_cnd(:ncol) = -1._r8*rliq(:ncol)
+             flx_cnd(:ncol) = -1._r8*rliq(:ncol) + prec_sh(:ncol)
              flx_heat(:ncol) = cam_in%shf(:ncol) + det_s(:ncol)
 
              ! Unfortunately, physics_update does not know what time period
@@ -1788,6 +1803,10 @@ contains
                 flx_heat(:ncol)/cld_macmic_num_steps)
 
           call t_stopf('macrop_tend')
+
+          ! CLUBB+MF
+          prec_sh_macmic(:ncol) = prec_sh_macmic(:ncol) + prec_sh(:ncol)
+          snow_sh_macmic(:ncol) = snow_sh_macmic(:ncol) + snow_sh(:ncol)
 
           !===================================================
           ! Calculate cloud microphysics
@@ -1935,6 +1954,10 @@ contains
        snow_pcw(:ncol) = snow_pcw_macmic(:ncol)/cld_macmic_num_steps
        prec_str(:ncol) = prec_pcw(:ncol) + prec_sed(:ncol)
        snow_str(:ncol) = snow_pcw(:ncol) + snow_sed(:ncol)
+
+       ! CLUBB+MF
+       prec_sh(:ncol) = prec_sh_macmic(:ncol)/cld_macmic_num_steps
+       snow_sh(:ncol) = snow_sh_macmic(:ncol)/cld_macmic_num_steps
 
     endif
 

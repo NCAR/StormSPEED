@@ -156,6 +156,7 @@ contains
 ! **** Initialize the aircraft aerosol data handling ****
 !-------------------------------------------------------------------
     use cam_history,    only: addfld, add_default
+    use dycore,         only: dycore_is
     use tracer_data,    only: trcdata_init
     use phys_control,   only: phys_getopts
 
@@ -208,7 +209,12 @@ contains
           !-----------------------------------------------------------------------
           forcings_air(m)%file%stepTime    = .true.  ! Aircraft data is not to be interpolated in time
           forcings_air(m)%file%cyclical_list    = .true.  ! Aircraft data cycles over the filename list
-          forcings_air(m)%file%weight_by_lat     = .true.  ! Aircraft data -  interpolated with latitude weighting
+
+          if (dycore_is('LR')) then
+             forcings_air(m)%file%weight_by_lat     = .true.  ! Aircraft data -  interpolated with latitude weighting
+          else
+             forcings_air(m)%file%weight_by_lat     = .false.  ! Aircraft data -  interpolated with latitude weighting
+          end if
           forcings_air(m)%file%conserve_column = .true. ! Aircraft data - vertically interpolated to conserve the total column
           forcings_air(m)%file%dist = dist(m)
           forcings_air(m)%species          = spc_name

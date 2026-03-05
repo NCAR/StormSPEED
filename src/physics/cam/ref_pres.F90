@@ -145,6 +145,7 @@ subroutine ref_pres_init(pref_edge_in, pref_mid_in, num_pr_lev_in)
 
    ! Find level corresponding to the molecular diffusion bottom.
    do_molec_diff = (ptop_ref < do_molec_press)
+
    if (do_molec_diff) then
       nbot_molec = press_lim_idx(molec_diff_bot_press, &
          top=.false.)

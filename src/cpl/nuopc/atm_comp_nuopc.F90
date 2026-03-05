@@ -1165,7 +1165,6 @@ contains
        call t_startf ('CAM_run1')
        call cam_run1 ( cam_in, cam_out )
        call t_stopf  ('CAM_run1')
-
     end do
 
     if (mediator_present) then
