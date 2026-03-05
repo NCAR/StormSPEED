@@ -138,7 +138,7 @@ fxDONOTUSEurl = https://github.com/ESCOMP/mizuRoute
 [submodule "ccs_config"]
 path = ccs_config
 url = https://github.com/jtruesdal/ccs_config_cesm.git
-fxtag = ccs_config_cesm1.0.63_nh.01
+fxtag = ccs_config_cesm1.0.63_nh.02
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/jtruesdal/ccs_config_cesm.git
 
@@ -151,10 +151,10 @@ fxDONOTUSEurl = https://github.com/ESMCI/cime.git
 
 [submodule "cmeps"]
 path = components/cmeps
-url = https://github.com/ESCOMP/CMEPS.git
-fxtag = cmeps1.1.16
+url = https://github.com/jtruesdal/CMEPS.git
+fxtag = cmeps1.1.16.nh.001
 fxrequired = ToplevelRequired
-fxDONOTUSEurl = https://github.com/ESCOMP/CMEPS.git
+fxDONOTUSEurl = https://github.com/jtruesdal/CMEPS.git
 
 [submodule "cdeps"]
 path = components/cdeps
@@ -186,10 +186,10 @@ fxDONOTUSEurl = https://github.com/ESCOMP/CESM_CICE
 
 [submodule "clm"]
 path = components/clm
-url = https://github.com/ESCOMP/CTSM
-fxtag = alpha-ctsm5.4.CMIP7.09.ctsm5.3.068
+url = https://github.com/jtruesdal/ctsm.git
+fxtag = alpha-ctsm5.4.CMIP7.09.ctsm5.3.068.nh.001
 fxrequired = ToplevelRequired
-fxDONOTUSEurl = https://github.com/ESCOMP/CTSM
+fxDONOTUSEurl = https://github.com/jtruesdal/ctsm.git
 
 [submodule "fms"]
 path = libraries/FMS
