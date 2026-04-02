@@ -187,7 +187,7 @@ fxDONOTUSEurl = https://github.com/ESCOMP/CESM_CICE
 [submodule "clm"]
 path = components/clm
 url = https://github.com/jtruesdal/ctsm.git
-fxtag = alpha-ctsm5.4.CMIP7.09.ctsm5.3.068.nh.001
+fxtag = ctsm5.3.078_nh_kluzekdobbins_01
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/jtruesdal/ctsm.git
 
