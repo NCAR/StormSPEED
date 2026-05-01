@@ -1021,7 +1021,9 @@ subroutine read_inidat(dyn_in)
 !jt    endif
    ! Set ICs.  Either from analytic expressions or read from file.
 
-   if (analytic_ic_active() .and. (iam < par%nprocs)) then
+!jt   if (analytic_ic_active() .and. (iam < par%nprocs)) then
+   if (analytic_ic_active()) then
+   if (iam < par%nprocs) then
 
       ! PHIS has already been set by set_phis.  Get local copy for
       ! possible use in setting T and PS in the analytic IC code.
@@ -1104,6 +1106,7 @@ subroutine read_inidat(dyn_in)
          end do
       end do
       deallocate(dbuf4)
+   endif
    else
 
       ! Read ICs from file.  Assume all fields in the initial file are on the GLL grid.
