@@ -101,11 +101,11 @@
 
 [submodule "clubb"]
 	path = src/physics/clubb
-	url = https://github.com/larson-group/clubb_release
-        fxrequired = AlwaysRequired
-        fxsparse = ../.clubb_sparse_checkout
-        fxtag = clubb_4ncar_20240605_73d60f6_gpufixes_posinf
-        fxDONOTUSEurl = https://github.com/larson-group/clubb_release
+    url = https://github.com/adamrher/clubb_release
+	fxrequired = AlwaysRequired
+    fxsparse = ../.clubb_sparse_checkout
+	fxtag = d224307f798b654f5312a9f035568c8a99ca400c
+    fxDONOTUSEurl = https://github.com/adamrher/clubb_release
 
 [submodule "ext_co2_cooling"]
 	path = src/physics/ext_co2_cooling
@@ -199,6 +199,13 @@ fxtag = fi_250428
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/ESCOMP/FMS_interface
 
+[submodule "kokkos"]
+path = libraries/kokkos
+url = https://github.com/E3SM-Project/kokkos
+fxtag = 6a19eb9 
+fxrequired = ToplevelRequired
+fxDONOTUSEurl = https://github.com/E3SM-Project/kokkos
+
 [submodule "tools/CUPiD"]
 path = tools/CUPiD
 url = https://github.com/NCAR/CUPiD.git
@@ -212,3 +219,11 @@ url = https://github.com/NCAR/tuv-x.git
 fxtag = v0.14.3
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/NCAR/tuv-x.git
+
+[submodule "senh/dycore"]
+path = src/dynamics/senh/dycore
+url = https://github.com/E3SM-Project/E3SM.git
+fxrequired = AlwaysRequired
+fxsparse = ../.e3sm_sparse_checkout
+fxtag = 057df66
+fxDONOTUSEurl = https://github.com/E3SM-Project/E3SM.git
