@@ -29,7 +29,7 @@
 [submodule "atmos_phys"]
 	path = src/atmos_phys
 	url = https://github.com/ESCOMP/atmospheric_physics
-	fxtag = atmos_phys0_21_000
+	fxtag = atmos_phys0_21_002
         fxrequired = AlwaysRequired
         fxDONOTUSEurl = https://github.com/ESCOMP/atmospheric_physics
 
@@ -72,7 +72,7 @@
 [submodule "hemco"]
 	path = src/hemco
 	url = https://github.com/ESCOMP/HEMCO_CESM.git
-        fxtag = hemco-cesm2_2_0_hemco3_10_3
+        fxtag = hemco-cesm2_3_0_hemco3_10_3
         fxrequired = AlwaysRequired
 	fxDONOTUSEurl = https://github.com/ESCOMP/HEMCO_CESM.git
 
@@ -101,11 +101,11 @@
 
 [submodule "clubb"]
 	path = src/physics/clubb
-    url = https://github.com/adamrher/clubb_release
-	fxrequired = AlwaysRequired
-    fxsparse = ../.clubb_sparse_checkout
-	fxtag = d224307f798b654f5312a9f035568c8a99ca400c
-    fxDONOTUSEurl = https://github.com/adamrher/clubb_release
+	url = https://github.com/larson-group/clubb_release
+        fxrequired = AlwaysRequired
+        fxsparse = ../.clubb_sparse_checkout
+        fxtag = clubb_4ncar_20260109_ddf5110
+        fxDONOTUSEurl = https://github.com/larson-group/clubb_release
 
 [submodule "ext_co2_cooling"]
 	path = src/physics/ext_co2_cooling
