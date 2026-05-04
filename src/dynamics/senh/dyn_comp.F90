@@ -1,4 +1,4 @@
-module dyn_comp
+Module dyn_comp
 
 use bndry_mod,               only: bndry_exchangev
 use cam_abortutils,          only: endrun
@@ -1021,9 +1021,9 @@ subroutine read_inidat(dyn_in)
 !jt    endif
    ! Set ICs.  Either from analytic expressions or read from file.
 
-!jt   if (analytic_ic_active() .and. (iam < par%nprocs)) then
-   if (analytic_ic_active()) then
-   if (iam < par%nprocs) then
+   if (analytic_ic_active() .and. (iam < par%nprocs)) then
+!   if (analytic_ic_active()) then
+!   if (iam < par%nprocs) then
 
       ! PHIS has already been set by set_phis.  Get local copy for
       ! possible use in setting T and PS in the analytic IC code.
@@ -1106,7 +1106,7 @@ subroutine read_inidat(dyn_in)
          end do
       end do
       deallocate(dbuf4)
-   endif
+!   endif
    else
 
       ! Read ICs from file.  Assume all fields in the initial file are on the GLL grid.
@@ -2056,8 +2056,13 @@ subroutine read_dyn_field_2d(fieldname, fh, dimname, buffer)
    ! to NaN.  In that case infld can return NaNs where the element GLL points
    ! are not "unique columns"
    ! Set NaNs or fillvalue points to zero
-   where (isnan(buffer) .or. (buffer==fillvalue)) buffer = 0.0_r8
-
+   ! First, clean up any NaNs in the buffer directly
+   where (isnan(buffer)) buffer = 0.0_r8
+   
+   ! Second, ONLY perform the equality check if fillvalue is a valid, finite number
+   if (.not. isnan(fillvalue)) then
+      where (buffer == fillvalue) buffer = 0.0_r8
+   end if
 end subroutine read_dyn_field_2d
 
 !========================================================================================
@@ -2088,7 +2093,13 @@ subroutine read_dyn_field_3d(fieldname, fh, dimname, buffer)
    ! to NaN.  In that case infld can return NaNs where the element GLL points
    ! are not "unique columns"
    ! Set NaNs or fillvalue points to zero
-   where (isnan(buffer) .or. (buffer == fillvalue)) buffer = 0.0_r8
+   ! First, clean up any NaNs in the buffer directly
+   where (isnan(buffer)) buffer = 0.0_r8
+   
+   ! Second, ONLY perform the equality check if fillvalue is a valid, finite number
+   if (.not. isnan(fillvalue)) then
+      where (buffer == fillvalue) buffer = 0.0_r8
+   end if
 
 end subroutine read_dyn_field_3d
 

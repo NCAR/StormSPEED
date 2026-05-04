@@ -225,8 +225,6 @@ integer :: irad_always_modified
 
 real(kind=r8) :: tiny
 
-real(kind=r8) :: tiny
-
 ! Band indices for bands containing specific wavelengths
 integer :: idx_sw_diag
 integer :: idx_nir_diag
@@ -819,7 +817,7 @@ subroutine radiation_tend( &
    use phys_grid,                         only: get_rlat_all_p, get_rlon_all_p
    use cam_control_mod,                   only: eccen, mvelpp, lambm0, obliqr
    use shr_orb_mod,                       only: shr_orb_decl, shr_orb_cosz
-   
+
    ! CCPPized schemes
    use rrtmgp_inputs,                     only: rrtmgp_inputs_run
    use rrtmgp_pre,                        only: rrtmgp_pre_run, rrtmgp_pre_timestep_init
