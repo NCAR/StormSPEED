@@ -183,7 +183,7 @@ module clubb_mf
 
   end subroutine clubb_mf_readnl
 
-  subroutine integrate_mf( nz,                                                      & ! input
+  subroutine integrate_mf( nz, nzm, nzt,                                            & ! input
                            rho_zm,  dzm,     zm,      p_zm,      iexner_zm,         & ! input
                            rho_zt,  dzt,     zt,      p_zt,      iexner_zt,         & ! input
                            u,       v,       thl,     qt,        thv,               & ! input
@@ -255,16 +255,17 @@ module clubb_mf
 
      use wv_saturation,      only : qsat
 
-     integer,  intent(in)                :: nz, ktropo
-     real(r8), dimension(nz), intent(in) :: u,      v,            & ! thermodynamic grid
+     integer,  intent(in)                :: nz, nzm, nzt, ktropo
+     real(r8), dimension(nzt), intent(in) :: u,      v,            & ! thermodynamic grid
                                             w,                    &
                                             thl,    thv,          & ! thermodynamic grid
                                             th,     qv,           & ! thermodynamic grid
                                             qt,     qc,           & ! thermodynamic grid
                                             p_zt,   iexner_zt,    & ! thermodynamic grid
                                             dzt,    rho_zt,       & ! thermodynamic grid
-                                            zt,                   & ! thermodynamic grid
-                                            thl_zm, thv_zm,       & ! momentum grid
+                                            zt
+
+     real(r8), dimension(nzm), intent(in) :: thl_zm, thv_zm,       & ! momentum grid
                                             th_zm,  qv_zm,        &
                                             qt_zm,  qc_zm,        & ! momentum grid
                                             p_zm,   iexner_zm,    & ! momentum grid
@@ -281,7 +282,7 @@ module clubb_mf
 
      real(r8),dimension(clubb_mf_nup), intent(inout)  :: ztopm1,ddcp
 
-     real(r8),dimension(nz,clubb_mf_nup), intent(out) :: upa,     & ! momentum grid
+     real(r8),dimension(nzm,clubb_mf_nup), intent(out) :: upa,     & ! momentum grid
                                                          upw,     & ! momentum grid
                                                          upmf,    & ! momentum grid
                                                          upqt,    & ! momentum grid
@@ -293,7 +294,7 @@ module clubb_mf
                                                          upent,   & ! momentum grid
                                                          updet
      !
-     real(r8),dimension(nz,clubb_mf_nup), intent(out) :: dna,     & ! momentum grid
+     real(r8),dimension(nzm,clubb_mf_nup), intent(out) :: dna,     & ! momentum grid
                                                          dnw,     & ! momentum grid
                                                          dnqt,    & ! momentum grid
                                                          dnthl,   & ! momentum grid
@@ -301,7 +302,7 @@ module clubb_mf
                                                          dnth,    & ! momentum grid
                                                          dnqc
      !
-     real(r8),dimension(nz), intent(out) :: dry_a,   moist_a,     & ! momentum grid
+     real(r8),dimension(nzm), intent(out) :: dry_a,   moist_a,     & ! momentum grid
                                             dry_w,   moist_w,     & ! momentum grid
                                             dry_qt,  moist_qt,    & ! momentum grid
                                             dry_thl, moist_thl,   & ! momentum grid
@@ -309,7 +310,7 @@ module clubb_mf
                                             dry_v,   moist_v,     & ! momentum grid
                                                      moist_qc       ! momentum grid
      !
-     real(r8),dimension(nz), intent(out) :: ae,                                &
+     real(r8),dimension(nzm), intent(out) :: ae,                                &
                                             ac,      aup,     adn,             &
                                             aw,      awup,    awdn,            &
                                             aww,     awwup,  awwdn,            &
@@ -331,32 +332,32 @@ module clubb_mf
      ! INTERNAL VARIABLES
      !
      ! sums over all plumes
-     real(r8), dimension(nz)              :: moist_th,   dry_th,       & 
+     real(r8), dimension(nzm)              :: moist_th,   dry_th,       & 
                                              thl_env,    qt_env,       & 
                                              thv_env,                  &
                                              thvflxup,   thvflxdn,     &
                                              awthvup,    awthvdn
      !
      ! updraft properties
-     real(r8), dimension(nz,clubb_mf_nup) :: upqv,     upqs,           & ! momentum grid
+     real(r8), dimension(nzm,clubb_mf_nup) :: upqv,     upqs,           & ! momentum grid
                                              upql,     upqi,           & ! momentum grid
                                              upu,      upv,            & ! momentum grid 
                                              uplmix,   upauto            ! momentum grid
      !
      ! downdraft properties
-     real(r8), dimension(nz,clubb_mf_nup) ::           dnqs,           & ! momentum grid
+     real(r8), dimension(nzm,clubb_mf_nup) ::           dnqs,           & ! momentum grid
                                              dnql,     dnqi,           & ! momentum grid
                                              dnu,      dnv,            & ! momentum grid 
                                              dnlmix                      ! momentum grid
      !
      ! microphyiscs terms
-     real(r8), dimension(nz,clubb_mf_nup) :: supqt,    supthl,         & ! thermodynamic grid 
+     real(r8), dimension(nzt,clubb_mf_nup) :: supqt,    supthl,         & ! thermodynamic grid 
                                              sdnqt,    sdnthl,         & ! thermodynamic grid
                                              uprr,     dnrr                        
      !
      ! entrainment profiles
-     real(r8), dimension(nz,clubb_mf_nup) :: entf,     mix               ! thermodynamic grid
-     integer,  dimension(nz,clubb_mf_nup) :: enti                        ! thermodynamic grid
+     real(r8), dimension(nzt,clubb_mf_nup) :: entf,     mix               ! thermodynamic grid
+     integer,  dimension(nzt,clubb_mf_nup) :: enti                        ! thermodynamic grid
      ! 
      ! other variables
      integer                              :: k,i,kstart,ddtop,kcb,kpbl,kmid,nbot !+++arh
@@ -796,7 +797,7 @@ module clubb_mf
              end do
          else
            !else set dxext to height above the suface
-           dzext = zm(kstart) - zm(nz)
+           dzext = zm(kstart) - zm(nzm)
            nbot = kstart-nz
          end if
 
@@ -852,7 +853,7 @@ module clubb_mf
        end do
 
        ! get poisson, P(dz/L0)
-       call poisson( nz, clubb_mf_nup, entf, enti, u(clubb_mf_kseed+1:clubb_mf_kseed+4))
+       call poisson( nzt, clubb_mf_nup, entf, enti, u(clubb_mf_kseed+1:clubb_mf_kseed+4))
 
        ! --------------------------------------------------------- !
        ! Main upward sweep to compute updraft properties           ! 
