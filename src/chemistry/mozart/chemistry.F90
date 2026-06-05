@@ -1346,11 +1346,13 @@ end function chem_is_active
     use rate_diags, only: rate_diags_final
     use species_sums_diags, only: species_sums_final
     use short_lived_species, only: short_lived_species_final
+    use mo_photo, only: photo_final
 
     call mee_ion_final()
     call rate_diags_final()
     call species_sums_final()
     call short_lived_species_final()
+    call photo_final()
 
   end subroutine chem_final
 

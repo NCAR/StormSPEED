@@ -26,7 +26,7 @@ contains
     use mo_constants,     only: pi, d2r
     use pio,              only: file_desc_t,pio_inq_dimid,pio_inq_dimlen,pio_get_var,pio_inq_varid, PIO_NOWRITE
     use phys_grid,        only: get_ncols_p, get_rlat_all_p, get_rlon_all_p
-    use cam_pio_utils,    only: cam_pio_openfile
+    use cam_pio_utils,    only: cam_pio_openfile, cam_pio_closefile
     use ioFileMod,        only: getfil
 
     real(r8),         intent(in) :: dust_emis_fact
@@ -78,6 +78,10 @@ contains
 
     ierr = pio_inq_varid( ncid, 'mbl_bsn_fct_geo', vid )
     ierr = pio_get_var( ncid, vid, soil_erodibility_in )
+
+    ! File is fully read at this point; close it before the (in-memory) regridding
+    ! so the PIO/NetCDF handle is not held open for the rest of the run.
+    call cam_pio_closefile( ncid )
 
     !-----------------------------------------------------------------------
     !     	... convert to radians and setup regridding
