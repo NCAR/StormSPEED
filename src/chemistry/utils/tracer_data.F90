@@ -133,6 +133,12 @@ module tracer_data
      logical :: top_bndry = .false.
      logical :: top_layer = .false.
      logical :: stepTime = .false.  ! Do not interpolate in time, but use stepwise times
+     ! Bookkeeping for in-memory carry-forward of the overlapping time slice.
+     ! When the bracketing window advances by exactly one record, the new lower
+     ! record equals the previous upper record already resident in input(2), so
+     ! it can be copied forward instead of re-read from disk.
+     integer :: loaded_recno(2) = -1  ! file record numbers resident in input(1:2)
+     integer :: loaded_fh(2)    = -1  ! PIO file handle (curr vs next) owning each
   endtype trfile
 
   integer, public, parameter :: MAXTRCRS = 100
@@ -1285,6 +1291,7 @@ contains
     integer :: strt3(3)           ! array of starting indices
     type(file_desc_t) :: fids(4)
     logical :: times_found
+    logical :: carry   ! .true. when input(1) can be carried from the resident input(2)
 
     integer :: cur_yr, cur_mon, cur_day, cur_sec, yr1, yr2, mon, date, sec
     real(r8) :: series1_time, series2_time
@@ -1367,7 +1374,27 @@ contains
     ! Set up hyperslab corners
     !
 
+    ! If the bracketing window advanced by exactly one record, the new lower
+    ! record (recnos(1)) equals the previous upper record already resident in
+    ! input(2)/ps_in(2).  Carry it forward in memory instead of re-reading it
+    ! from disk (this halves the per-update forcing I/O, time-axis broadcast and
+    ! interpolation work).  Only the 2-record path is eligible.
+    carry = ( file%interp_recs == 2 .and. file%initialized .and. &
+              recnos(1) == file%loaded_recno(2) .and. fids(1)%fh == file%loaded_fh(2) )
+
     do i=1,file%interp_recs
+
+       if ( carry .and. i == 1 ) then
+          ! input(2) -> input(1) (and ps_in(2) -> ps_in(1)) is bit-identical to
+          ! the value the old code re-read for this record.
+          do f = 1,nflds
+             flds(f)%input(1)%data(:,:,:) = flds(f)%input(2)%data(:,:,:)
+          end do
+          if ( file%has_ps ) then
+             file%ps_in(1)%data(:,:) = file%ps_in(2)%data(:,:)
+          end if
+          cycle
+       end if
 
        strt4(:) = 1
        strt3(:) = 1
@@ -1441,6 +1468,17 @@ contains
        endif
 
     enddo
+
+    ! Remember which records are now resident so the next update can carry the
+    ! overlapping slice forward.  Only the 2-record path supports carry; other
+    ! paths (stepTime=1 record, fill_in_months=4 records) invalidate it.
+    if ( file%interp_recs == 2 ) then
+       file%loaded_recno(1:2) = recnos(1:2)
+       file%loaded_fh(1:2)    = (/ fids(1)%fh, fids(2)%fh /)
+    else
+       file%loaded_recno(:) = -1
+       file%loaded_fh(:)    = -1
+    end if
 
   end subroutine read_next_trcdata
 
