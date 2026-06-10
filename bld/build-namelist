@@ -3709,6 +3709,7 @@ if ($clubb_sgs  =~ /$TRUE/io) {
    add_default($nl, 'clubb_mf_ddbeta');
    add_default($nl, 'clubb_mf_pwfac');
    add_default($nl, 'clubb_mf_ddexp');
+   add_default($nl, 'clubb_mf_cldfrac_fac');
    add_default($nl, 'do_clubb_mf_ustar');
    add_default($nl, 'do_clubb_mf_mixd');
    add_default($nl, 'clubb_mf_up_ndt');
@@ -3719,6 +3720,7 @@ if ($clubb_sgs  =~ /$TRUE/io) {
    add_default($nl, 'do_clubb_mf_lscale_perplume');
    add_default($nl, 'do_clubb_mf_coldpool_perplume');
    add_default($nl, 'do_clubb_mf_coldpool_init');
+   add_default($nl, 'do_clubb_mf_aloft');
 }
 
 # Tuning for wet scavenging of modal aerosols
