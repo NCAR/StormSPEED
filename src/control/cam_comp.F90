@@ -28,6 +28,7 @@ use offline_driver,    only: offline_driver_init, offline_driver_dorun, offline_
 use perf_mod
 use cam_logfile,       only: iulog
 use cam_abortutils,    only: endrun
+use cam_shmem_mod,     only: cam_shmem_init
 
 implicit none
 private
@@ -131,6 +132,12 @@ subroutine cam_init(                                             &
    !-----------------------------------------------------------------------
 
    call init_pio_subsystem()
+
+   ! Build the cam_shmem per-node/leader communicators now, at this early all-ranks
+   ! collective point, so the first MPI_Comm_split_type(SHARED) is not paid cold mid-
+   ! physprop (rad_cnst_init).  Needed for the theta-l dycore, which (unlike
+   ! theta-l_kokkos/COMPOSE) does no early SHARED comm-split to warm it.
+   call cam_shmem_init()
 
    ! Initializations using data passed from coupler.
    call cam_ctrl_init(               &

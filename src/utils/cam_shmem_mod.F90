@@ -44,6 +44,7 @@ module cam_shmem_mod
    public :: cam_shmem_is_leader     ! .true. on the leader (rank 0) of this node
    public :: cam_shmem_leader_comm   ! communicator containing only node leaders
    public :: cam_shmem_npes_per_node ! number of ranks sharing this node
+   public :: cam_shmem_init          ! force one-time node-comm setup at an early collective point
 
    ! Generic finalizer: free whatever node-shared table the pointer aliases.  Safe
    ! to call blindly on an unallocated table (win == -1 / null pointer -> no-op).
@@ -136,6 +137,19 @@ contains
       end if
    end subroutine shmem_alloc_bytes
 #endif
+
+!===============================================================================
+
+   subroutine cam_shmem_init()
+      ! Force the one-time node-local / node-leader communicator setup NOW, at a
+      ! controlled early all-ranks collective point, instead of lazily on the first
+      ! cam_shmem_alloc_* during physics init.  At large rank counts the first
+      ! MPI_Comm_split_type(MPI_COMM_TYPE_SHARED) can be expensive; doing it early
+      ! (rather than mid-physprop) keeps it predictable.  Idempotent; non-SPMD no-op.
+#ifdef SPMD
+      call init_comms()
+#endif
+   end subroutine cam_shmem_init
 
 !===============================================================================
 
