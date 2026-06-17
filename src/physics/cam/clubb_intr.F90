@@ -47,10 +47,6 @@ module clubb_intr
 
   implicit none
 
-#ifdef CLUBB_SGS
-
-#endif
-
   private
 
   save
@@ -2476,6 +2472,8 @@ end subroutine clubb_init_cnst
                                             mf_sqtup_output,     mf_sqtdn_output,     & ! thermodynamic grid
                                             mf_qc_output,        mf_cloudfrac_output    ! thermodynamic grid
 
+#ifdef CLUBB_SGS
+
     ! MF plume level outputs
     real(r8), dimension(pcols,pverp,clubb_mf_nup) ::           mf_upa_flip,         &
                                                                mf_upw_flip,         &
@@ -2531,7 +2529,7 @@ end subroutine clubb_init_cnst
 
     real(r8), dimension(state%ncol,pverp,clubb_mf_nup) :: flip
     real(r8), dimension(state%ncol,pverp) :: rho, wpthvp_diag
-
+#endif
     ! ---------------------------------------------------- !
     !                   Local Variables                    !
     ! ---------------------------------------------------- !
@@ -2871,6 +2869,11 @@ end subroutine clubb_init_cnst
       icnt, &
       stats_nsamp, stats_nout         ! Stats sampling and output intervals for CLUBB [timestep]
 
+    real(r8), dimension(state%ncol,clubb_mf_nup) :: mf_ztop,    mf_ztop_nadv,   &
+                                                   mf_ztopm1,  mf_ztopm1_nadv, &
+                                                   mf_L0,      mf_L0_nadv,     &
+                                                   mf_ddcp,    mf_ddcp_nadv,   &
+                                                   mf_cape,    mf_cape_nadv
 #endif
 
     ! CFL limiter vars
@@ -2882,15 +2885,9 @@ end subroutine clubb_init_cnst
     logical                              :: cfllim
 
 
-   real(r8), dimension(state%ncol)       :: mf_precc_nadv, mf_snow_nadv,&
+    real(r8), dimension(state%ncol)       :: mf_precc_nadv, mf_snow_nadv,&
                                             mf_cbm1,       mf_cbm1_nadv,   &
                                                            mf_freq_nadv
-
-   real(r8), dimension(state%ncol,clubb_mf_nup) :: mf_ztop,    mf_ztop_nadv,   &
-                                                   mf_ztopm1,  mf_ztopm1_nadv, &
-                                                   mf_L0,      mf_L0_nadv,     &
-                                                   mf_ddcp,    mf_ddcp_nadv,   &
-                                                   mf_cape,    mf_cape_nadv
 
     real(r8), dimension(state%ncol,pver) :: esat,      rh
     real(r8), dimension(state%ncol,pver) :: mq,        mqsat
@@ -4783,7 +4780,7 @@ end subroutine clubb_init_cnst
 
       if (do_clubb_mf) then
          ! subtract enthalpy of falling precip from tb
-      te_b = te_b - prec_sh(i)*1000._r8*latice*hdtime
+         te_b = te_b - prec_sh(i)*1000._r8*latice*hdtime
       end if
 
       ! Compute the disbalance of total energy, over depth where CLUBB is active
@@ -5814,7 +5811,7 @@ end subroutine clubb_init_cnst
       end do
 
       do k = 1, top_lev-1
-         do i = 1, ncol
+        do i = 1, ncol
           mf_dry_a_output(i,k)     = 0._r8
           mf_moist_a_output(i,k)   = 0._r8
           mf_dry_w_output(i,k)     = 0._r8
