@@ -1972,7 +1972,7 @@ end subroutine clubb_init_cnst
     call addfld ('WPTHVP_CLUBB_macmic' , (/ 'ilev', 'ncyc' /), 'A', 'W/m2'    , 'Buoyancy Flux at macro/micro substep', sampled_on_subcycle=.true.)
 
     if (do_clubb_mf) then
-      call addfld( 'PRECSH',     horiz_only,   'A', 'm/s',      'Shallow Convection precipitation rate'                     )
+!jt      call addfld( 'PRECSH',     horiz_only,   'A', 'm/s',      'Shallow Convection precipitation rate'                     )
       call addfld( 'SNOWSH',     horiz_only,   'A', 'm/s',      'CLUBB-MF Snow precipitation rate'                     )
       call addfld ( 'edmf_thlflx_macmic', (/ 'ilev', 'ncyc' /), 'A', 'K m/s'  , 'thl flux (EDMF) at macro/micro substep', sampled_on_subcycle=.true. )
       call addfld ( 'edmf_thvflx_macmic', (/ 'ilev', 'ncyc' /), 'A', 'K m/s'  , 'thv flux (EDMF) at macro/micro substep', sampled_on_subcycle=.true. )
