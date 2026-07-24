@@ -751,6 +751,15 @@ if (not $waccm_phys) {
     add_default($nl, 'p_bot_for_radmrg');
 }
 
+# Check TUV-X configuration
+my $tuvx_active = $nl->get_value('tuvx_active');
+if ($tuvx_active =~ /$TRUE/io) {
+    my $tuvx_config = $cfg->get('tuvx');
+    if (!$tuvx_config) {
+	die "$ProgName - ERROR: must use -tuvx CAM configure flag \n";
+    }
+}
+
 # Solar irradiance
 
 # First check that solar_const and solar_irrad_data_file are not both defined
@@ -799,6 +808,18 @@ if ($docosp) {
     add_default($nl, 'docosp', 'val'=>'.true.');
 }
 
+# TEM diags
+if ($phys =~ /cam7/) {
+  add_default($nl, 'ctem_diags_numlats');
+}
+# check for conflicting TEM diagnostics settings
+if ((defined  $nl->get_value('ctem_diags_numlats')) and (defined $nl->get_value('phys_grid_ctem_za_nlat'))) {
+  my $esmf_nlats = $nl->get_value('ctem_diags_numlats');
+  my $sphr_nlats = $nl->get_value('phys_grid_ctem_za_nlat');
+  if ($esmf_nlats>0 and $sphr_nlats>0) {
+    die "Cannot set both Spherical Harmonics and ESMF regrid methods of TEM zonal mean diagnostics.\n";
+  }
+}
 
 # Constituents
 # ============
@@ -2942,9 +2963,17 @@ if ($maxzen>0.0) {
 # upper boundary specifier
 my $ubc_ver;
 if (($chem =~ /waccm_ma/ or $chem =~ /waccm_tsmlt/ or $chem =~ /waccm_t4ma/) and !$waccmx) {
-    $ubc_ver = 'waccmchem';
+    if ($phys =~ /cam7/) {
+	$ubc_ver = 'waccm7chem';
+    } else {
+	$ubc_ver = 'waccmchem';
+    }
 } elsif ($chem =~ /waccm_sc/ or ($model_top eq "ht" and $chem =~ /ghg_mam/)) {
-    $ubc_ver = 'waccmsc';
+    if ($phys =~ /cam7/) {
+	$ubc_ver = 'waccm7sc';
+    } else {
+	$ubc_ver = 'waccmsc';
+    }
 }
 if (defined $ubc_ver) {
     add_default($nl, 'ubc_specifier', 'ver'=>$ubc_ver);
@@ -3124,7 +3153,6 @@ else {
 # present in the namelist.
 add_default($nl, 'use_hemco');
 if ($nl->get_value('use_hemco') =~ m/$TRUE/io) {
-    add_default($nl, 'cam_physics_mesh');
     add_default($nl, 'hemco_data_root');
     add_default($nl, 'hemco_config_file');
     add_default($nl, 'hemco_diagn_file');
@@ -3213,7 +3241,6 @@ if ($waccmx) {
     add_default($nl, 'fv_high_altitude', 'val'=>'.true.');
   }
   if ($ionos ne 'none') {
-    add_default($nl, 'cam_physics_mesh');
     add_default($nl, 'oplus_grid');
     add_default($nl, 'edyn_grid');
   }
@@ -3527,6 +3554,7 @@ if ($clubb_sgs  =~ /$TRUE/io) {
      die "$ProgName - ERROR: clubb_history = .true. with multiple threads is not supported. \n";
    }
 
+   add_default($nl, 'clubb_l_ascending_grid');
    add_default($nl, 'clubb_do_icesuper');
    add_default($nl, 'clubb_do_energyfix');
    add_default($nl, 'clubb_cloudtop_cooling');
@@ -3618,9 +3646,13 @@ if ($clubb_sgs  =~ /$TRUE/io) {
    add_default($nl, 'clubb_detphase_lowtemp');
    add_default($nl, 'clubb_do_energyfix');
    add_default($nl, 'clubb_do_liqsupersat');
+   add_default($nl, 'clubb_grid_adapt_in_time_method');
+   add_default($nl, 'clubb_fill_holes_type');
+   add_default($nl, 'clubb_grid_remap_method');
    add_default($nl, 'clubb_ipdf_call_placement');
    add_default($nl, 'clubb_lambda0_stability_coef');
    add_default($nl, 'clubb_lmin_coef');
+   add_default($nl, 'clubb_l_add_dycore_grid');
    add_default($nl, 'clubb_l_brunt_vaisala_freq_moist');
    add_default($nl, 'clubb_l_call_pdf_closure_twice');
    add_default($nl, 'clubb_l_damp_wp2_using_em');
@@ -3642,6 +3674,8 @@ if ($clubb_sgs  =~ /$TRUE/io) {
    add_default($nl, 'clubb_l_mono_flux_lim_vm');
    add_default($nl, 'clubb_l_partial_upwind_wp3');
    add_default($nl, 'clubb_l_predict_upwp_vpwp');
+   add_default($nl, 'clubb_l_ho_nontrad_coriolis');
+   add_default($nl, 'clubb_l_ho_trad_coriolis');
    add_default($nl, 'clubb_l_rcm_supersat_adj');
    add_default($nl, 'clubb_l_smooth_Heaviside_tau_wpxp');
    add_default($nl, 'clubb_l_stability_correct_tau_zm');
@@ -3802,7 +3836,7 @@ if (!$simple_phys) {
     add_default($nl, 'zmconv_ke_lnd');
     add_default($nl, 'zmconv_num_cin');
     add_default($nl, 'zmconv_dmpdz');
-    add_default($nl, 'zmconv_tiedke_add');
+    add_default($nl, 'zmconv_tiedtke_add');
     add_default($nl, 'zmconv_capelmt');
     add_default($nl, 'zmconv_tau');
     add_default($nl, 'zmconv_parcel_hscale');
@@ -4466,7 +4500,6 @@ if ($dyn =~ /mpas/) {
     add_default($nl, 'mpas_coef_3rd_order');
     add_default($nl, 'mpas_smagorinsky_coef');
     add_default($nl, 'mpas_mix_full');
-    add_default($nl, 'mpas_epssm');
     add_default($nl, 'mpas_smdiv');
     add_default($nl, 'mpas_apvm_upwinding');
     add_default($nl, 'mpas_h_ScaleWithMesh');
@@ -4477,12 +4510,18 @@ if ($dyn =~ /mpas/) {
     add_default($nl, 'mpas_rayleigh_damp_u');
     add_default($nl, 'mpas_rayleigh_damp_u_timescale_days');
     add_default($nl, 'mpas_number_rayleigh_damp_u_levels');
+    add_default($nl, 'mpas_epssm_minimum');
+    add_default($nl, 'mpas_epssm_maximum');
+    add_default($nl, 'mpas_epssm_transition_bottom_z');
+    add_default($nl, 'mpas_epssm_transition_top_z');
     add_default($nl, 'mpas_apply_lbcs');
     add_default($nl, 'mpas_jedi_da');
     add_default($nl, 'mpas_do_restart');
     add_default($nl, 'mpas_print_global_minmax_vel');
     add_default($nl, 'mpas_print_detailed_minmax_vel');
     add_default($nl, 'mpas_print_global_minmax_sca');
+    add_default($nl, 'mpas_halo_exch_method');
+    add_default($nl, 'mpas_gpu_aware_mpi');
 
     # mpas_block_decomp_file_prefix should only be set when more than one task is used.
     # Otherwise the file is not used and should not be added to the input dataset file.

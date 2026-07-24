@@ -34,7 +34,7 @@ use IO::Handle;
 
 use FindBin qw($Bin);
 use lib "$Bin/perl5lib";
-use Build::ChemPreprocess qw(chem_preprocess chem_number_adv);
+use Build::ChemPreprocess qw(chem_preprocess chem_number_adv get_species_list);
 use File::Copy;
 
 #-----------------------------------------------------------------------------------------------
@@ -76,6 +76,7 @@ OPTIONS
      -co2_cycle         This option modifies the CAM configuration by
                         increasing the number of advected constituents by 4.
      -cosp              Enable the COSP simulator.
+     -rttov             Enable RTTOV within the COSP simulator.
      -cppdefs <string>  A string of user specified CPP defines.  Appended to
                         Makefile defaults.  E.g. -cppdefs '-DVAR1 -DVAR2'
      -cpl               Coupling framework [mct | nuopc].  Default: mct.
@@ -107,6 +108,7 @@ OPTIONS
      -psubcols <n>      Maximum number of sub-columns in a run - set to 1 if not using sub-columns (default)
      -rad <name>        Specify the radiation package [rrtmg | rrtmgp | rrtmgp_gpu | camrt]
      -silhs             Switch on SILHS.
+     -tuvx              Switch to build TUV-X library
      -usr_mech_infile   Path and file name of the user supplied chemistry mechanism file.
      -waccm_phys        Switch enables the use of WACCM physics in any chemistry configuration.
                         The user does not need to set this if one of the waccm chemistry options
@@ -246,6 +248,7 @@ GetOptions(
     "co2_cycle"                 => \$opts{'co2_cycle'},
     "cosp"                      => \$opts{'cosp'},
     "cosp_libdir=s"             => \$opts{'cosp_libdir'},
+    "rttov"                     => \$opts{'rttov'},
     "cppdefs=s"                 => \$opts{'cppdefs'},
     "cpl=s"                     => \$opts{'cpl'},
     "debug"                     => \$opts{'debug'},
@@ -305,6 +308,7 @@ GetOptions(
     "waccm_phys"                => \$opts{'waccm_phys'},
     "waccmx"                    => \$opts{'waccmx'},
     "ext_co2_cool"              => \$opts{'ext_co2_cool'},
+    "tuvx"                      => \$opts{'tuvx'},
 )  or usage();
 
 # Give usage message.
@@ -746,6 +750,12 @@ if (defined $opts{'ext_co2_cool'}) {
 }
 my $ext_co2_cool = $cfg_ref->get('ext_co2_cool');
 
+# TUV-x option
+if (defined $opts{'tuvx'}) {
+    $cfg_ref->set('tuvx', $opts{'tuvx'});
+}
+my $tuvx = $cfg_ref->get('tuvx');
+
 #-----------------------------------------------------------------------------------------------
 
 # Prognostic species package(s)
@@ -1020,13 +1030,6 @@ if ($rad_pkg eq 'camrt') {
             "                 with aerosol package $chem_pkg\n";
     }
 }
-elsif ($rad_pkg =~ m/rrtmg/) {
-
-    # RRTMGP not currently working with CARMA
-    if ($rad_pkg eq 'rrtmgp' and $carma_pkg ne 'none') {
-        die "configure ERROR: The CARMA microphysics package does not currently work with RRTMGP\n";
-    }
-}
 
 $cfg_ref->set('rad', $rad_pkg);
 
@@ -1038,6 +1041,17 @@ if (defined $opts{'cosp'}) {
     $cfg_ref->set('cosp', $opts{'cosp'});
 }
 my $cosp = $cfg_ref->get('cosp');
+
+# Option to build COSP with RTTOV
+if ( $cosp and defined $opts{'rttov'}) {
+   $cfg_ref->set('rttov', $opts{'rttov'});
+   print "COSP-RTTOV enabled$eol";
+}
+elsif ( defined $opts{'rttov'} ) {
+   die "configure ERROR: rttov defined but cosp undefined. \n";
+}
+
+my $rttov = $cfg_ref->get('rttov');
 
 # cosp is only implemented with the cam5, cam6, and cam7 physics packages
 if ($cosp and ($phys_pkg ne 'cam5' and $phys_pkg ne 'cam6' and $phys_pkg ne 'cam7')) {
@@ -1458,8 +1472,19 @@ else {
 
         # co2_cycle
         if ($co2_cycle) {
-            $nadv += 4;
-            if ($print>=2) { print "Advected constituents added by co2_cycle: 4$eol"; }
+            my $nco2;
+            my @species_list;
+            my %hash;
+            @species_list = get_species_list($chem_src_dir);
+            @hash{@species_list}=();
+            if (exists $hash{"CO2"}) {
+                # Do not double count CO2
+                $nco2 = 3;
+            } else {
+                $nco2 = 4;
+            }
+            $nadv += $nco2;
+            if ($print>=2) { print "Advected constituents added by co2_cycle: $nco2$eol"; }
         }
 
         # CARMA package:
@@ -1853,6 +1878,11 @@ if ($ext_co2_cool) {
     $cfg_cppdefs .= ' -DEXT_CO2_COOL';
 }
 
+# TUV-X
+if ($tuvx) {
+    $cfg_cppdefs .= ' -DTUVX';
+}
+
 # PIO
 my $pio2_build = (defined $opts{'pio2'}) ? 1 : 0;
 
@@ -1921,6 +1951,15 @@ if ($cosp) {
         die "** Could not create the cosp build directory: $bld_dir\n";
     }
 
+    # Turn on RTTOV.
+    # NOTE: Specialized linking with RTTOV is handled here and in buildlib. A single, unified linking
+    if ($rttov) {
+      # Add the rttov library dependencies to the ldflags. The cosp-rttov Makefile links these libraries to the $cosp_libdir path.
+      # A more functional code would read these ldflags from Makefile.rttov in the COSP2 directory in CAM instead of hardcoding.
+      $ldflags .= " -L$cosp_libdir -lrttov13_wrapper -lrttov13_mw_scatt -lrttov13_brdf_atlas -lrttov13_emis_atlas -lrttov13_other -lrttov13_parallel -lrttov13_coef_io -lrttov13_hdf -lrttov13_main ";
+      $cfg_ref->set('ldflags', $ldflags);
+      print "Adding rttov libraries as dependencies in ldflags.\n";
+    }
     # Create the COSP Makefile from a template and copy it into the cosp bld directory
     if ($print) { print "creating $cosp_libdir/Makefile\n"; }
     write_cosp_makefile("$cfgdir/../src/physics/cosp2/Makefile.in", "$cosp_libdir/Makefile");
@@ -2230,6 +2269,8 @@ sub write_filepath
     print $fh "$camsrcdir/src/atmos_phys/schemes/cloud_fraction\n";
     print $fh "$camsrcdir/src/atmos_phys/schemes/vertical_diffusion\n";
     print $fh "$camsrcdir/src/atmos_phys/schemes/holtslag_boville\n";
+    print $fh "$camsrcdir/src/atmos_phys/schemes/bretherton_park\n";
+    print $fh "$camsrcdir/src/atmos_phys/schemes/beljaars_drag\n";
 
     # Dynamics package and test utilities
     if ($dyn eq 'se' and ($se_dyn_target eq 'preqx' or$se_dyn_target eq 'theta-l' or $se_dyn_target eq 'theta-l_kokkos')) {
