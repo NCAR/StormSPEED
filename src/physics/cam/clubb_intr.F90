@@ -2738,10 +2738,10 @@ end subroutine clubb_init_cnst
       kinwat,           & ! Kinematic water vapor flux                    [m/s]
       dummy2,           & ! dummy variable                                [units vary]
       dummy3,           & ! dummy variable                                [units vary]
-      rhmini_default    & !
-      rhmaxi_default    & !
-      rhminl_arr        & !
-      rhminl_adj_land_arr & !
+      rhmini_default,   & !
+      rhmaxi_default,   & !
+      rhminl_arr,       & !
+      rhminl_adj_land_arr, & !
       rhminh_arr
 
     real(r8), dimension(pcols,pver) :: &
