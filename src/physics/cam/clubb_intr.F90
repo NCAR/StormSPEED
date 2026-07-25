@@ -20,11 +20,11 @@ module clubb_intr
   use shr_kind_mod,        only: r8=>shr_kind_r8
   use ppgrid,              only: pver, pverp, pcols, begchunk, endchunk
   use phys_control,        only: phys_getopts
-  use physconst,           only: cpair, gravit, rga, latvap, latice, zvir, rh2o, karman, pi, rair, rhoh2o, omega
+  use physconst,           only: cpair, gravit, rga, latvap, latice, zvir, rh2o, karman, pi, rair, omega, rhoh2o
   use air_composition,     only: rairv, cpairv
   use cam_history_support, only: max_fieldname_len, fillvalue
 
-  use spmd_utils,          only: masterproc, iam !+++arh
+  use spmd_utils,          only: masterproc
   use constituents,        only: pcnst, cnst_add, cnst_ndropmixed
   use atmos_phys_pbl_utils,only: calc_friction_velocity, calc_kinematic_heat_flux, calc_ideal_gas_rrho, &
                                  calc_kinematic_water_vapor_flux, calc_kinematic_buoyancy_flux, calc_obukhov_length
@@ -38,7 +38,6 @@ module clubb_intr
                                  hm_metadata_type, sclr_idx_type, &
                                  nparams
 
-  use clubb_api_module,    only: nparams
   use clubb_mf,            only: do_clubb_mf, do_clubb_mf_diag, clubb_mf_nup, do_clubb_mf_rad, clubb_mf_Lopt, &
                                  clubb_mf_ddalph, clubb_mf_up_ndt, clubb_mf_cp_ndt, do_clubb_mf_cmt, do_clubb_mf_addtke, &
                                  clubb_mf_cldfrac_fac
@@ -47,10 +46,6 @@ module clubb_intr
 #endif
 
   implicit none
-
-#ifdef CLUBB_SGS
-
-#endif
 
   private
 
@@ -500,88 +495,21 @@ module clubb_intr
     pdf_zm_mixt_frac_idx
 
   integer :: &
-    dlfzm_idx  = -1,    & ! ZM detrained convective cloud water mixing ratio.
-    dnlfzm_idx = -1,    & ! ZM detrained convective cloud water num concen.
-    dnifzm_idx = -1       ! ZM detrained convective cloud ice num concen.
-
-  integer :: &
-    qtm_macmic1_idx, &
-    qtm_macmic2_idx, &
-    thlm_macmic1_idx, &
-    thlm_macmic2_idx, &
-    rcm_macmic_idx, &
-    cldfrac_macmic_idx, &
-    wpthlp_macmic_idx, &
-    wprtp_macmic_idx, &
-    wpthvp_macmic_idx, &
-    mf_wpthlp_macmic_idx, &
-    mf_wprtp_macmic_idx, &
-    mf_wpthvp_macmic_idx, &
-    up_macmic1_idx, &
-    up_macmic2_idx, &
-    dn_macmic1_idx, &
-    dn_macmic2_idx, &
-    upa_macmic1_idx, &
-    upa_macmic2_idx, &
-    dna_macmic1_idx, &
-    dna_macmic2_idx, &
-    thlu_macmic1_idx, &
-    thlu_macmic2_idx, &
-    qtu_macmic1_idx, &
-    qtu_macmic2_idx, &
-    thld_macmic1_idx, &
-    thld_macmic2_idx, &
-    qtd_macmic1_idx, &
-    qtd_macmic2_idx, &
-    dthl_macmic1_idx, &
-    dthl_macmic2_idx, &
-    dqt_macmic1_idx, &
-    dqt_macmic2_idx, &
-    dthlu_macmic1_idx, &
-    dthlu_macmic2_idx, &
-    dqtu_macmic1_idx, &
-    dqtu_macmic2_idx, &
-    dthld_macmic1_idx, &
-    dthld_macmic2_idx, &
-    dqtd_macmic1_idx, &
-    dqtd_macmic2_idx, &
-    ztop_macmic1_idx, &
-    ztop_macmic2_idx, &
-    ddcp_macmic1_idx, &
-    ddcp_macmic2_idx
+    cmfmc_sh_idx = 0
 
   integer :: &
     prec_sh_idx, &
     snow_sh_idx
 
-  integer :: ztopmn_idx
-  integer :: ztopma_idx
-  integer :: ztopm1_macmic_idx
-  integer :: ddcp_idx
-  integer :: ddcp_macmic_idx
-  integer :: ddcpmn_idx
-  integer :: cbm1_idx
-  integer :: cbm1_macmic_idx
-
-  !  Output arrays for CLUBB statistics
-  real(r8), allocatable, dimension(:,:,:) :: out_zt, out_zm, out_radzt, out_radzm, out_sfc
-
-  character(len=16)  :: eddy_scheme      ! Default set in phys_control.F90
-  character(len=16)  :: deep_scheme      ! Default set in phys_control.F90
-  character(len=16)  :: subcol_scheme
-
-  integer, parameter :: ncnst=9
-  character(len=8)   :: cnst_names(ncnst)
-  logical            :: do_cnst=.false.
-
-#ifdef CLUBB_SGS
-  type(pdf_parameter), target, allocatable, public, protected :: &
-                              pdf_params_chnk(:)    ! PDF parameters (thermo. levs.) [units vary]
-
-  type(pdf_parameter), target, allocatable :: pdf_params_zm_chnk(:) ! PDF parameters on momentum levs. [units vary]
-
-  type(implicit_coefs_terms), target, allocatable :: pdf_implicit_coefs_terms_chnk(:) ! PDF impl. coefs. & expl. terms      [units vary]
-#endif
+  integer ::           &
+    ztopmn_idx,        &
+    ztopma_idx,        &
+    ztopm1_macmic_idx, &
+    ddcp_idx,          &
+    ddcp_macmic_idx,   &
+    ddcpmn_idx,        &
+    cbm1_idx,          &
+    cbm1_macmic_idx
 
   contains
 
@@ -1616,6 +1544,7 @@ end subroutine clubb_init_cnst
     logical :: history_amwg, history_clubb
 
     integer :: cld_macmic_num_steps
+
     type(err_info_type) :: &
       err_info          ! err_info struct used in CLUBB containing err_code and err_header
 
@@ -2646,7 +2575,7 @@ end subroutine clubb_init_cnst
       rtp2_forcing,             &
       thlp2_forcing,            &
       rtpthlp_forcing,          &
-      wm_zm,                    & ! w mean wind component on momentum levels  	          [m/s]
+      wm_zm,                    & ! w mean wind component on momentum levels              [m/s]
       rho_zm,                   & ! Air density on momentum levels                        [kg/m^3]
       rho_ds_zm,                & ! Dry, static density on momentum levels                [kg/m^3]
       invrs_rho_ds_zm,          & ! Inv. dry, static density on momentum levels           [m^3/kg]
@@ -2808,12 +2737,12 @@ end subroutine clubb_init_cnst
       rrho,             & ! Inverse of air density                        [1/kg/m^3]
       kinwat,           & ! Kinematic water vapor flux                    [m/s]
       dummy2,           & ! dummy variable                                [units vary]
-      dummy3              ! dummy variable                                [units vary]
-    real(r8)                          :: rhmini_default(pcols)
-    real(r8)                          :: rhmaxi_default(pcols)
-    real(r8)                          :: rhminl_arr(pcols)
-    real(r8)                          :: rhminl_adj_land_arr(pcols)
-    real(r8)                          :: rhminh_arr(pcols)
+      dummy3,           & ! dummy variable                                [units vary]
+      rhmini_default    & !
+      rhmaxi_default    & !
+      rhminl_arr        & !
+      rhminl_adj_land_arr & !
+      rhminh_arr
 
     real(r8), dimension(pcols,pver) :: &
       invrs_cpairv, &
@@ -3096,7 +3025,8 @@ end subroutine clubb_init_cnst
 
     ! Initialize err_info with parallelization and geographical info
     call init_err_info_api(ncol, lchnk, iam, state_loc%lat*rad2deg, state_loc%lon*rad2deg, err_info)
-    
+
+
     if (do_clubb_mf) then
        ! SVP
        do k = 1, pver
@@ -3121,6 +3051,7 @@ end subroutine clubb_init_cnst
        end if
        !
     end if
+
 
     !--------------------- Scalar Setting --------------------
 
@@ -3938,6 +3869,12 @@ end subroutine clubb_init_cnst
         !REMOVECAM_END
         call tropopause_findChemTrop( state_loc, troplev )
 
+        rtm_zm(:,:) = 0._r8
+        thlm_zm(:,:) = 0._r8
+        th_zm(:,:) = 0._r8
+        qv_zm(:,:) = 0._r8
+        qc_zm(:,:) = 0._r8
+
         rtm_zm     = zt2zm_api( nzm_clubb, nzt_clubb, ncol, gr,  rtm(:ncol,:) )
         thlm_zm    = zt2zm_api( nzm_clubb, nzt_clubb, ncol, gr, thlm(:ncol,:) )
         th_zm      = zt2zm_api( nzm_clubb, nzt_clubb, ncol, gr, th_zt(:ncol,:) )
@@ -4072,7 +4009,6 @@ end subroutine clubb_init_cnst
         end do
 
         !--------------------------------------- END integrate_mf call ---------------------------------------
-
         ! pass MF turbulent advection term as CLUBB explicit forcing term
         rtm_forcing(:ncol,:)  = 0._r8
         thlm_forcing(:ncol,:) = 0._r8
@@ -5074,6 +5010,7 @@ end subroutine clubb_init_cnst
       call outfld( 'FQTENDICE', temp2d, pcols, lchnk )
       call t_stopf('clubb_cam_tend:do_liqsupersat')
     end if
+
     if (do_clubb_mf) then
       ! average over nadv
       mf_L0_nadv   = mf_L0_nadv/REAL(nadv)

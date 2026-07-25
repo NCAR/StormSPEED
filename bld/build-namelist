@@ -3197,7 +3197,6 @@ if (defined $cam_physpkg) {
         "This variable is set by build-namelist based on information\n".
         "from the configure cache file.\n";
 }
-
 $cam_physpkg = "'" . "$phys" . "'";  # add quotes to this string value
 $nl->set_variable_value('phys_ctl_nl', 'cam_physpkg', $cam_physpkg);
 
@@ -3727,6 +3726,7 @@ if ($clubb_sgs  =~ /$TRUE/io) {
    add_default($nl, 'clubb_mf_ddbeta');
    add_default($nl, 'clubb_mf_pwfac');
    add_default($nl, 'clubb_mf_ddexp');
+   add_default($nl, 'clubb_mf_cldfrac_fac');
    add_default($nl, 'do_clubb_mf_ustar');
    add_default($nl, 'do_clubb_mf_mixd');
    add_default($nl, 'clubb_mf_up_ndt');
@@ -3737,6 +3737,7 @@ if ($clubb_sgs  =~ /$TRUE/io) {
    add_default($nl, 'do_clubb_mf_lscale_perplume');
    add_default($nl, 'do_clubb_mf_coldpool_perplume');
    add_default($nl, 'do_clubb_mf_coldpool_init');
+   add_default($nl, 'do_clubb_mf_aloft');
 }
 
 # Tuning for wet scavenging of modal aerosols
@@ -4459,7 +4460,6 @@ if ($dyn =~ /se/) {
 	    add_default($nl, $var, %opts);
 	}
     }
-
 }
 
 # MPAS-Atmosphere dycore

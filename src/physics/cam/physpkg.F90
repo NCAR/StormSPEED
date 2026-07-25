@@ -42,6 +42,8 @@ module physpkg
 
   use offline_driver,  only: offline_driver_dorun
 
+  use clubb_mf,        only: do_clubb_mf
+
   implicit none
   private
   save
@@ -2676,9 +2678,11 @@ contains
        prec_pcw_macmic = 0._r8
        snow_pcw_macmic = 0._r8
 
-       ! CLUBB+MF
-       prec_sh_macmic = 0._r8
-       snow_sh_macmic = 0._r8
+       if (do_clubb_mf) then
+          ! CLUBB+MF
+          prec_sh_macmic = 0._r8
+          snow_sh_macmic = 0._r8
+       end if
 
        ! contrail parameterization
        ! see Chen et al., 2012: Global contrail coverage simulated
@@ -2760,9 +2764,12 @@ contains
 
              ! Since we "added" the reserved liquid back in this routine, we need
              ! to account for it in the energy checker
-
-             ! CLUBB+MF: add MF precip to flx_cnd [m/s]
-             flx_cnd(:ncol) = -1._r8*rliq(:ncol) + prec_sh(:ncol)
+             if (do_clubb_mf) then
+                ! CLUBB+MF: add MF precip to flx_cnd [m/s]
+                flx_cnd(:ncol) = -1._r8*rliq(:ncol) + prec_sh(:ncol)
+             else
+                flx_cnd(:ncol) = -1._r8*rliq(:ncol)
+             end if
              flx_heat(:ncol) = cam_in%shf(:ncol) + det_s(:ncol)
 
              ! Unfortunately, physics_update does not know what time period
@@ -2797,9 +2804,11 @@ contains
 
           call t_stopf('macrop_tend')
 
-          ! CLUBB+MF
-          prec_sh_macmic(:ncol) = prec_sh_macmic(:ncol) + prec_sh(:ncol)
-          snow_sh_macmic(:ncol) = snow_sh_macmic(:ncol) + snow_sh(:ncol)
+          if (do_clubb_mf) then
+             ! CLUBB+MF
+             prec_sh_macmic(:ncol) = prec_sh_macmic(:ncol) + prec_sh(:ncol)
+             snow_sh_macmic(:ncol) = snow_sh_macmic(:ncol) + snow_sh(:ncol)
+          end if
 
           !===================================================
           ! Calculate cloud microphysics
@@ -2954,9 +2963,11 @@ contains
        prec_str(:ncol) = prec_pcw(:ncol) + prec_sed(:ncol)
        snow_str(:ncol) = snow_pcw(:ncol) + snow_sed(:ncol)
 
-       ! CLUBB+MF
-       prec_sh(:ncol) = prec_sh_macmic(:ncol)/cld_macmic_num_steps
-       snow_sh(:ncol) = snow_sh_macmic(:ncol)/cld_macmic_num_steps
+       if (do_clubb_mf) then 
+          ! CLUBB+MF
+          prec_sh(:ncol) = prec_sh_macmic(:ncol)/cld_macmic_num_steps
+          snow_sh(:ncol) = snow_sh_macmic(:ncol)/cld_macmic_num_steps
+       end if
 
     endif
 

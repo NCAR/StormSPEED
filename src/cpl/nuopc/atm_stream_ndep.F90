@@ -192,7 +192,6 @@ contains
             stream_dtlimit      = 1.0e30_r8,                           &
             stream_tintalgo     = 'linear',                            &
             stream_name         = 'Nitrogen deposition data ',         &
-            stream_mesh_in      = model_mesh,                          &
             rc                  = rc)
     else
        call shr_strdata_init_from_inline(sdat_ndep,                    &
