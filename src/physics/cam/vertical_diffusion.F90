@@ -119,10 +119,6 @@ integer              :: ixq
 
 integer              :: pblh_idx, tpert_idx, qpert_idx
 
-! pbuf fields for unicon
-integer              :: qtl_flx_idx  = -1            ! for use in cloud macrophysics when UNICON is on
-integer              :: qti_flx_idx  = -1            ! for use in cloud macrophysics when UNICON is on
-
 ! pbuf fields for tms
 integer              :: ksrftms_idx  = -1
 integer              :: tautmsx_idx  = -1
@@ -141,6 +137,7 @@ logical              :: do_iss                       ! switch for implicit turbu
 logical              :: is_clubb_scheme = .false.
 logical              :: waccmx_mode = .false.
 logical              :: do_hb_above_clubb = .false.
+real(r8)             :: diff_sponge_fac
 
 contains
 
@@ -151,7 +148,7 @@ subroutine vd_readnl(nlfile)
 
   use namelist_utils,  only: find_group_name
   use units,           only: getunit, freeunit
-  use spmd_utils,      only: masterproc, masterprocid, mpi_logical, mpicom
+  use spmd_utils,      only: masterproc, masterprocid, mpi_logical, mpi_real8, mpicom
   use shr_log_mod,     only: errMsg => shr_log_errMsg
   use trb_mtn_stress_cam, only: trb_mtn_stress_readnl
   use beljaars_drag_cam, only: beljaars_drag_readnl
@@ -163,7 +160,7 @@ subroutine vd_readnl(nlfile)
   integer :: unitn, ierr
   character(len=*), parameter :: subname = 'vd_readnl'
 
-  namelist /vert_diff_nl/ diff_cnsrv_mass_check, do_iss
+  namelist /vert_diff_nl/ diff_cnsrv_mass_check, do_iss, diff_sponge_fac
   !-----------------------------------------------------------------------------
 
   if (masterproc) then
@@ -183,6 +180,8 @@ subroutine vd_readnl(nlfile)
   call mpi_bcast(diff_cnsrv_mass_check, 1, mpi_logical, masterprocid, mpicom, ierr)
   if (ierr /= 0) call endrun(errMsg(__FILE__, __LINE__)//" mpi_bcast error")
   call mpi_bcast(do_iss,                1, mpi_logical, masterprocid, mpicom, ierr)
+  if (ierr /= 0) call endrun(errMsg(__FILE__, __LINE__)//" mpi_bcast error")
+  call mpi_bcast(diff_sponge_fac,       1, mpi_real8, masterprocid, mpicom, ierr)
   if (ierr /= 0) call endrun(errMsg(__FILE__, __LINE__)//" mpi_bcast error")
 
   ! Get eddy_scheme setting from phys_control.
@@ -212,7 +211,6 @@ subroutine vd_register()
   use physics_buffer,      only : pbuf_add_field, dtype_r8
   use trb_mtn_stress_cam,  only : trb_mtn_stress_register
   use beljaars_drag_cam,   only : beljaars_drag_register
-  use eddy_diff_cam,       only : eddy_diff_register
 
   ! Add fields to physics buffer
 
@@ -233,16 +231,6 @@ subroutine vd_register()
 
   call pbuf_add_field('tpert', 'global', dtype_r8, (/pcols/),                       tpert_idx) ! convective_temperature_perturbation_due_to_pbl_eddies
   call pbuf_add_field('qpert', 'global', dtype_r8, (/pcols/),                       qpert_idx) ! convective_water_vapor_wrt_moist_air_and_condensed_water_perturbation_due_to_pbl_eddies
-
-  if (trim(shallow_scheme) == 'UNICON') then
-     call pbuf_add_field('qtl_flx',  'global', dtype_r8, (/pcols, pverp/), qtl_flx_idx)
-     call pbuf_add_field('qti_flx',  'global', dtype_r8, (/pcols, pverp/), qti_flx_idx)
-  end if
-
-  ! diag_TKE fields
-  if (eddy_scheme == 'diag_TKE') then
-     call eddy_diff_register()
-  end if
 
   ! TMS fields
   call trb_mtn_stress_register()
@@ -306,6 +294,7 @@ subroutine vertical_diffusion_init(pbuf2d)
     amIRoot  = masterproc, &
     iulog    = iulog, &
     ptop_ref = ptop_ref, &
+    diff_sponge_fac = diff_sponge_fac, &
     errmsg   = errmsg, &
     errflg   = errflg)
 
@@ -368,7 +357,7 @@ subroutine vertical_diffusion_init(pbuf2d)
   case ( 'diag_TKE' )
      if( masterproc ) write(iulog,*) &
           'vertical_diffusion_init: eddy_diffusivity scheme: UW Moist Turbulence Scheme by Bretherton and Park'
-     call eddy_diff_init(pbuf2d, ntop_eddy, nbot_eddy)
+     call eddy_diff_init(ntop_eddy)
   case ( 'HB', 'HBR')
      if( masterproc ) write(iulog,*) 'vertical_diffusion_init: eddy_diffusivity scheme:  Holtslag and Boville'
 
@@ -610,10 +599,6 @@ subroutine vertical_diffusion_init(pbuf2d)
      ! Initialization of pbuf fields tke, kvh, kvm are done in phys_inidat
      call pbuf_set_field(pbuf2d, tauresx_idx,  0.0_r8)
      call pbuf_set_field(pbuf2d, tauresy_idx,  0.0_r8)
-     if (trim(shallow_scheme) == 'UNICON') then
-        call pbuf_set_field(pbuf2d, qtl_flx_idx,  0.0_r8)
-        call pbuf_set_field(pbuf2d, qti_flx_idx,  0.0_r8)
-     end if
   end if
 end subroutine vertical_diffusion_init
 
@@ -664,7 +649,6 @@ subroutine vertical_diffusion_tend( &
 
   use eddy_diff_cam,        only : eddy_diff_tend
 
-
   ! CCPP-ized HB scheme
   use holtslag_boville_diff, only: hb_pbl_independent_coefficients_run
   use holtslag_boville_diff, only: hb_pbl_dependent_coefficients_run
@@ -676,16 +660,20 @@ subroutine vertical_diffusion_tend( &
   ! CCPP-ized sponge layer logic
   use vertical_diffusion_sponge_layer, only: vertical_diffusion_sponge_layer_run
 
+  ! CCPP-ized kinematic fluxes and Obukhov length (obklen) logic
+  use vertical_diffusion_interstitials,    only: compute_kinematic_fluxes_and_obklen_run
+
   ! CCPP-ized vertical diffusion solver (for non-WACCM-X use)
   ! to replace compute_vdiff
   ! and interstitials that have been CCPP-ized
   use holtslag_boville_diff_interstitials, only: hb_diff_prepare_vertical_diffusion_inputs_run
   use holtslag_boville_diff_interstitials, only: hb_free_atm_diff_prepare_vertical_diffusion_inputs_run
+  use vertical_diffusion_interstitials,    only: vertical_diffusion_prepare_inputs_run
   use diffusion_solver,     only: vertical_diffusion_interpolate_to_interfaces_run
   use diffusion_solver,     only: implicit_surface_stress_add_drag_coefficient_run
   use diffusion_stubs,      only: turbulent_mountain_stress_add_drag_coefficient_run
   use diffusion_solver,     only: vertical_diffusion_wind_damping_rate_run
-  use diffusion_stubs,      only: beljaars_add_wind_damping_rate_run
+  use beljaars_drag_interstitials, only: beljaars_add_wind_damping_rate_run
   use diffusion_solver,     only: vertical_diffusion_diffuse_horizontal_momentum_run
   use diffusion_solver,     only: vertical_diffusion_diffuse_dry_static_energy_run
   use diffusion_solver,     only: vertical_diffusion_diffuse_tracers_run
@@ -751,9 +739,6 @@ subroutine vertical_diffusion_tend( &
 
   real(r8) :: dtk(pcols,pver)                                     ! T tendency from KE dissipation
   real(r8), pointer   :: tke(:,:)                                 ! Turbulent kinetic energy [ m2/s2 ]
-
-  real(r8), pointer   :: qtl_flx(:,:)                             ! overbar(w'qtl') where qtl = qv + ql
-  real(r8), pointer   :: qti_flx(:,:)                             ! overbar(w'qti') where qti = qv + qi
 
   real(r8) :: cgs(pcols,pverp)                                    ! Counter-gradient star  [ cg/flux ]
   real(r8) :: cgh(pcols,pverp)                                    ! Counter-gradient term for heat
@@ -1040,15 +1025,12 @@ subroutine vertical_diffusion_tend( &
           const_props       = ccpp_const_props,           &
           apply_nonwv_cflx  = (.not. cam_physpkg_is("cam7")), & ! does vertical diffusion apply ANY fluxes?
           cflx_from_coupler = cam_in%cflx(:ncol,:pcnst),  &
-          pint              = state%pint(:ncol,:pverp),   &
           ! below output
           taux              = taux(:ncol),                & ! these are zero since handled by CLUBB.
           tauy              = tauy(:ncol),                & ! these are zero since handled by CLUBB.
           shflux            = shflux(:ncol),              & ! these are zero since handled by CLUBB.
           cflux             = cflux(:ncol,:pcnst),        & ! if apply_nonwv_cflx, contains non-wv. fluxes, otherwise 0
           itaures           = itaures,                    &
-          p                 = p,                          &
-          q_wv_cflx         = q_wv_cflx(:ncol),           & ! for use in HB for kinematic water vapor flux calc.
           errmsg            = errmsg,                     &
           errflg            = errflg)
 
@@ -1060,27 +1042,38 @@ subroutine vertical_diffusion_tend( &
           ncol               = ncol,                      &
           pverp              = pverp,                     &
           pcnst              = pcnst,                     &
-          const_props        = ccpp_const_props,          &
           wsx_from_coupler   = cam_in%wsx(:ncol),         &
           wsy_from_coupler   = cam_in%wsy(:ncol),         &
           shf_from_coupler   = cam_in%shf(:ncol),         &
           cflx_from_coupler  = cam_in%cflx(:ncol,:pcnst), &
-          pint               = state%pint(:ncol,:pverp),  &
           ! below output
           taux               = taux(:ncol),               &
           tauy               = tauy(:ncol),               &
           shflux             = shflux(:ncol),             &
           cflux              = cflux(:ncol,:pcnst),       &
           itaures            = itaures,                   &
-          p                  = p,                         &
-          q_wv_cflx          = q_wv_cflx(:ncol),          & ! for use in HB for kinematic water vapor flux calc.
-          errmsg             = errmsg,                 &
+          errmsg             = errmsg,                    &
           errflg             = errflg)
 
      if(errflg /= 0) then
         call endrun('hb_diff_prepare_vertical_diffusion_inputs_run: ' // errmsg)
      endif
   endif
+
+  ! Create vertical coordinate for solver calls, potential temperature.
+  th(:,:) = 0._r8
+  call vertical_diffusion_prepare_inputs_run( &
+       ncol      = ncol,                      &
+       pver      = pver,                      &
+       pverp     = pverp,                     &
+       pint      = state%pint(:ncol,:pverp),  &
+       t         = state%t(:ncol,:pver),      &
+       exner     = state%exner(:ncol,:pver),  &
+       ! output:
+       p         = p,                         & ! coords1d moist pressure coordinates.
+       th        = th(:ncol,:pver),           &
+       errmsg    = errmsg,                    &
+       errflg    = errflg)
 
   !----------------------------------------------------------------------- !
   !   Computation of eddy diffusivities - Select appropriate PBL scheme    !
@@ -1091,27 +1084,36 @@ subroutine vertical_diffusion_tend( &
 
   select case (eddy_scheme)
   case ( 'diag_TKE' )
-
-     ! Get potential temperature.
-     th(:ncol,:pver) = state%t(:ncol,:pver) * state%exner(:ncol,:pver)
-
-     ! Set up pressure coordinates for solver calls.
-     p = Coords1D(state%pint(:ncol,:))
-
      call eddy_diff_tend(state, pbuf, cam_in, &
-          ztodt, p, tint, rhoi, cldn, wstarent, &
+          ztodt, do_iss, fv_am_correction, p, tint, rhoi, dpidz_sq, cldn, wstarent, &
           kvm_in, kvh_in, ksrftms, dragblj, tauresx, tauresy, &
           rrho, ustar, pblh, kvm, kvh, kvq, cgh, cgs, tpert, qpert, &
           tke, sprod, sfi)
 
-     ! The diag_TKE scheme does not calculate the Monin-Obukhov length, which is used in dry deposition calculations.
-     ! Use the routines from pbl_utils to accomplish this. Assumes ustar and rrho have been set.
-      thvs  (:ncol) = calc_virtual_temperature(th(:ncol,pver), state%q(:ncol,pver,1), zvir)
-
-      khfs  (:ncol) = calc_kinematic_heat_flux(cam_in%shf(:ncol), rrho(:ncol), cpair)
-      kqfs  (:ncol) = calc_kinematic_water_vapor_flux(cam_in%cflx(:ncol,1), rrho(:ncol))
-      kbfs  (:ncol) = calc_kinematic_buoyancy_flux(khfs(:ncol), zvir, th(:ncol,pver), kqfs(:ncol))
-      obklen(:ncol) = calc_obukhov_length(thvs(:ncol), ustar(:ncol), gravit, karman, kbfs(:ncol))
+      ! The diag_TKE scheme does not calculate the Monin-Obukhov length, which is used in dry deposition calculations.
+      ! Use the routines from pbl_utils to accomplish this. Assumes ustar and rrho have been set.
+      call compute_kinematic_fluxes_and_obklen_run( &
+           ncol               = ncol, &
+           pver               = pver, &
+           pcnst              = pcnst, &
+           const_props        = ccpp_const_props,          &
+           zvir               = zvir, &
+           cpair              = cpair, &
+           gravit             = gravit, &
+           karman             = karman, &
+           shf_from_coupler   = cam_in%shf(:ncol),         &
+           cflx_from_coupler  = cam_in%cflx(:ncol,:pcnst), &
+           q_wv               = state%q(:ncol,:pver,ixq),  &
+           th                 = th(:ncol,:pver), &
+           rrho               = rrho(:ncol), &
+           ustar              = ustar(:ncol), &
+           khfs               = khfs(:ncol), &
+           kqfs               = kqfs(:ncol), &
+           kbfs               = kbfs(:ncol), &
+           obklen             = obklen(:ncol), &
+           errmsg             = errmsg, &
+           errflg             = errflg)
+      if(errflg /= 0) call endrun('compute_kinematic_fluxes_and_obklen_run: ' // errmsg)
 
   case ( 'HB', 'HBR' )
 
@@ -1121,6 +1123,7 @@ subroutine vertical_diffusion_tend( &
      !REMOVECAM - no longer need this when CAM is retired and pcols no longer exists
      thv(:,:) = 0._r8
      ustar(:) = 0._r8
+     rrho(:) = 0._r8
      khfs(:) = 0._r8
      kqfs(:) = 0._r8
      kbfs(:) = 0._r8
@@ -1134,11 +1137,9 @@ subroutine vertical_diffusion_tend( &
        pver      = pver,                     &
        zvir      = zvir,                     &
        rair      = rair,                     &
-       cpair     = cpair,                    &
        gravit    = gravit,                   &
-       karman    = karman,                   &
-       exner     = state%exner(:ncol,:pver), &
        t         = state%t(:ncol,:pver),     &
+       th        = th(:ncol,:pver),          &
        q_wv      = state%q(:ncol,:pver,ixq), &
        z         = state%zm(:ncol,:pver),    &
        pmid      = state%pmid(:ncol,:pver),  &
@@ -1146,15 +1147,10 @@ subroutine vertical_diffusion_tend( &
        v         = state%v(:ncol,:pver),     &
        taux      = tautotx(:ncol),           &
        tauy      = tautoty(:ncol),           &
-       shflx     = cam_in%shf(:ncol),        &
-       q_wv_flx  = q_wv_cflx(:ncol),         &
        ! Output variables
        thv       = thv(:ncol,:pver),         &
        ustar     = ustar(:ncol),             &
-       khfs      = khfs(:ncol),              &
-       kqfs      = kqfs(:ncol),              &
-       kbfs      = kbfs(:ncol),              &
-       obklen    = obklen(:ncol),            &
+       rrho      = rrho(:ncol),              &
        s2        = s2(:ncol,:pver),          &
        ri        = ri(:ncol,:pver),          &
        errmsg    = errmsg,                   &
@@ -1163,6 +1159,29 @@ subroutine vertical_diffusion_tend( &
      if(errflg /= 0) then
         call endrun('hb_pbl_independent_coefficients_run: ' // errmsg)
      endif
+
+     call compute_kinematic_fluxes_and_obklen_run( &
+          ncol               = ncol, &
+          pver               = pver, &
+          pcnst              = pcnst, &
+          const_props        = ccpp_const_props,          &
+          zvir               = zvir, &
+          cpair              = cpair, &
+          gravit             = gravit, &
+          karman             = karman, &
+          shf_from_coupler   = cam_in%shf(:ncol),         &
+          cflx_from_coupler  = cam_in%cflx(:ncol,:pcnst), &
+          q_wv               = state%q(:ncol,:pver,ixq),  &
+          th                 = th(:ncol,:pver), &
+          rrho               = rrho(:ncol), &
+          ustar              = ustar(:ncol), &
+          khfs               = khfs(:ncol), &
+          kqfs               = kqfs(:ncol), &
+          kbfs               = kbfs(:ncol), &
+          obklen             = obklen(:ncol), &
+          errmsg             = errmsg, &
+          errflg             = errflg)
+     if(errflg /= 0) call endrun('compute_kinematic_fluxes_and_obklen_run: ' // errmsg)
 
      !REMOVECAM - no longer need this when CAM is retired and pcols no longer exists
      pblh(:) = 0._r8
@@ -1264,27 +1283,20 @@ subroutine vertical_diffusion_tend( &
         pver      = pver,                     &
         zvir      = zvir,                     &
         rair      = rair,                     &
-        cpair     = cpair,                    &
         gravit    = gravit,                   &
-        karman    = karman,                   &
-        exner     = state%exner(:ncol,:pver), &
         t         = state%t(:ncol,:pver),     &
-        q_wv      = state%q(:ncol,:pver,1),   & ! NOTE: assumes wv at 1 (need to change to ixq?)
+        th        = th(:ncol,:pver),          &
+        q_wv      = state%q(:ncol,:pver,ixq), &
         z         = state%zm(:ncol,:pver),    &
         pmid      = state%pmid(:ncol,:pver),  &
         u         = state%u(:ncol,:pver),     &
         v         = state%v(:ncol,:pver),     &
         taux      = tautotx(:ncol),           &
         tauy      = tautoty(:ncol),           &
-        shflx     = cam_in%shf(:ncol),        &
-        q_wv_flx  = q_wv_cflx(:ncol),         &
         ! Output variables
         thv       = thv(:ncol,:pver),         &
         ustar     = ustar(:ncol),             &
-        khfs      = khfs(:ncol),              &
-        kqfs      = kqfs(:ncol),              &
-        kbfs      = kbfs(:ncol),              &
-        obklen    = obklen(:ncol),            &
+        rrho      = rrho(:ncol),              &
         s2        = s2(:ncol,:pver),          &
         ri        = ri(:ncol,:pver),          &
         errmsg    = errmsg,                   &
@@ -1293,6 +1305,29 @@ subroutine vertical_diffusion_tend( &
       if(errflg /= 0) then
          call endrun('hb_pbl_independent_coefficients_run: ' // errmsg)
       endif
+
+      call compute_kinematic_fluxes_and_obklen_run( &
+           ncol               = ncol, &
+           pver               = pver, &
+           pcnst              = pcnst, &
+           const_props        = ccpp_const_props,          &
+           zvir               = zvir, &
+           cpair              = cpair, &
+           gravit             = gravit, &
+           karman             = karman, &
+           shf_from_coupler   = cam_in%shf(:ncol),         &
+           cflx_from_coupler  = cam_in%cflx(:ncol,:pcnst), &
+           q_wv               = state%q(:ncol,:pver,ixq),  &
+           th                 = th(:ncol,:pver), &
+           rrho               = rrho(:ncol), &
+           ustar              = ustar(:ncol), &
+           khfs               = khfs(:ncol), &
+           kqfs               = kqfs(:ncol), &
+           kbfs               = kbfs(:ncol), &
+           obklen             = obklen(:ncol), &
+           errmsg             = errmsg, &
+           errflg             = errflg)
+      if(errflg /= 0) call endrun('compute_kinematic_fluxes_and_obklen_run: ' // errmsg)
 
       call pbuf_get_field(pbuf, clubbtop_idx, clubbtop)
       clubbtop_r = real(clubbtop, r8)
@@ -1332,17 +1367,31 @@ subroutine vertical_diffusion_tend( &
       ! PBL diffusion will happen before coupling, so vertical_diffusion
       ! is only handling other things, e.g. some boundary conditions, tms,
       ! and molecular diffusion.
-
-      ! Get potential temperature.
-      th(:ncol,:pver) = state%t(:ncol,:pver) * state%exner(:ncol,:pver)
-
-      thvs  (:ncol) = calc_virtual_temperature(th(:ncol,pver), state%q(:ncol,pver,1), zvir)
       rrho  (:ncol) = calc_ideal_gas_rrho(rair, state%t(:ncol,pver), state%pmid(:ncol,pver))
       ustar (:ncol) = calc_friction_velocity(cam_in%wsx(:ncol), cam_in%wsy(:ncol), rrho(:ncol))
-      khfs  (:ncol) = calc_kinematic_heat_flux(cam_in%shf(:ncol), rrho(:ncol), cpair)
-      kqfs  (:ncol) = calc_kinematic_water_vapor_flux(cam_in%cflx(:ncol,1), rrho(:ncol))
-      kbfs  (:ncol) = calc_kinematic_buoyancy_flux(khfs(:ncol), zvir, th(:ncol,pver), kqfs(:ncol))
-      obklen(:ncol) = calc_obukhov_length(thvs(:ncol), ustar(:ncol), gravit, karman, kbfs(:ncol))
+
+      call compute_kinematic_fluxes_and_obklen_run( &
+           ncol               = ncol, &
+           pver               = pver, &
+           pcnst              = pcnst, &
+           const_props        = ccpp_const_props,          &
+           zvir               = zvir, &
+           cpair              = cpair, &
+           gravit             = gravit, &
+           karman             = karman, &
+           shf_from_coupler   = cam_in%shf(:ncol),         &
+           cflx_from_coupler  = cam_in%cflx(:ncol,:pcnst), &
+           q_wv               = state%q(:ncol,:pver,ixq),  &
+           th                 = th(:ncol,:pver), &
+           rrho               = rrho(:ncol), &
+           ustar              = ustar(:ncol), &
+           khfs               = khfs(:ncol), &
+           kqfs               = kqfs(:ncol), &
+           kbfs               = kbfs(:ncol), &
+           obklen             = obklen(:ncol), &
+           errmsg             = errmsg, &
+           errflg             = errflg)
+      if(errflg /= 0) call endrun('compute_kinematic_fluxes_and_obklen_run: ' // errmsg)
 
       ! These tendencies all applied elsewhere.
       kvm = 0._r8
@@ -1364,6 +1413,7 @@ subroutine vertical_diffusion_tend( &
   call vertical_diffusion_sponge_layer_run( &
     ncol   = ncol,   &
     pverp  = pverp,  &
+    diff_sponge_fac = diff_sponge_fac, &
     kvm    = kvm,    & ! in/out
     errmsg = errmsg, &
     errflg = errflg)
@@ -1377,7 +1427,7 @@ subroutine vertical_diffusion_tend( &
   call pbuf_set_field(pbuf, kvh_idx, kvh)
 
   ! kvm (in pbuf) is only used as an initial guess in compute_eddy_diff on the next timestep.
-  ! The contributions for molecular diffusion made to kvm by the call to compute_vdiff below
+  ! The contributions for molecular diffusion made to kvm by the call to the diffusion solver below
   ! are not included in the pbuf as these are not needed in the initial guess by compute_eddy_diff.
   call pbuf_set_field(pbuf, kvm_idx, kvm)
 
@@ -1870,28 +1920,6 @@ subroutine vertical_diffusion_tend( &
         qtten                = qtten(:ncol, :pver), &
         tten                 = tten(:ncol, :pver), &
         rhten                = rhten(:ncol, :pver))
-
-     if (trim(shallow_scheme) == 'UNICON') then
-        call pbuf_get_field(pbuf, qtl_flx_idx,  qtl_flx)
-        call pbuf_get_field(pbuf, qti_flx_idx,  qti_flx)
-        qtl_flx(:ncol,1) = 0._r8
-        qti_flx(:ncol,1) = 0._r8
-        do k = 2, pver
-           do i = 1, ncol
-              ! For use in the cloud macrophysics
-              ! Note that density is not added here. Also, only consider local transport term.
-              qtl_flx(i,k) = - kvh(i,k)*(q_tmp(i,k-1,1)-q_tmp(i,k,1)+q_tmp(i,k-1,ixcldliq)-q_tmp(i,k,ixcldliq))/&
-                   (state%zm(i,k-1)-state%zm(i,k))
-              qti_flx(i,k) = - kvh(i,k)*(q_tmp(i,k-1,1)-q_tmp(i,k,1)+q_tmp(i,k-1,ixcldice)-q_tmp(i,k,ixcldice))/&
-                   (state%zm(i,k-1)-state%zm(i,k))
-           end do
-        end do
-        do i = 1, ncol
-           rhoair = state%pint(i,pverp)/(rair*((slv(i,pver)-gravit*state%zi(i,pverp))/cpair))
-           qtl_flx(i,pverp) = cam_in%cflx(i,1)/rhoair
-           qti_flx(i,pverp) = cam_in%cflx(i,1)/rhoair
-        end do
-     end if
 
   end if
 
