@@ -165,37 +165,14 @@ contains
     call stream_ndep_check_units(stream_ndep_data_filename)
 
     ! Initialize the cdeps data type sdat_ndep.
-    ! When the ndep file is already on the model grid (mapalgo='redist'), reuse the
-    ! model mesh for the stream instead of letting CDEPS build a duplicate full
-    ! ESMF mesh from stream_ndep_mesh_filename -- at ne1024pg2 that duplicate mesh
-    ! (1.6 GB file read + mesh build) is a large init memory/time cost. For other
-    ! mapalgos (e.g. 'bilinear' with a coarser file) the stream is on a different
-    ! grid, so the stream mesh must still be created from its own file.
-    if (trim(stream_ndep_mapalgo) == 'redist') then
-       call shr_strdata_init_from_inline(sdat_ndep,                    &
-            my_task             = iam,                                 &
-            logunit             = iulog,                               &
-            compname            = 'ATM',                               &
-            model_clock         = model_clock,                         &
-            model_mesh          = model_mesh,                          &
-            stream_meshfile     = trim(stream_ndep_mesh_filename),     &
-            stream_filenames    = (/trim(stream_ndep_data_filename)/), &
-            stream_yearFirst    = stream_ndep_year_first,              &
-            stream_yearLast     = stream_ndep_year_last,               &
-            stream_yearAlign    = stream_ndep_year_align,              &
-            stream_fldlistFile  = stream_varlist_ndep,                 &
-            stream_fldListModel = stream_varlist_ndep,                 &
-            stream_lev_dimname  = 'null',                              &
-            stream_mapalgo      = trim(stream_ndep_mapalgo),           &
-            stream_offset       = 0,                                   &
-            stream_taxmode      = 'cycle',                             &
-            stream_dtlimit      = 1.0e30_r8,                           &
-            stream_tintalgo     = 'linear',                            &
-            stream_name         = 'Nitrogen deposition data ',         &
-            stream_mesh_in      = model_mesh,                          &
-            rc                  = rc)
-    else
-       call shr_strdata_init_from_inline(sdat_ndep,                    &
+    ! When the ndep file is already on the model grid, set mapalgo='redist' in the
+    ! namelist: CDEPS then reuses the already-built model mesh for the stream rather
+    ! than constructing a duplicate full ESMF mesh from stream_ndep_mesh_filename --
+    ! at ne1024pg2 that duplicate mesh (1.6 GB file read + mesh build) is a large
+    ! init memory/time cost. For other mapalgos (e.g. 'bilinear' with a coarser file)
+    ! the stream is on a different grid, so CDEPS still creates the stream mesh from
+    ! its own file.
+    call shr_strdata_init_from_inline(sdat_ndep,                       &
             my_task             = iam,                                 &
             logunit             = iulog,                               &
             compname            = 'ATM',                               &
@@ -216,7 +193,6 @@ contains
             stream_tintalgo     = 'linear',                            &
             stream_name         = 'Nitrogen deposition data ',         &
             rc                  = rc)
-    end if
     if (ESMF_LogFoundError(rcToCheck=rc, msg=ESMF_LOGERR_PASSTHRU, line=__LINE__, file=__FILE__)) then
        call ESMF_Finalize(endflag=ESMF_END_ABORT)
     end if
