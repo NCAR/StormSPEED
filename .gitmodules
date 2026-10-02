@@ -29,7 +29,7 @@
 [submodule "atmos_phys"]
 	path = src/atmos_phys
 	url = https://github.com/ESCOMP/atmospheric_physics
-	fxtag = atmos_phys0_24_000
+	fxtag = atmos_phys0_29_000
         fxrequired = AlwaysRequired
         fxDONOTUSEurl = https://github.com/ESCOMP/atmospheric_physics
 
@@ -43,10 +43,10 @@
 
 [submodule "fv3"]
 	path = src/dynamics/fv3
-	url = https://github.com/ESCOMP/CAM_FV3_interface.git
+	url = https://github.com/jtruesdal/CAM_FV3_interface.git
         fxrequired = AlwaysRequired
-        fxtag = fv3int_061924
-	fxDONOTUSEurl = https://github.com/ESCOMP/CAM_FV3_interface.git
+        fxtag = fv3int_093026
+	fxDONOTUSEurl = https://github.com/jtruesdal/CAM_FV3_interface.git
 
 [submodule "geoschem"]
 	path = src/chemistry/geoschem/geoschem_src
@@ -153,7 +153,7 @@ fxDONOTUSEurl = https://github.com/ESMCI/cime
 [submodule "cmeps"]
 path = components/cmeps
 url = https://github.com/jtruesdal/CMEPS.git
-fxtag = cmeps1.1.54.nh
+fxtag = cmeps1.1.58.nh
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/jtruesdal/CMEPS.git
 

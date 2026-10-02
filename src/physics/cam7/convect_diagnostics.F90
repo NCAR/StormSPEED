@@ -81,8 +81,6 @@
   use physics_buffer,    only: pbuf_get_index
 
   call addfld( 'CMFMC',      (/ 'ilev' /), 'A', 'kg/m2/s',  'Moist convection (deep+shallow) mass flux'                 )
-  call addfld ('ICWMRSH',    (/ 'lev' /),  'A', 'kg/kg',    'Shallow Convection in-cloud water mixing ratio '           )
-  call addfld( 'PRECSH',     horiz_only,   'A', 'm/s',      'Shallow Convection precipitation rate'                     )
   call addfld( 'CLDTOP',     horiz_only,   'I', '1',        'Vertical index of cloud top'                               )
   call addfld( 'CLDBOT',     horiz_only,   'I', '1',        'Vertical index of cloud base'                              )
   call addfld( 'PCLDTOP',    horiz_only,   'A', 'Pa',       'Pressure of cloud top'                                     )
@@ -109,7 +107,7 @@
    ! ---------------------- !
    type(physics_buffer_desc), pointer :: pbuf(:)
    type(physics_state), intent(in)    :: state                           ! Physics state variables
-   real(r8),            intent(in)    :: ztodt                           ! 2 delta-t  [ s ]
+   real(r8),            intent(in)    :: ztodt                           ! model physics timestep [s]
 
    real(r8),            intent(out)   :: rliq2(pcols)                    ! Vertically-integrated reserved cloud condensate [ m/s ]
    real(r8),            intent(out)   :: qc2(pcols,pver)                 ! Same as qc but only from shallow convection scheme
