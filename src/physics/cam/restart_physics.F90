@@ -62,6 +62,7 @@ module restart_physics
     use subcol_utils,        only: is_subcol_on
     use subcol,              only: subcol_init_restart
     use carma_intr,          only: carma_restart_init
+    use aoa_tracers,         only: aoa_tracers_define_restart
 
     type(file_desc_t), intent(inout) :: file
     type(physics_buffer_desc), pointer :: pbuf2d(:,:)
@@ -136,6 +137,7 @@ module restart_physics
     end if
 
     call carma_restart_init(file)
+    call aoa_tracers_define_restart(file)
 
   end subroutine init_restart_physics
 
@@ -161,6 +163,7 @@ module restart_physics
       use subcol_utils,        only: is_subcol_on
       use subcol,              only: subcol_write_restart
       use carma_intr,          only: carma_restart_write
+      use aoa_tracers,         only: aoa_tracers_write_restart
       !
       ! Input arguments
       !
@@ -334,6 +337,7 @@ module restart_physics
 
       call radiation_write_restart(file)
       call carma_restart_write(file)
+      call aoa_tracers_write_restart(file)
 
     end subroutine write_restart_physics
 
@@ -358,6 +362,7 @@ module restart_physics
      use subcol,              only: subcol_read_restart
      use pio,                 only: pio_read_darray
      use carma_intr,          only: carma_restart_read
+     use aoa_tracers,         only: aoa_tracers_read_restart
      !
      ! Arguments
      !
@@ -537,9 +542,8 @@ module restart_physics
      end if
 
      ! Reading the CFLX* components from the restart is optional for
-     ! backwards compatibility.  These fields were not needed for an
-     ! exact restart until the UNICON scheme was added.  More generally,
-     ! these components are only needed if they are not handled by the
+     ! backwards compatibility.
+     ! These components are only needed if they are not handled by the
      ! coupling layer restart (the ".rs." file), and if the values are
      ! used in the tphysbc physics before the tphysac code has a chance
      ! to update the values that are coming from boundary datasets.
@@ -596,6 +600,7 @@ module restart_physics
 
      call radiation_read_restart(file)
      call carma_restart_read(file)
+     call aoa_tracers_read_restart(file)
 
    end subroutine read_restart_physics
 

@@ -1,4 +1,4 @@
-module dyn_comp
+Module dyn_comp
 
 use bndry_mod,               only: bndry_exchangev
 use cam_abortutils,          only: endrun
@@ -657,7 +657,9 @@ subroutine dyn_init(dyn_in, dyn_out)
     use parallel_mod_cam, only: par
     use control_mod_cam,  only: runtype
     use element_ops,      only: set_thermostate
-
+    use spmd_utils,       only: mpicom, mpi_real8, mpi_max
+    use dimensions_mod_cam, only: nelemd
+    
     type (dyn_import_t), intent(out) :: dyn_in
     type (dyn_export_t), intent(out) :: dyn_out
 
@@ -667,6 +669,8 @@ subroutine dyn_init(dyn_in, dyn_out)
     real(r8)                         :: temperature(np,np,nlev),ps(np,np)
     character (len=vc_str_lgth)      :: vc_str
     character(len=*), parameter      :: sub = 'dyn_init'
+    real(r8) :: phis_loc, phis_glob
+    integer  :: ierr_dbg
    !----------------------------------------------------------------------------
   
    vc_dycore = vc_moist_pressure
@@ -865,13 +869,16 @@ subroutine read_inidat(dyn_in)
   use co2_cycle,               only: co2_implements_cnst, co2_init_cnst
   use const_init,              only: cnst_init_default
   use constituents,            only: cnst_name, cnst_longname
+  use control_mod_cam,         only: initial_total_mass
   use dimensions_mod_cam,      only: cnst_name_gll, cnst_longname_gll
   use dof_mod,                 only: putUniquePoints
   use edge_mod,                only : edgevpack_nlyr, edgevunpack_nlyr, edge_g
   use element_ops,             only: set_thermostate
   use gllfvremap_mod,          only: gfr_fv_phys_to_dyn_topo
+  use global_norms_mod,        only: global_integral
   use hycoef,                  only: ps0
   use microp_driver,           only: microp_driver_implements_cnst, microp_driver_init_cnst
+  use physical_constants,      only: g_homme => g
   use phys_control,            only: phys_getopts
   use prim_si_mod,             only: prim_set_mass
 
@@ -940,6 +947,10 @@ subroutine read_inidat(dyn_in)
     integer,  allocatable            :: m_ind(:)
     real(r8), allocatable            :: dbuf4(:,:,:,:)
     integer :: ithr, nets, nete, m
+
+    ! Variables for scaling mass
+    real(r8), allocatable :: ps_tmp(:,:,:), psdry_tmp(:,:,:)
+    real(r8)              :: ps_mean, psdry_mean, psdry_chk
 
     tl = 1
 
@@ -1022,6 +1033,8 @@ subroutine read_inidat(dyn_in)
    ! Set ICs.  Either from analytic expressions or read from file.
 
    if (analytic_ic_active() .and. (iam < par%nprocs)) then
+!   if (analytic_ic_active()) then
+!   if (iam < par%nprocs) then
 
       ! PHIS has already been set by set_phis.  Get local copy for
       ! possible use in setting T and PS in the analytic IC code.
@@ -1104,6 +1117,7 @@ subroutine read_inidat(dyn_in)
          end do
       end do
       deallocate(dbuf4)
+!   endif
    else
 
       ! Read ICs from file.  Assume all fields in the initial file are on the GLL grid.
@@ -1382,7 +1396,47 @@ subroutine read_inidat(dyn_in)
    ! scale PS to achieve prescribed dry mass
    if (scale_dry_air_mass > 0.0_r8) then
       if (iam < par%nprocs) then
-         call prim_set_mass(elem, TimeLevel,hybrid,hvcoord,nets,nete)
+         ! HOMME's prim_set_mass scales total (moist) mass to control_mod%initial_total_mass,
+         ! which CAM never sets.  Convert the requested global-mean dry surface pressure to a
+         ! total-mass target: with Q fixed, scaling ps scales dry and water mass by one factor.
+         allocate(ps_tmp(np,np,nets:nete), psdry_tmp(np,np,nets:nete))
+         ! 1. fill ps_v(n0) from the IC time level (must precede the means)
+         do ie = nets, nete
+            elem(ie)%state%ps_v(:,:,TimeLevel%n0) = elem(ie)%state%ps_v(:,:,tl)
+         end do
+
+         ! 2. pre-scaling global means
+         do ie = nets, nete
+            ps_tmp(:,:,ie) = elem(ie)%state%ps_v(:,:,TimeLevel%n0)
+            if (inic_wet) then
+               psdry_tmp(:,:,ie) = elem(ie)%state%ps_v(:,:,TimeLevel%n0) - &
+                    sum(elem(ie)%state%dp3d(:,:,:,TimeLevel%n0)*elem(ie)%state%Q(:,:,:,1), dim=3)
+            else
+               psdry_tmp(:,:,ie) = elem(ie)%state%ps_v(:,:,TimeLevel%n0)
+            end if
+         end do
+         ps_mean    = global_integral(elem, ps_tmp,    hybrid, np, nets, nete)
+         psdry_mean = global_integral(elem, psdry_tmp, hybrid, np, nets, nete)
+
+         ! 3. guard, set target, scale
+         if (psdry_mean <= 0._r8) call endrun(subname//' nonpositive global dry surface pressure')
+         initial_total_mass = (scale_dry_air_mass/psdry_mean) * ps_mean / g_homme
+         call prim_set_mass(elem, TimeLevel, hybrid, hvcoord, nets, nete)
+
+         ! 4. post-check (after prim_set_mass, before set_thermostate)
+         do ie = nets, nete
+            if (inic_wet) then
+               psdry_tmp(:,:,ie) = elem(ie)%state%ps_v(:,:,TimeLevel%n0) - &
+                    sum(elem(ie)%state%dp3d(:,:,:,TimeLevel%n0)*elem(ie)%state%Q(:,:,:,1), dim=3)
+            else
+               psdry_tmp(:,:,ie) = elem(ie)%state%ps_v(:,:,TimeLevel%n0)
+            end if
+         end do
+         psdry_chk = global_integral(elem, psdry_tmp, hybrid, np, nets, nete)
+         if (masterproc) write(iulog,'(a,2f14.4,es12.4)') &
+              'read_inidat: psdry target, actual (Pa), rel err =', &
+              scale_dry_air_mass, psdry_chk, (psdry_chk - scale_dry_air_mass)/scale_dry_air_mass
+         deallocate(ps_tmp, psdry_tmp)
       end if
    end if
 
@@ -1459,9 +1513,10 @@ subroutine set_phis(dyn_in)
    real(r8), allocatable            :: lonvals_phys(:)
 
    integer                          :: nlev_tot
+   logical                          :: phis_from_pg
    character(len=*), parameter      :: sub='set_phis'
    !----------------------------------------------------------------------------
-
+   phis_from_pg = .false.
    fh_topo => topo_file_get_id()
 
    if (iam < par%nprocs) then
@@ -1560,7 +1615,7 @@ subroutine set_phis(dyn_in)
             end if
             call read_phys_field_2d(fieldname, fh_topo, 'ncol', phis_phys_tmp)
             call gfr_fv_phys_to_dyn_topo(par, dom_mt, elem, phis_phys_tmp)
-
+            phis_from_pg = .true.
 !jt            call map_p2his_from_physgrid_to_gll(dyn_in%fvm, elem, phis_phys_tmp, phis_tmp, pmask)
             deallocate(phis_phys_tmp)
          end if
@@ -1599,16 +1654,18 @@ subroutine set_phis(dyn_in)
    deallocate(pmask)
 
    ! Set PHIS in element objects
-   do ie = 1, nelemd
-      elem(ie)%state%phis = 0.0_r8
-      indx = 1
-      do j = 1, np
-         do i = 1, np
-            elem(ie)%state%phis(i,j) = phis_tmp(indx, ie)
-            indx = indx + 1
+   if (.not. phis_from_pg) then
+      do ie = 1, nelemd
+         elem(ie)%state%phis = 0.0_r8
+         indx = 1
+         do j = 1, np
+            do i = 1, np
+               elem(ie)%state%phis(i,j) = phis_tmp(indx, ie)
+               indx = indx + 1
+            end do
          end do
       end do
-   end do
+   end if
    deallocate(phis_tmp)
 
    nlev_tot=1
@@ -2053,8 +2110,13 @@ subroutine read_dyn_field_2d(fieldname, fh, dimname, buffer)
    ! to NaN.  In that case infld can return NaNs where the element GLL points
    ! are not "unique columns"
    ! Set NaNs or fillvalue points to zero
-   where (isnan(buffer) .or. (buffer==fillvalue)) buffer = 0.0_r8
-
+   ! First, clean up any NaNs in the buffer directly
+   where (isnan(buffer)) buffer = 0.0_r8
+   
+   ! Second, ONLY perform the equality check if fillvalue is a valid, finite number
+   if (.not. isnan(fillvalue)) then
+      where (buffer == fillvalue) buffer = 0.0_r8
+   end if
 end subroutine read_dyn_field_2d
 
 !========================================================================================
@@ -2085,7 +2147,13 @@ subroutine read_dyn_field_3d(fieldname, fh, dimname, buffer)
    ! to NaN.  In that case infld can return NaNs where the element GLL points
    ! are not "unique columns"
    ! Set NaNs or fillvalue points to zero
-   where (isnan(buffer) .or. (buffer == fillvalue)) buffer = 0.0_r8
+   ! First, clean up any NaNs in the buffer directly
+   where (isnan(buffer)) buffer = 0.0_r8
+   
+   ! Second, ONLY perform the equality check if fillvalue is a valid, finite number
+   if (.not. isnan(fillvalue)) then
+      where (buffer == fillvalue) buffer = 0.0_r8
+   end if
 
 end subroutine read_dyn_field_3d
 

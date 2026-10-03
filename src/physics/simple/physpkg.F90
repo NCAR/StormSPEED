@@ -314,7 +314,7 @@ contains
     !
     ! Input arguments
     !
-    real(r8), intent(in) :: ztodt            ! physics time step unless nstep=0
+    real(r8), intent(in) :: ztodt            ! model physics timestep [s]
     !
     ! Input/Output arguments
     !
@@ -403,7 +403,7 @@ contains
     !
     ! Input arguments
     !
-    real(r8), intent(in) :: ztodt                       ! physics time step unless nstep=0
+    real(r8), intent(in) :: ztodt                       ! model physics timestep [s]
     !
     ! Input/Output arguments
     !
@@ -510,7 +510,7 @@ contains
 
     ! Arguments
     !
-    real(r8),                  intent(in)    :: ztodt ! Two times model timestep (2 delta-t)
+    real(r8),                  intent(in)    :: ztodt ! model physics timestep [s]
 
     type(cam_in_t),            intent(inout) :: cam_in
     type(cam_out_t),           intent(inout) :: cam_out
@@ -543,6 +543,7 @@ contains
     real(r8) :: tmp_trac  (pcols,pver,pcnst) ! tmp space
     real(r8) :: tmp_pdel  (pcols,pver)       ! tmp space
     real(r8) :: tmp_ps    (pcols)            ! tmp space
+    real(r8) :: tmp_cpcv  (pcols,pver)       ! tmp space
     real(r8) :: scaling(pcols,pver)
     !--------------------------------------------------------------------------
 
@@ -609,11 +610,6 @@ contains
     !     other dynamics. Bundy, Feb 2004.
     !
     moist_mixing_ratio_dycore = dycore_is('LR').or. dycore_is('FV3').or.dycore_is('SENH')
-    !
-    ! update cp/cv for energy computation based in updated water variables
-    !
-    call cam_thermo_water_update(state%q(:ncol,:,:), lchnk, ncol, vc_dycore,&
-         to_dry_factor=state%pdel(:ncol,:)/state%pdeldry(:ncol,:))
 
     if (moist_physics) then
       ! Scale dry mass and energy
@@ -643,6 +639,13 @@ contains
           tmp_trac(:ncol,:pver,:pcnst) = state%q(:ncol,:pver,:pcnst)
           tmp_pdel(:ncol,:pver)        = state%pdel(:ncol,:pver)
           tmp_ps(:ncol)                = state%ps(:ncol)
+          tmp_cpcv(:ncol,:pver)        = cp_or_cv_dycore(:ncol,:pver,lchnk)
+          !
+          ! update cp/cv for energy computation based in updated water variables
+          !
+          call cam_thermo_water_update(state%q(:ncol,:,:), lchnk, ncol, vc_dycore,&
+               to_dry_factor=state%pdel(:ncol,:)/state%pdeldry(:ncol,:))
+
           call physics_dme_adjust(state, tend, qini, totliqini, toticeini, ztodt)
           call tot_energy_phys(state, 'phAM')
           call tot_energy_phys(state, 'dyAM', vc=vc_dycore)
@@ -650,6 +653,7 @@ contains
           state%q(:ncol,:pver,:pcnst) = tmp_trac(:ncol,:pver,:pcnst)
           state%pdel(:ncol,:pver)     = tmp_pdel(:ncol,:pver)
           state%ps(:ncol)             = tmp_ps(:ncol)
+          cp_or_cv_dycore(:ncol,:pver,lchnk) = tmp_cpcv(:ncol,:pver)
         end if
       else
         !
@@ -733,7 +737,6 @@ contains
     use time_manager,      only: get_nstep
     use check_energy,      only: check_energy_cam_chng, check_energy_cam_fix
     use check_energy,      only: check_energy_timestep_init
-    use check_energy,      only: check_tracers_data, check_tracers_init, check_tracers_chng
     use check_energy,      only: tot_energy_phys
     use chemistry,         only: chem_is_active, chem_timestep_tend
     use held_suarez_cam,   only: held_suarez_tend
@@ -780,7 +783,6 @@ contains
 
     real(r8)                 :: zero(pcols) ! array of zeros
     real(r8)                 :: flx_heat(pcols)
-    type(check_tracers_data) :: tracerint   ! energy integrals and cummulative boundary fluxes
     !-----------------------------------------------------------------------
 
     call t_startf('bc_init')
@@ -820,9 +822,6 @@ contains
 
     ! Dump out "before tphysbc" state
     call diag_state_b4_phys_write(state)
-
-    ! compute mass integrals of input tracers state
-    call check_tracers_init(state, tracerint)
 
     call t_stopf('bc_init')
 
@@ -977,8 +976,6 @@ contains
     if (chem_is_active()) then
       call t_startf('simple_chem')
 
-      call check_tracers_init(state, tracerint)
-
       if (trim(cam_take_snapshot_before) == "chem_timestep_tend") then
          call cam_snapshot_all_outfld(cam_snapshot_before_num, state, tend, cam_in, cam_out, pbuf)
       end if
@@ -993,8 +990,6 @@ contains
       if (trim(cam_take_snapshot_after) == "chem_timestep_tend") then
          call cam_snapshot_all_outfld(cam_snapshot_after_num, state, tend, cam_in, cam_out, pbuf)
       end if
-
-      call check_tracers_chng(state, tracerint, "chem_timestep_tend", nstep, ztodt, cam_in%cflx)
 
       call t_stopf('simple_chem')
     end if

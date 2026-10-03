@@ -186,21 +186,21 @@ CONTAINS
     end if
   end subroutine set_interp_hfile
 
-  subroutine write_interpolated_scalar(File, varid, fld, numlev, data_type, decomp_type)
-    use pio,                 only: file_desc_t, var_desc_t
-    use pio,                 only: iosystem_desc_t
-    use pio,                 only: pio_initdecomp, pio_freedecomp
-    use pio,                 only: io_desc_t, pio_write_darray
-    use pio,                 only: pio_real
+  subroutine write_interpolated_scalar(File, varid, fld, ext_dims, data_type, decomp_type)
+    use pio,              only: file_desc_t, var_desc_t
+    use pio,              only: iosystem_desc_t
+    use pio,              only: pio_initdecomp, pio_freedecomp
+    use pio,              only: io_desc_t, pio_write_darray
+    use pio,              only: pio_real
     use interpolate_mod_cam, only: interpolate_scalar
-    use cam_instance,        only: atm_id
-    use spmd_dyn,            only: local_dp_map
-    use ppgrid,              only: begchunk
-    use phys_grid,           only: get_dyn_col_p, columns_on_task, get_chunk_info_p
+    use cam_instance,     only: atm_id
+    use spmd_dyn,         only: local_dp_map
+    use ppgrid,           only: begchunk
+    use phys_grid,        only: get_dyn_col_p, columns_on_task, get_chunk_info_p
     use dimensions_mod_cam,  only: fv_nphys, nc, nhc, nhc_phys
-    use dof_mod,             only: PutUniquePoints
+    use dof_mod,          only: PutUniquePoints
     use interpolate_mod_cam, only: get_interp_parameter
-    use shr_pio_mod,         only: shr_pio_getiosys
+    use shr_pio_mod,      only: shr_pio_getiosys
     use edge_mod,            only: edge_g, edgevpack_nlyr, edgevunpack_nlyr
     use bndry_mod,           only: bndry_exchangeV
     use parallel_mod_cam,    only: par
@@ -211,7 +211,8 @@ CONTAINS
     type(file_desc_t), intent(inout) :: File
     type(var_desc_t) , intent(inout) :: varid
     real(r8),          intent(in)    :: fld(:,:,:)
-    integer,           intent(in)    :: numlev, data_type, decomp_type
+    integer,           intent(in)    :: ext_dims(:)
+    integer,           intent(in)    :: data_type, decomp_type
     !
     ! local variables
     !
@@ -234,6 +235,14 @@ CONTAINS
     integer          :: nlon, nlat, ncol, nsize, nhalo, nhcc
     logical          :: usefillvalues
     character(len=*), parameter :: subname = 'write_interpolated_scalar'
+    integer          :: numlev
+
+    numlev = 1
+    if (size(ext_dims) > 0) then
+      do k = 1, size(ext_dims)
+        numlev = numlev * ext_dims(k)
+      end do
+    end if
 
     usefillvalues=.false.
 
@@ -249,9 +258,9 @@ CONTAINS
        if(.not. local_dp_map) then
           call endrun(subname//': weak scaling does not support load balancing')
        end if
-       nsize = np
-       nhalo = 0!no halo needed (lat-lon point always surrounded by GLL points)
-       nhcc  = 0
+        nsize = np
+        nhalo = 0!no halo needed (lat-lon point always surrounded by GLL points)
+        nhcc  = 0
     else if (decomp_type == gll_decomp) then
       nsize = np
       nhalo = 0!no halo needed (lat-lon point always surrounded by GLL points)
@@ -269,7 +278,7 @@ CONTAINS
     if(decomp_type == phys_decomp) then
 
       allocate(fld_dyn(nsize*nsize,numlev,nelemd))
-      fld_dyn = -999_R8
+      fld_dyn = -999._r8
       !!$omp parallel do num_threads(horz_num_threads) private (col_index, lchnk, icol, ie, blk_ind, k)
       do col_index = 1, columns_on_task
          call get_dyn_col_p(col_index, ie, blk_ind)
@@ -326,7 +335,7 @@ CONTAINS
     ncnt_out = sum(cam_interpolate(1:nelemd)%n_interp)
     allocate(fldout(ncnt_out,numlev))
     allocate(idof(ncnt_out*numlev))
-    fldout = -999_r8
+    fldout = -999._r8
     idof = 0
     st = 1
 
@@ -347,10 +356,16 @@ CONTAINS
       st = en+1
     end do
 
-    if(numlev==1) then
+    if(size(ext_dims)==0) then
        call pio_initdecomp(pio_subsystem, data_type, (/nlon,nlat/), idof, iodesc)
+    else if(size(ext_dims)==1) then
+       call pio_initdecomp(pio_subsystem, data_type, (/nlon,nlat,ext_dims(1)/), idof, iodesc)
+    else if(size(ext_dims)==2) then
+       call pio_initdecomp(pio_subsystem, data_type, (/nlon,nlat,ext_dims(1),ext_dims(2)/), idof, iodesc)
+    else if(size(ext_dims)==3) then
+       call pio_initdecomp(pio_subsystem, data_type, (/nlon,nlat,ext_dims(1),ext_dims(2),ext_dims(3)/), idof, iodesc)
     else
-       call pio_initdecomp(pio_subsystem, data_type, (/nlon,nlat,numlev/), idof, iodesc)
+       call endrun(subname//': too many extra dimensions')
     end if
 
     if(data_type == pio_real) then
@@ -367,35 +382,36 @@ CONTAINS
 
   end subroutine write_interpolated_scalar
 
-  subroutine write_interpolated_vector(File, varidu, varidv, fldu, fldv, numlev, data_type, decomp_type)
-    use pio,                 only: file_desc_t, var_desc_t
-    use pio,                 only: iosystem_desc_t
-    use pio,                 only: pio_initdecomp, pio_freedecomp
-    use pio,                 only: io_desc_t, pio_write_darray
-    use pio,                 only: pio_real
-    use cam_instance,        only: atm_id
+  subroutine write_interpolated_vector(File, varidu, varidv, fldu, fldv, ext_dims, data_type, decomp_type)
+    use pio,              only: file_desc_t, var_desc_t
+    use pio,              only: iosystem_desc_t
+    use pio,              only: pio_initdecomp, pio_freedecomp
+    use pio,              only: io_desc_t, pio_write_darray
+    use pio,              only: pio_real
+    use cam_instance,     only: atm_id
     use interpolate_mod_cam, only: interpolate_scalar, vec_latlon_to_contra,get_interp_parameter
-    use spmd_dyn,            only: local_dp_map
-    use ppgrid,              only: begchunk
-    use phys_grid,           only: get_dyn_col_p, columns_on_task, get_chunk_info_p
+    use spmd_dyn,         only: local_dp_map
+    use ppgrid,           only: begchunk
+    use phys_grid,        only: get_dyn_col_p, columns_on_task, get_chunk_info_p
     use dimensions_mod_cam,  only: fv_nphys,nc,nhc,nhc_phys
-    use dof_mod,             only: PutUniquePoints
-    use shr_pio_mod,         only: shr_pio_getiosys
+    use dof_mod,          only: PutUniquePoints
+    use shr_pio_mod,      only: shr_pio_getiosys
     use edge_mod,            only: edgevpack_nlyr, edgevunpack_nlyr, edge_g
-    use edgetype_mod,        only: EdgeBuffer_t
+    use edgetype_mod,     only: EdgeBuffer_t
     use bndry_mod,           only: bndry_exchangeV
     use parallel_mod_cam,    only: par
     use thread_mod_cam,      only: horz_num_threads
-    use cam_grid_support,    only: cam_grid_id
+    use cam_grid_support, only: cam_grid_id
     use hybrid_mod_cam,      only: hybrid_t,config_thread_region, get_loop_ranges
     use control_mod_cam,     only: cubed_sphere_map
 !jt    use cube_mod_cam,        only: dmap_cam
-    use cube_mod,           only: dmap
+    use cube_mod,         only: dmap
 
     type(file_desc_t), intent(inout) :: File
     type(var_desc_t),  intent(inout) :: varidu, varidv
     real(r8),          intent(in)    :: fldu(:,:,:), fldv(:,:,:)
-    integer,           intent(in)    :: numlev, data_type, decomp_type
+    integer,           intent(in)    :: ext_dims(:)
+    integer,           intent(in)    :: data_type, decomp_type
 
     type(hybrid_t)                 :: hybrid
     type(io_desc_t)                :: iodesc
@@ -418,6 +434,14 @@ CONTAINS
     real (r8)        :: D(2,2)   ! derivative of gnomonic mapping
     real (r8)        :: v1,v2
     character(len=*), parameter :: subname = 'write_interpolated_vector'
+    integer          :: numlev
+
+    numlev = 1
+    if (size(ext_dims) > 0) then
+      do k = 1, size(ext_dims)
+        numlev = numlev * ext_dims(k)
+      end do
+    end if
 
     usefillvalues=.false.
 
@@ -433,9 +457,9 @@ CONTAINS
        if(.not. local_dp_map) then
           call endrun(subname//': weak scaling does not support load balancing')
        end if
-       nsize = np
-       nhalo = 0!no halo needed (lat-lon point always surrounded by GLL points)
-       nhcc  =	 0
+        nsize = np
+        nhalo = 0!no halo needed (lat-lon point always surrounded by GLL points)
+        nhcc  = 0
     else if (decomp_type == gll_decomp) then
       nsize = np
       nhalo = 0!no halo needed (lat-lon point always surrounded by GLL points)
@@ -451,7 +475,7 @@ CONTAINS
     pio_subsystem => shr_pio_getiosys(atm_id)
     if(decomp_type == phys_decomp) then
       allocate(fld_dyn(nsize*nsize,2,numlev,nelemd))
-      fld_dyn = -999_R8
+      fld_dyn = -999._r8
        !!$omp parallel do num_threads(horz_num_threads) private (col_index, lchnk, icol, ie, blk_ind, k)
       do col_index = 1, columns_on_task
          call get_dyn_col_p(col_index, ie, blk_ind)
@@ -502,9 +526,9 @@ CONTAINS
     !
     !***************************************************************************
     !
-    do ie=1,nelemd
-       call vec_latlon_to_contra(elem(ie),nsize,nhcc,numlev,fld_tmp(:,:,:,:,ie))
-    end do
+      do ie=1,nelemd
+        call vec_latlon_to_contra(elem(ie),nsize,nhcc,numlev,fld_tmp(:,:,:,:,ie))
+      end do
     !
     ! WARNING - 1:nelemd and nets:nete
     !
@@ -523,7 +547,7 @@ CONTAINS
     allocate(fldout(ncnt_out,numlev,2))
     allocate(idof(ncnt_out*numlev))
 
-    fldout = -999_r8
+    fldout = -999._r8
     idof = 0
     st = 1
     do ie=1,nelemd
@@ -562,10 +586,16 @@ CONTAINS
       st = en+1
     end do
 
-    if(numlev==1) then
+    if(size(ext_dims)==0) then
        call pio_initdecomp(pio_subsystem, data_type, (/nlon,nlat/), idof, iodesc)
+    else if(size(ext_dims)==1) then
+       call pio_initdecomp(pio_subsystem, data_type, (/nlon,nlat,ext_dims(1)/), idof, iodesc)
+    else if(size(ext_dims)==2) then
+       call pio_initdecomp(pio_subsystem, data_type, (/nlon,nlat,ext_dims(1),ext_dims(2)/), idof, iodesc)
+    else if(size(ext_dims)==3) then
+       call pio_initdecomp(pio_subsystem, data_type, (/nlon,nlat,ext_dims(1),ext_dims(2),ext_dims(3)/), idof, iodesc)
     else
-       call pio_initdecomp(pio_subsystem, data_type, (/nlon,nlat,numlev/), idof, iodesc)
+       call endrun(subname//': too many extra dimensions')
     end if
 
     if(data_type == pio_real) then

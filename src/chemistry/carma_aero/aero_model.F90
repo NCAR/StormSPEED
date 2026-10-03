@@ -19,16 +19,21 @@ module aero_model
   use chem_mods,         only: gas_pcnst, adv_mass
   use mo_tracname,       only: solsym
   use infnan,            only: nan, assignment(=)
-  use rad_constituents,  only: rad_cnst_get_info, rad_cnst_get_info_by_bin, &
-                               rad_cnst_get_info_by_bin_spec, rad_cnst_get_bin_props_by_idx, &
-                               rad_cnst_get_bin_mmr_by_idx
+  use radiative_aerosol, only: rad_aer_get_info, rad_aer_get_info_by_bin, rad_aer_get_info_by_bin_spec, &
+                               rad_aer_get_bin_props_by_idx
+  use aerosol_mmr_host,   only: rad_cnst_get_bin_mmr_by_idx
   use mo_setsox,         only: setsox, has_sox
-  use carma_aerosol_properties_mod, only: carma_aerosol_properties
+  use aerosol_properties_mod, only: aerosol_properties
+  use aerosol_instances_mod, only: aerosol_instances_get_props, &
+       aerosol_instances_get_state, aerosol_instances_get_num_models
 
   use carma_intr, only: carma_get_group_by_name, carma_get_dry_radius, carma_get_wet_radius, carma_get_bin_rmass
   use carma_intr, only: carma_get_sad
 
   use aerosol_properties_mod, only: aero_name_len
+  use aerosol_state_mod, only: aerosol_state
+  use aerosol_instances_mod, only: aerosol_instances_get_props, &
+       aerosol_instances_get_state, aerosol_instances_get_num_models
 
   implicit none
   private
@@ -41,7 +46,7 @@ module aero_model
   public :: aero_model_wetdep     ! aerosol wet removal
   public :: aero_model_emissions  ! aerosol emissions
   public :: aero_model_surfarea    ! tropospheric aerosol wet surface area for chemistry
-  public :: aero_model_strat_surfarea   ! stub
+  public :: aero_model_strat_surfarea
 
    ! Misc private data
   character(len=32), allocatable :: fieldname(:)    ! names for interstitial output fields
@@ -65,22 +70,7 @@ module aero_model
   integer, public, protected :: nspec_max = 0
   integer, public, protected :: nbins = 0
   integer, public, protected, allocatable :: nspec(:)
-
-  ! local indexing for bins
-  integer, allocatable :: bin_idx(:,:) ! table for local indexing of modal aero number and mmr
-  integer :: ncnst_tot                  ! total number of mode number conc + mode species
-  integer :: ncnst_extd                  ! twiece total number of mode number conc + mode species
-
-  ! Indices for CARMA species in the ptend%q array.  Needed for prognostic aerosol case.
-  logical, allocatable :: bin_cnst_lq(:,:)
-  integer, allocatable :: bin_cnst_idx(:,:)
-
-
-  ! ptr2d_t is used to create arrays of pointers to 2D fields
-  type ptr2d_t
-    real(r8), pointer :: fld(:,:) => null()
-  end type ptr2d_t
-
+  integer :: ncnst_tot
   logical :: lq(pcnst) = .false. ! set flags true for constituents with non-zero tendencies
                                  ! in the ptend object
 
@@ -89,9 +79,18 @@ module aero_model
   real(r8)          :: sol_factb_interstitial  = 0.1_r8
   real(r8)          :: sol_factic_interstitial = 0.4_r8
 
+  integer, parameter :: max_sad_spec = 16
+  character(len=32) :: sad_chem_spec_types(max_sad_spec) = ' '
+  character(len=32) :: sad_strat_spec_types(max_sad_spec) = ' '
+
+  ! sfc/dm_aer slots mo_usrrxt must reserve beyond the aerosol bins; all CARMA
+  ! surfaces come from the aerosol representation, so no extra slots are needed
+  integer, parameter, public :: n_supplemental_sad = 0
+
   logical :: convproc_do_aer
 
-  type(carma_aerosol_properties), pointer :: aero_props =>null()
+  class(aerosol_properties), pointer :: aero_props =>null()
+  integer :: iaermod_ = -1
 
 contains
 
@@ -112,7 +111,8 @@ contains
     character(len=*), parameter :: subname = 'aero_model_readnl'
 
     ! Namelist variables
-    namelist /aerosol_nl/ sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial
+    namelist /aerosol_nl/ sol_facti_cloud_borne, sol_factb_interstitial, sol_factic_interstitial, &
+       sad_chem_spec_types, sad_strat_spec_types
 
     !-----------------------------------------------------------------------------
 
@@ -136,6 +136,8 @@ contains
     call mpibcast(sol_facti_cloud_borne, 1,                         mpir8,   0, mpicom)
     call mpibcast(sol_factb_interstitial, 1,                        mpir8,   0, mpicom)
     call mpibcast(sol_factic_interstitial, 1,                       mpir8,   0, mpicom)
+    call mpibcast(sad_chem_spec_types,    len(sad_chem_spec_types(1))*max_sad_spec,    mpichar, 0, mpicom)
+    call mpibcast(sad_strat_spec_types,   len(sad_strat_spec_types(1))*max_sad_spec,   mpichar, 0, mpicom)
 #endif
 
     call aero_wetdep_readnl(nlfile)
@@ -156,17 +158,17 @@ contains
 
     integer :: idx, ierr
 
-    call rad_cnst_get_info( 0, nbins=nbins)
+    call rad_aer_get_info( 0, nbins=nbins)
     allocate( nspec(nbins), stat=ierr )
     if (ierr/=0) call endrun('aero_model_register: allocate error')
 
     ! add pbuf fields for interstitial (cloud borne) aerosols in CARMA
     do m = 1, nbins
-       call rad_cnst_get_info_by_bin(0, m, num_name=num_name, num_name_cw=num_name_cw, nspec=nspec(m))
+       call rad_aer_get_info_by_bin(0, m, num_name=num_name, num_name_cw=num_name_cw, nspec=nspec(m))
        call pbuf_add_field(num_name,'global',dtype_r8,(/pcols,pver/), idx)
        call pbuf_add_field(num_name_cw,'global',dtype_r8,(/pcols,pver/), idx)
        do l = 1, nspec(m)
-          call rad_cnst_get_info_by_bin_spec(0, m, l, spec_name_cw=spec_name_cw)
+          call rad_aer_get_info_by_bin_spec(0, m, l, spec_name_cw=spec_name_cw)
           call pbuf_add_field(spec_name_cw,'global',dtype_r8,(/pcols,pver/),idx)
        enddo
     enddo
@@ -209,7 +211,7 @@ contains
 
     ! local vars
     character(len=*), parameter :: subrname = 'aero_model_init'
-    integer :: m, n, ii, mm
+    integer :: m, n, mm
     integer :: idxtmp    = -1
 
     logical  :: history_aerosol ! Output MAM or SECT aerosol tendencies
@@ -225,18 +227,21 @@ contains
     integer :: idx, ierr
     real(r8) :: nanval
 
-    aero_props => carma_aerosol_properties()
+    do iaermod_ = 1, aerosol_instances_get_num_models()
+       aero_props => aerosol_instances_get_props(iaermod_, 0)
+       if (aero_props%model_is('CARMA')) exit
+    end do
     call aero_deposition_cam_init(aero_props)
 
     if (is_first_step()) then
        do m = 1, nbins
-          call rad_cnst_get_info_by_bin(0, m, num_name=num_name, num_name_cw=num_name_cw)
+          call rad_aer_get_info_by_bin(0, m, num_name=num_name, num_name_cw=num_name_cw)
           idx = pbuf_get_index(num_name)
           call pbuf_set_field(pbuf2d, idx, 0.0_r8)
           idx = pbuf_get_index(num_name_cw)
           call pbuf_set_field(pbuf2d, idx, 0.0_r8)
           do l = 1, nspec(m)
-             call rad_cnst_get_info_by_bin_spec(0, m, l, spec_name_cw=spec_name_cw)
+             call rad_aer_get_info_by_bin_spec(0, m, l, spec_name_cw=spec_name_cw)
              idx = pbuf_get_index(spec_name_cw)
              call pbuf_set_field(pbuf2d, idx, 0.0_r8)
           enddo
@@ -251,7 +256,7 @@ contains
     end if
 
     ! aqueous chem initialization
-    call sox_inti()
+    call sox_inti(aero_props)
 
     h2so4_ndx = get_spc_ndx('H2SO4')
     nh3_ndx = get_spc_ndx('NH3')
@@ -273,50 +278,33 @@ contains
 
     nspec_max = maxval(nspec)
 
-    ncnst_tot = nspec(1)
-    do m = 2, nbins
-      ncnst_tot = ncnst_tot + nspec(m)
-    end do
-    ncnst_extd = 2*ncnst_tot
+    ncnst_tot = aero_props%ncnst_tot()
 
     allocate( &
-      bin_idx(nbins,nspec_max),      &
-      bin_cnst_lq(nbins,nspec_max), &
-      bin_cnst_idx(nbins,nspec_max), &
       fieldname_cw(ncnst_tot), &
       fieldname(ncnst_tot), stat=ierr  )
     if (ierr/=0) call endrun(subrname//' : allocate error')
 
-    ii = 0
     do m = 1, nbins
       do l = 1, nspec(m) ! loop through species
-         ii = ii + 1
-         bin_idx(m,l) = ii
+         mm = aero_props%indexer(m,l)
 
          if (l <= nspec(m) ) then   ! species
-            call rad_cnst_get_info_by_bin_spec(0, m, l, spec_name=fieldname(ii), spec_name_cw=fieldname_cw(ii))
+            call rad_aer_get_info_by_bin_spec(0, m, l, spec_name=fieldname(mm), spec_name_cw=fieldname_cw(mm))
          else  !number
-            call rad_cnst_get_info_by_bin(0, m, num_name=fieldname(ii), num_name_cw=fieldname_cw(ii))
+            call rad_aer_get_info_by_bin(0, m, num_name=fieldname(mm), num_name_cw=fieldname_cw(mm))
          end if
 
-         call cnst_get_ind(fieldname(ii), idxtmp, abort=.false.)
+         call cnst_get_ind(fieldname(mm), idxtmp, abort=.false.)
           if (idxtmp.gt.0) then
-             bin_cnst_lq(m,l) = .true.
-             bin_cnst_idx(m,l) = idxtmp
              lq(idxtmp) = .true.
              call cnst_set_convtran2(idxtmp, .not.convproc_do_aer)
-          else
-             bin_cnst_lq(m,l) = .false.
-             bin_cnst_idx(m,l) = 0
           end if
 
-         mm = ii
-
-         unit_basename = 'kg'
-         if (l == nspec(m) + 2) then   ! number
-          unit_basename = ' 1'
-         end if
-
+          unit_basename = 'kg'
+          if (l == nspec(m) + 2) then   ! number
+             unit_basename = ' 1'
+          end if
 
           call addfld( fieldname_cw(mm),                (/ 'lev' /), 'A', unit_basename//'/kg ',   &
                trim(fieldname_cw(mm))//' in cloud water')
@@ -355,7 +343,7 @@ contains
     if (has_sox) then
        do n = 1, nbins
           do l = 1, nspec(n)   ! not for total mass or number
-             mm = bin_idx(n, l)
+             mm = aero_props%indexer(n,l)
              call addfld (&
                   trim(fieldname_cw(mm))//'AQSO4',horiz_only,  'A','kg/m2/s', &
                   trim(fieldname_cw(mm))//' aqueous phase chemistry')
@@ -381,6 +369,21 @@ contains
     endif
 
     call aero_wetdep_init()
+
+    if (masterproc) then
+       write(iulog,*) 'SAD chemistry spec_types:'
+       do l = 1, max_sad_spec
+          if (len_trim(sad_chem_spec_types(l)) > 0) then
+             write(iulog,*) '  ', trim(sad_chem_spec_types(l))
+          end if
+       end do
+       write(iulog,*) 'SAD stratospheric spec_types:'
+       do l = 1, max_sad_spec
+          if (len_trim(sad_strat_spec_types(l)) > 0) then
+             write(iulog,*) '  ', trim(sad_strat_spec_types(l))
+          end if
+       end do
+    end if
 
   end subroutine aero_model_init
 
@@ -424,37 +427,41 @@ contains
   ! called from mo_usrrxt
   !-------------------------------------------------------------------------
   subroutine aero_model_surfarea( &
-                  state, mmr, radmean, relhum, pmid, temp, strato_sad, sulfate,  m, ltrop, &
-                  dlat, het1_ndx, pbuf, ncol, sfc, dm_aer, sad_trop, reff_trop )
+                  state, relhum, pmid, temp, ltrop, &
+                  sfc, dm_aer, sad_trop, reff_trop, sad_ssa )
+
+    use mo_constants, only : pi
 
     ! dummy args
     type(physics_state), intent(in) :: state           ! Physics state variables
     real(r8), intent(in)    :: pmid(:,:)
     real(r8), intent(in)    :: temp(:,:)
-    real(r8), intent(in)    :: mmr(:,:,:)
-    real(r8), intent(in)    :: radmean      ! mean radii in cm
-    real(r8), intent(in)    :: strato_sad(:,:)
-    integer,  intent(in)    :: ncol
     integer,  intent(in)    :: ltrop(:)
-    real(r8), intent(in)    :: dlat(:)                    ! degrees latitude
-    integer,  intent(in)    :: het1_ndx
     real(r8), intent(in)    :: relhum(:,:)
-    real(r8), intent(in)    :: m(:,:) ! total atm density (/cm^3)
-    real(r8), intent(in)    :: sulfate(:,:)
-    type(physics_buffer_desc), pointer :: pbuf(:)
 
     real(r8), intent(inout) :: sfc(:,:,:)
     real(r8), intent(inout) :: dm_aer(:,:,:)
     real(r8), intent(inout) :: sad_trop(:,:)  ! aerosol surface area density (cm2/cm3), zeroed above the tropopause
     real(r8), intent(out)   :: reff_trop(:,:) ! aerosol effective radius (cm), zeroed above the tropopause
+    real(r8), intent(out)   :: sad_ssa(:,:)
 
     ! local vars
-    integer :: beglev(ncol)
-    integer :: endlev(ncol)
+    integer :: beglev(pcols)
+    integer :: endlev(pcols)
 
+    integer :: lchnk, ncol
+
+    class(aerosol_state), pointer :: aero_state
+
+    sad_ssa = -huge(1._r8)
+
+    lchnk = state%lchnk
+    ncol = state%ncol
     beglev(:ncol)=ltrop(:ncol)+1
     endlev(:ncol)=pver
-    call surf_area_dens( state, pbuf, ncol, mmr, beglev, endlev, sad_trop, reff_trop, sfc=sfc, dm_aer=dm_aer )
+    aero_state => aerosol_instances_get_state(iaermod_, 0, lchnk)
+    call aero_state%surf_area_dens(aero_props, sad_chem_spec_types, ncol, pver, beglev, endlev, &
+         relhum, pmid, temp, pi, sad_trop, reff_trop, sfc, dm_aer )
 
   end subroutine aero_model_surfarea
 
@@ -462,29 +469,41 @@ contains
   ! provides wet stratospheric aerosol surface area info for sectional aerosols
   ! called from mo_gas_phase_chemdr.F90
   !-------------------------------------------------------------------------
-  subroutine aero_model_strat_surfarea( state, ncol, mmr, pmid, temp, ltrop, pbuf, strato_sad, reff_strat )
+  subroutine aero_model_strat_surfarea( state, pmid, temp, ltrop, strato_sad, reff_strat )
 
     use ref_pres, only: clim_modal_aero_top_lev
+    use mo_constants, only: pi
 
     ! dummy args
     type(physics_state), intent(in) :: state           ! Physics state variables
-    integer,  intent(in)    :: ncol
-    real(r8), intent(in)    :: mmr(:,:,:)
     real(r8), intent(in)    :: pmid(:,:)
     real(r8), intent(in)    :: temp(:,:)
     integer,  intent(in)    :: ltrop(:) ! tropopause level indices
-    type(physics_buffer_desc), pointer :: pbuf(:)
     real(r8), intent(out)   :: strato_sad(:,:) ! aerosol surface area density (cm2/cm3), zeroed below the tropopause
     real(r8), intent(out)   :: reff_strat(:,:) ! aerosol effective radius (cm), zeroed below the tropopause
 
     ! local vars
-    integer :: beglev(ncol)
-    integer :: endlev(ncol)
+    integer :: i,k, lchnk, ncol
 
+    real(r8) :: sfc_tmp(pcols,pver,nbins)
+    real(r8) :: dm_tmp(pcols,pver,nbins)
+    real(r8) :: relhum(pcols,pver)
+
+    class(aerosol_state), pointer :: aero_state
+
+    integer :: beglev(pcols)
+    integer :: endlev(pcols)
+
+    lchnk = state%lchnk
+    ncol = state%ncol
     beglev(:ncol) = clim_modal_aero_top_lev
     endlev(:ncol) = ltrop(:ncol)
 
-    call surf_area_dens( state, pbuf, ncol, mmr, beglev, endlev, strato_sad, reff_strat )
+    aero_state => aerosol_instances_get_state(iaermod_, 0, lchnk)
+    if (len_trim(sad_strat_spec_types(1)) > 0) then
+        call aero_state%surf_area_dens(aero_props, sad_strat_spec_types, ncol, pver, beglev, endlev, &
+             relhum, pmid, temp, pi, strato_sad, reff_strat)
+    end if
 
   end subroutine aero_model_strat_surfarea
 
@@ -498,10 +517,12 @@ contains
 
     use carma_aero_gasaerexch, only : carma_aero_gasaerexch_sub
     use time_manager,          only : get_nstep
+    use aerosol_state_mod, only: aerosol_state, ptr2d_t
+
     !-----------------------------------------------------------------------
     !      ... dummy arguments
     !-----------------------------------------------------------------------
-    type(physics_state), intent(in)    :: state    ! Physics state variables
+    type(physics_state),target, intent(in) :: state  ! Physics state variables
     integer,  intent(in) :: loffset                ! offset applied to modal aero "pointers"
     integer,  intent(in) :: ncol                   ! number columns in chunk
     integer,  intent(in) :: lchnk                  ! chunk index
@@ -537,8 +558,6 @@ contains
 
     real(r8) :: del_h2so4_aeruptk(ncol,pver)
 
-    real(r8), pointer :: pblh(:)                    ! pbl height (m)
-
     real(r8), dimension(ncol) :: wrk
     character(len=32)         :: name
     real(r8) :: dvmrcwdt(ncol,pver,ncnst_tot)
@@ -556,14 +575,10 @@ contains
     real(r8) ::  xphlwc(ncol,pver)                    ! pH value multiplied by lwc
     real(r8) ::  nh3_beg(ncol,pver)
     real(r8) ::  mw_carma(ncnst_tot)
-    real(r8), pointer :: fldcw(:,:)
-    real(r8), pointer :: sulfeq(:,:,:)
     real(r8) :: wetr(pcols,pver)   ! CARMA wet radius in cm
     real(r8) :: wetrho(pcols,pver)   ! CARMA wet dens
     real(r8), allocatable :: rmass(:)     ! CARMA rmass
 
-    real(r8) :: old_total_mass
-    real(r8) :: new_total_mass
     real(r8) :: old_total_number
 
     character(len=32) :: spectype
@@ -571,6 +586,11 @@ contains
     character(len=aero_name_len) :: bin_name, shortname
     integer :: igroup, ibin, rc, nchr, ierr
     character(len=*), parameter :: subname = 'aero_model_gasaerexch'
+
+    class(aerosol_state), pointer :: aero_state
+
+!----------------------------------------------------------------------
+    aero_state => aerosol_instances_get_state(iaermod_, 0, lchnk)
 
 !
 ! ... initialize nh3
@@ -603,6 +623,10 @@ contains
       qqcw(ncnst_tot), stat=ierr )
     if (ierr /= 0) call endrun(subname//': allocate error')
 
+    ! Init pointers to mode number and specie mass mixing ratios in
+    ! intersitial and cloud borne phases.
+    call aero_state%get_states( aero_props, raer, qqcw )
+
     mw_carma(:) = 0.0_r8
     do m = 1, nbins      ! main loop over aerosol bins
        ! dryr is the dry bin radius
@@ -610,7 +634,7 @@ contains
        ! Note: taken here from CARMA pbuf field which may be not any more consistent with changed fields after carma was applied
        ! Need to add new code that recalcuates dryr and wetr
        ! get bin info
-       call rad_cnst_get_info_by_bin(0, m, nspec=nspec(m), bin_name=bin_name)
+       call rad_aer_get_info_by_bin(0, m, nspec=nspec(m), bin_name=bin_name)
 
        nchr = len_trim(bin_name)-2
        shortname = bin_name(:nchr)
@@ -638,11 +662,9 @@ contains
        ! Init pointers to mode number and specie mass mixing ratios in
        ! intersitial and cloud borne phases.
        do l = 1, nspec(m)
-          mm = bin_idx(m, l)
+          mm = aero_props%indexer(m,l)
           if (l <= nspec(m)) then
-             call rad_cnst_get_bin_props_by_idx(0, m, l,spectype=spectype)
-             call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'a', state, pbuf, raer(mm)%fld)
-             call rad_cnst_get_bin_mmr_by_idx(0, m, l, 'c', state, pbuf, qqcw(mm)%fld)  ! cloud-borne aerosol
+             call aero_props%get(bin_ndx=m, species_ndx=l, spectype=spectype)
              if (trim(spectype) == 'sulfate') then
                 mw_carma(mm) = 96._r8
              end if
@@ -677,11 +699,9 @@ contains
     ! aqueous chemistry ...
 
     if( has_sox ) then
-         call setsox( state,  &
+         call setsox( aero_state, state,  &
               pbuf,     &
               ncol,     &
-              lchnk,    &
-              loffset,  &
               delt,     &
               pmid,     &
               pdel,     &
@@ -702,10 +722,13 @@ contains
 
           do n = 1, nbins
             do l = 1, nspec(n)   ! not for total mass or number
-                mm = bin_idx(n, l)
-                call outfld( trim(fieldname_cw(mm))//'AQSO4',   aqso4(:ncol,mm),   ncol, lchnk)
-                call outfld( trim(fieldname_cw(mm))//'AQH2SO4', aqh2so4(:ncol,mm), ncol, lchnk)
-             end do
+               call aero_props%get(bin_ndx=n, species_ndx=l, spectype=spectype)
+               if (trim(spectype) == 'sulfate') then
+                  mm = aero_props%indexer(n,l)
+                  call outfld( trim(fieldname_cw(mm))//'AQSO4',   aqso4(:ncol,n),   ncol, lchnk)
+                  call outfld( trim(fieldname_cw(mm))//'AQH2SO4', aqh2so4(:ncol,n), ncol, lchnk)
+               end if
+            end do
           end do
 
           call outfld( 'AQSO4_H2O2', aqso4_h2o2(:ncol), ncol, lchnk)
@@ -749,40 +772,15 @@ contains
     ! note vmr2qqcw does not change qqcw pointer (different than in MAM)
     call vmr2mmr_carma ( lchnk, vmrcw, mbar, mw_carma, ncol, loffset, rmass )
 
-    !vmrcw in kg/kg
-    ! change pointer value for total mmr and number. In order to do this correctly
-    ! only mass has to be added to each bin (not number). This will require redistributing
-    ! mass to different bins. Here, we change both mass and number until we have a better
-    ! solution.
-    delta_so4mass(:,:,:) = 0.0_r8
-    do m = 1, nbins
-       do l = 1, nspec(m)  ! for sulfate only
-          mm = bin_idx(m, l)
-         ! sulfate mass that needs to be added to the total mass
-          call rad_cnst_get_bin_props_by_idx(0, m, l,spectype=spectype)
-          if (trim(spectype) == 'sulfate') then
-              ! only do loop if vmrcw has changed
-              do k=1,pver
-                 do i=1,ncol
-                  if (vmrcw(i,k,mm) .gt. mmrcw(i,k,mm) .and. mmrcw(i,k,mm) /= 0.0_r8)  then
-                   delta_so4mass(i,k,mm) = ( vmrcw(i,k,mm) - mmrcw(i,k,mm) )
-                  else
-                    delta_so4mass(i,k,mm) = 0.0_r8
-                  end if
-                 end do
-              end do
-         end if
-       end do
-    end do
-
     do m = 1, nbins
        do l = 1, nspec(m) ! for sulfate only
-          mm = bin_idx(m, l)
+          mm = aero_props%indexer(m,l)
           qqcw(mm)%fld(:ncol,:) = vmrcw(:ncol,:,mm)
           call outfld( trim(fieldname_cw(mm)), qqcw(mm)%fld(:ncol,:), ncol, lchnk)
        end do
     end do
 
+    nullify(aero_state)
 
   end subroutine aero_model_gasaerexch
 
@@ -802,117 +800,8 @@ contains
   !===============================================================================
   ! private methods
 
-
   !=============================================================================
   !=============================================================================
-  subroutine surf_area_dens( state, pbuf, ncol, mmr, beglev, endlev, sad, reff, sfc, dm_aer )
-    use mo_constants, only: pi
-    use carma_intr,   only: carma_effecitive_radius
-
-    ! dummy args
-    type(physics_state),    intent(in) :: state           ! Physics state variables
-    type(physics_buffer_desc), pointer :: pbuf(:)
-    integer,  intent(in)  :: ncol
-    real(r8), intent(in)  :: mmr(:,:,:)
-    integer,  intent(in)  :: beglev(:)
-    integer,  intent(in)  :: endlev(:)
-    real(r8), intent(out) :: sad(:,:)    ! bulk surface area density in cm2/cm3 from beglev to endlev, zero elsewhere
-    real(r8), intent(out) :: reff(:,:)   ! bulk effective radius in cm from beglev to endlev, zero elsewhere
-    real(r8), optional, intent(out) :: sfc(:,:,:) ! surface area density per bin
-    real(r8), optional, intent(out) :: dm_aer(:,:,:) ! diameter per bin
-
-    ! local vars
-    real(r8) :: reffaer(pcols,pver) ! bulk effective radius in cm
-
-    real(r8) :: sad_bin(pcols,pver,nbins)
-    integer  :: icol, ilev, ibin, ispec !!, reff_pbf_ndx
-    real(r8) :: chm_mass, tot_mass
-    character(len=32) :: spectype
-    real(r8) :: wetr(pcols,pver)      ! CARMA bin wet radius in cm
-    real(r8) :: wetrho(pcols,pver)    ! CARMA bin wet density
-    real(r8) :: sad_carma(pcols,pver) ! CARMA bin wet surface area density in cm2/cm3
-    real(r8), pointer :: aer_bin_mmr(:,:)
-
-    character(len=aero_name_len) :: bin_name, shortname
-    integer :: igroup, indxbin, rc, nchr
-
-    sad = 0._r8
-    reff = 0._r8
-
-    !
-    ! Compute surface aero for each bin.
-    ! Total over all bins as the surface area for chemical reactions.
-    !
-
-    reffaer = carma_effecitive_radius(state)
-
-    sad = 0._r8
-    sad_bin = 0._r8
-    reff = 0._r8
-
-    do ibin=1,nbins ! loop over aerosol bins
-      call rad_cnst_get_info_by_bin(0, ibin, bin_name=bin_name)
-
-      nchr = len_trim(bin_name)-2
-      shortname = bin_name(:nchr)
-
-      call carma_get_group_by_name(shortname, igroup, rc)
-
-      read(bin_name(nchr+1:),*) indxbin
-
-      call carma_get_wet_radius(state, igroup, indxbin, wetr, wetrho, rc) ! m
-      wetr(:ncol,:) = wetr(:ncol,:) * 1.e2_r8 ! cm
-      call carma_get_sad(state, igroup, indxbin, sad_carma, rc)
-
-      if (present(dm_aer)) then
-         dm_aer(:ncol,:,ibin) = 2._r8 * wetr(:ncol,:) ! convert wet radius (cm) to wet diameter (cm)
-      endif
-      sad_bin(:ncol,:,ibin) = sad_carma(:ncol,:) ! cm^2/cm^3
-    end do
-
-    do icol = 1,ncol
-      do ilev = beglev(icol),endlev(icol)
-        do ibin=1,nbins ! loop over aerosol bins
-          !
-          ! compute a mass weighting of the number
-          !
-          tot_mass = 0._r8
-          chm_mass = 0._r8
-          do ispec=1,nspec(ibin)
-
-             call rad_cnst_get_bin_mmr_by_idx(0, ibin, ispec, 'a', state, pbuf, aer_bin_mmr)
-
-             tot_mass = tot_mass + aer_bin_mmr(icol,ilev)
-
-             call rad_cnst_get_bin_props_by_idx(0, ibin, ispec, spectype=spectype)
-
-             if ( trim(spectype) == 'sulfate'   .or. &
-                trim(spectype) == 's-organic' .or. &
-                trim(spectype) == 'p-organic' .or. &
-                trim(spectype) == 'black-c'   .or. &
-                trim(spectype) == 'ammonium') then
-                chm_mass = chm_mass + aer_bin_mmr(icol,ilev)
-             end if
-
-          end do
-          if ( tot_mass > 0._r8 ) then
-         ! surface area density
-            sad_bin(icol,ilev,ibin) = chm_mass / tot_mass * sad_bin(icol,ilev,ibin) ! cm^2/cm^3
-          else
-            sad_bin(icol,ilev,ibin) = 0._r8
-          end if
-        end do
-        sad(icol,ilev) = sum(sad_bin(icol,ilev,:))
-        reff(icol,ilev) = reffaer(icol,ilev)
-
-       end do
-    end do
-
-    if (present(sfc)) then
-       sfc(:,:,:) = sad_bin(:,:,:)
-    endif
-
-  end subroutine surf_area_dens
 
   !=============================================================================
   subroutine mmr2vmr_carma(lchnk, vmr, mbar, mw_carma, ncol, im, rmass)
@@ -938,7 +827,7 @@ contains
 
     do m = 1, nbins
        do l = 1, nspec(m)   ! for each species, not total mmr or number, information of mw are missing
-          mm = bin_idx(m, l)
+          mm = aero_props%indexer(m,l)
           do k=1,pver
              vmr(:ncol,k,mm) = mbar(:ncol,k) * vmr(:ncol,k,mm) / mw_carma(mm)
           end do
@@ -974,7 +863,7 @@ contains
     !-----------------------------------------------------------------
     do m = 1, nbins
        do l = 1, nspec(m)   ! for each species, not total mmr or number, information of mw are missing
-          mm = bin_idx(m, l)
+          mm = aero_props%indexer(m,l)
           do k=1,pver
              vmr(:ncol,k,mm) = mw_carma(mm) * vmr(:ncol,k,mm) / mbar(:ncol,k)
           end do
