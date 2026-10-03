@@ -402,10 +402,12 @@ CONTAINS
       ! fmtmp can be removed if theta and preqx model had the same size FM array
       fmtmp=dyn_in%elem(ie)%derived%FM(:,:,1,:)
       call edgeVunpack_nlyr(edge_g,dyn_in%elem(ie)%desc,fmtmp,nlev,kptr,nlev_tot)
+      dyn_in%elem(ie)%derived%FM(:,:,1,:)=fmtmp
       kptr=kptr+nlev
 
       fmtmp=dyn_in%elem(ie)%derived%FM(:,:,2,:)
       call edgeVunpack_nlyr(edge_g,dyn_in%elem(ie)%desc,fmtmp,nlev,kptr,nlev_tot)
+      dyn_in%elem(ie)%derived%FM(:,:,2,:)=fmtmp
       kptr=kptr+nlev
 
 
