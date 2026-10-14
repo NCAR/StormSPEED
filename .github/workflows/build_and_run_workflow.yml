@@ -163,6 +163,28 @@ jobs:
           export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PIO/lib:$NETCDF_FORTRAN_PATH/lib:$NETCDF_C_PATH/lib:$LAPACK/lib:$LAPACK/lib64:$PNETCDF/lib
           if [ "${{ matrix.runner }}" == "gha-runner-gpu-stormspeed" ]; then
             export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CUDA_ROOT/lib64
+            # Look for the real (non-stub) NVIDIA driver library and put it first on the path
+            REAL_LIBCUDA_DIR=""
+            for d in /usr/lib/x86_64-linux-gnu /usr/lib64 /usr/local/nvidia/lib64 /usr/local/nvidia/lib /run/nvidia/driver/usr/lib64; do
+              if [ -e "$d/libcuda.so.1" ]; then
+                REAL_LIBCUDA_DIR="$d"
+                break
+              fi
+            done
+            if [ -z "$REAL_LIBCUDA_DIR" ]; then
+              found=$(find / -xdev -name 'libcuda.so.1' -not -path '*/stubs/*' -not -path '/proc/*' 2>/dev/null | head -n 1 || true)
+              if [ -n "$found" ]; then
+                REAL_LIBCUDA_DIR=$(dirname "$found")
+              fi
+            fi
+            if [ -n "$REAL_LIBCUDA_DIR" ]; then
+              echo "Found real libcuda.so.1 in $REAL_LIBCUDA_DIR"
+              export LD_LIBRARY_PATH=$REAL_LIBCUDA_DIR:$LD_LIBRARY_PATH
+            else
+              echo "::warning::No real libcuda.so.1 found; the runner is not exposing the NVIDIA driver to the container (check runner pod GPU resources / runtimeClassName: nvidia)"
+              echo "All libcuda matches (including stubs):"
+              find / -xdev -name 'libcuda*' -not -path '/proc/*' 2>/dev/null | head -n 20 || true
+            fi
             nvidia-smi || echo "nvidia-smi not available"
             ldconfig -p | grep libcuda || echo "libcuda not in ldconfig cache"
             ldd /tmp/ci_test/bld/cesm.exe | grep -i cuda || true
