@@ -163,6 +163,23 @@ jobs:
           export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PIO/lib:$NETCDF_FORTRAN_PATH/lib:$NETCDF_C_PATH/lib:$LAPACK/lib:$LAPACK/lib64:$PNETCDF/lib
           if [ "${{ matrix.runner }}" == "gha-runner-gpu-stormspeed" ]; then
             export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CUDA_ROOT/lib64
+            LIBCUDA_PATH=""
+            for d in /usr/lib/x86_64-linux-gnu /usr/lib64 /usr/local/nvidia/lib64 /usr/local/nvidia/lib /run/nvidia/driver/usr/lib64 /host-nvidia*; do
+              if [ -e "$d/libcuda.so.1" ]; then
+                LIBCUDA_PATH="$d/libcuda.so.1"
+                break
+              fi
+            done
+            if [ -z "$LIBCUDA_PATH" ]; then
+              LIBCUDA_PATH=$(find / -name 'libcuda.so.1' -not -path '*/stubs/*' 2>/dev/null | head -n 1 || true)
+            fi
+            if [ -n "$LIBCUDA_PATH" ]; then
+              export LD_LIBRARY_PATH=$(dirname "$LIBCUDA_PATH"):$LD_LIBRARY_PATH
+              echo "Using libcuda from: $LIBCUDA_PATH"
+            else
+              echo "::warning::No real libcuda.so.1 found; the runner is not exposing the NVIDIA driver to the container (check runner pod GPU resources / runtimeClassName: nvidia)"
+              find / -name 'libcuda.so*' 2>/dev/null || true
+            fi
             nvidia-smi || echo "nvidia-smi not available"
             ldconfig -p | grep libcuda || echo "libcuda not in ldconfig cache"
             ldd /tmp/ci_test/bld/cesm.exe | grep -i cuda || true
