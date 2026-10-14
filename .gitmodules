@@ -115,13 +115,6 @@
 	fxtag = v1.1
 	fxDONOTUSEurl = https://github.com/fedef17/CO2_cool_fort.git
 
-[submodule "cism"]
-path = components/cism
-url = https://github.com/ESCOMP/CISM-wrapper
-fxtag = cismwrap_2_2_010
-fxrequired = ToplevelRequired
-fxDONOTUSEurl = https://github.com/ESCOMP/CISM-wrapper
-
 [submodule "rtm"]
 path = components/rtm
 url = https://github.com/ESCOMP/RTM

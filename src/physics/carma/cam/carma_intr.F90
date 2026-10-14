@@ -46,7 +46,7 @@ module carma_intr
   use constituents,   only: pcnst, cnst_add, cnst_get_ind, &
                             cnst_name, cnst_longname
   use cam_abortutils, only: endrun
-  use physics_buffer, only: physics_buffer_desc, pbuf_add_field, pbuf_old_tim_idx, &
+  use physics_buffer, only: physics_buffer_desc, pbuf_add_field, &
                             pbuf_get_index, pbuf_get_field, dtype_r8, pbuf_set_field
   use pio,            only: var_desc_t
   use radconstants,   only: nlwbands, nswbands
@@ -465,8 +465,9 @@ contains
     ! NOTE: This only needs to be done once at the start of the run and does not need
     ! to be done for restarts.
     !
-    ! NOTE: We only want to do this with RRTMG. If CAM_RT is being used, then skip this.
-    if ((masterproc) .and. (initial_run) .and. (radiation_scheme == "rrtmg") .and. (carma_do_optics)) then
+    ! NOTE: We only want to do this with RRTMG(P). If CAM_RT is being used, then skip this.
+    if ((masterproc) .and. (initial_run) .and. (radiation_scheme == "rrtmg".or.radiation_scheme == "rrtmgp") &
+         .and. (carma_do_optics)) then
       call CARMA_CreateOpticsFile(carma, rc)
        if (rc < 0) call endrun('carma_register::carma_CreateOpticsFiles failed.')
     end if
@@ -2053,7 +2054,7 @@ contains
     use phys_control,  only: cam_physpkg_is
     use wetdep,        only: clddiag, wetdepa_v1, wetdepa_v2
     use camsrfexch,       only: cam_out_t
-    use physconst,     only: gravit
+    use physconst,     only: gravit, tmelt, rair
 
     implicit none
 
@@ -2085,6 +2086,8 @@ contains
     real(r8)                            :: totcond(pcols, pver)   ! total condensate
     real(r8)                            :: solfac(pcols, pver)    ! solubility factor
     real(r8)                            :: solfac_in              ! solubility factor
+    character(len=512)                  :: errmsg                 ! error handling for the portable wetdepa
+    integer                             :: errflg
     real(r8)                            :: scavcoef               ! scavenging Coefficient
     logical                             :: do_wetdep
     integer                             :: ncol                   ! number of columns
@@ -2097,9 +2100,7 @@ contains
     integer                             :: maxbin
 
     ! physics buffer
-    integer itim_old
     real(r8), pointer, dimension(:,:)   :: cldn                   ! cloud fraction
-    real(r8), pointer, dimension(:,:)   :: cme
     real(r8), pointer, dimension(:,:)   :: prain
     real(r8), pointer, dimension(:,:)   :: evapr
     real(r8), pointer, dimension(:,:)   :: icwmrdp                ! in cloud water mixing ratio, deep convection
@@ -2125,10 +2126,8 @@ contains
     lchnk = state%lchnk
 
     ! Associate pointers with physics buffer fields
-    itim_old = pbuf_old_tim_idx()
 
-    call pbuf_get_field(pbuf, pbuf_get_index('CLD'), cldn, (/1,1,itim_old/),(/pcols,pver,1/))
-    call pbuf_get_field(pbuf, pbuf_get_index('QME'), cme )
+    call pbuf_get_field(pbuf, pbuf_get_index('CLD'), cldn)
     call pbuf_get_field(pbuf, pbuf_get_index('PRAIN'), prain )
     call pbuf_get_field(pbuf, pbuf_get_index('NEVAPR'), evapr )
     call pbuf_get_field(pbuf, pbuf_get_index('FRACIS'), fracis )
@@ -2154,8 +2153,8 @@ contains
    cmfdqr(:ncol,:) = rprddp(:ncol,:)  + rprdsh(:ncol,:)
 
     !   fields needed for wet scavenging
-    call clddiag( state%t, state%pmid, state%pdel, cmfdqr, evapc, cldn, cldc, clds, cme, evapr, prain, &
-         cldv, cldvcu, cldvst, rainmr, ncol )
+    call clddiag( state%t, state%pmid, state%pdel, cmfdqr, evapc, cldn, cldc, clds, evapr, prain, &
+         cldv, cldvcu, cldvst, rainmr, ncol, pver, gravit, tmelt, rair )
 
     call cnst_get_ind('CLDICE', ixcldice)
     call cnst_get_ind('CLDLIQ', ixcldliq)
@@ -2197,8 +2196,6 @@ contains
             if (cam_physpkg_is('cam5') .or. cam_physpkg_is('cam6')) then
 
               call wetdepa_v2( &
-                           state%pmid, &
-                           state%q, &
                            state%pdel, &
                            cldn, &
                            cldc, &
@@ -2206,7 +2203,6 @@ contains
                            evapc, &
                            conicw, &
                            prain, &
-                           cme, &
                            evapr, &
                            totcond, &
                            state%q(:, :, icnst), &
@@ -2217,22 +2213,19 @@ contains
                            cldvst, &
                            dlf, &
                            fracis(:, :, icnst), &
-                           solfac, &
+                           solfac(:ncol,:), &
                            ncol, &
-                           z_scavcoef)
+                           z_scavcoef, gravit, pver, errmsg, errflg)
+              if (errflg /= 0) call endrun(trim(errmsg))
 
             else if (cam_physpkg_is('cam4')) then
 
               call wetdepa_v1(state%t, &
-                           state%pmid, &
-                           state%q, &
                            state%pdel, &
                            cldn, &
-                           cldc, &
                            cmfdqr, &
                            conicw, &
                            prain, &
-                           cme, &
                            evapr, &
                            totcond, &
                            state%q(:, :, icnst), &
@@ -2243,7 +2236,8 @@ contains
                            fracis(:, :, icnst), &
                            solfac_in, &
                            ncol, &
-                           z_scavcoef)
+                           z_scavcoef, tmelt, gravit, pver, errmsg, errflg)
+              if (errflg /= 0) call endrun(trim(errmsg))
             else
 
               call endrun('carma_wetdep_tend:: No wet deposition routine is available for this configuration.')
@@ -2645,7 +2639,7 @@ contains
         do irh = 1, nrh
 
           ! Determine the wet radius.
-          call getwetr(carma, igroup, mie_rh(irh), r(ibin), rwet, rho(ibin), rhopwet, rc)
+          call getwetr(carma, igroup, ibin, mie_rh(irh), r(ibin), rwet, rho(ibin), rhopwet, rc)
           if (rc < 0) call endrun('carma_CreateOpticsFile::wetr failed.')
 
           ! Calculate at each wavelength.
@@ -2992,7 +2986,7 @@ contains
           ! NOTE: Weight percent is normal a result of the getwetr calculation. To build the
           ! table based upon weight percent, we need to pass in the desired value and a
           ! reference temperature. In that case, the RH is ignored.
-          call getwetr(carma, igroup, mie_rh(1), r(ibin), rwet, rho(ibin), rhopwet, rc, wgtpct=mie_wtp(iwtp)*100._f, temp=270._f)
+          call getwetr(carma, igroup, ibin, mie_rh(1), r(ibin), rwet, rho(ibin), rhopwet, rc, wgtpct=mie_wtp(iwtp)*100._f, temp=270._f)
           if (rc < 0) call endrun('carma_CreateOpticsFile::wetr failed.')
 
           ! This is not in Yu (2015), but rather than using the refractive
@@ -3903,6 +3897,13 @@ contains
        call endrun('carma_get_wet_radius ERROR4: rc = ',rc)
     end if
 
+    if (irhswell == I_PETTERS) then
+       call carma_get_kappa(state, igroup, ibin, kappa, rc)
+       if (rc/=RC_OK) then
+          call endrun('carma_get_wet_radius carma_get_kappa ERROR: rc = ',rc)
+       end if
+    end if
+
     do icol = 1, ncol
        do iz = 1, pver
           if (rdry(icol, iz)>0._r8) then
@@ -3922,7 +3923,7 @@ contains
              !
              if (irhswell == I_WTPCT_H2SO4) then
 
-                call getwetr(carma, igroup, relhum, dryrad, rwet(icol, iz), dryden, rhopwet(icol,iz), rc, &
+                call getwetr(carma, igroup, ibin, relhum, dryrad, rwet(icol, iz), dryden, rhopwet(icol,iz), rc, &
                              h2o_mass=watcon, h2o_vp=wvpres, temp=state%t(icol,iz))
                 if (rc/=RC_OK) then
                    call endrun('carma_get_wet_radius ERROR5: rc = ',rc) ! <======
@@ -3930,12 +3931,7 @@ contains
 
              else if (irhswell == I_PETTERS) then
 
-                call carma_get_kappa(state, igroup, ibin, kappa, rc)
-                if (rc/=RC_OK) then
-                   call endrun('carma_get_wet_radius carma_get_kappa ERROR: rc = ',rc)
-                end if
-
-                call getwetr(carma, igroup, relhum, dryrad, rwet(icol, iz), dryden, rhopwet(icol,iz), rc, &
+                call getwetr(carma, igroup, ibin, relhum, dryrad, rwet(icol, iz), dryden, rhopwet(icol,iz), rc, &
                              h2o_mass=watcon, h2o_vp=wvpres, temp=state%t(icol,iz), kappa=kappa(icol,iz))
                 if (rc/=RC_OK) then
                    call endrun('carma_get_wet_radius ERROR6: rc = ',rc)
@@ -3943,7 +3939,7 @@ contains
 
              else ! I_GERBER and I_FITZGERALD
 
-                call getwetr(carma, igroup, relhum, dryrad, rwet(icol, iz), dryden, rhopwet(icol,iz), rc )
+                call getwetr(carma, igroup, ibin, relhum, dryrad, rwet(icol, iz), dryden, rhopwet(icol,iz), rc )
                 if (rc/=RC_OK) then
                    call endrun('carma_get_wet_radius ERROR7: rc = ',rc)
                 end if

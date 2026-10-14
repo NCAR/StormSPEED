@@ -16,8 +16,6 @@ module zm_conv_intr
    use zm_conv_momtran,      only: zm_conv_momtran_run
    use cloud_fraction_fice,  only: cloud_fraction_fice_run
 
-   use rad_constituents, only: rad_cnst_get_info, rad_cnst_get_mode_num, rad_cnst_get_aer_mmr, &
-                               rad_cnst_get_aer_props, rad_cnst_get_mode_props !, &
    use cam_abortutils,   only: endrun
    use physconst,        only: pi
    use spmd_utils,       only: masterproc
@@ -72,7 +70,7 @@ module zm_conv_intr
    integer  :: zmconv_num_cin            ! Number of negative buoyancy regions that are allowed
                                          ! before the convection top and CAPE calculations are completed.
    real(r8) :: zmconv_dmpdz = unset_r8        ! Parcel fractional mass entrainment rate
-   real(r8) :: zmconv_tiedke_add = unset_r8   ! Convective parcel temperature perturbation
+   real(r8) :: zmconv_tiedtke_add = unset_r8   ! Convective parcel temperature perturbation
    real(r8) :: zmconv_capelmt = unset_r8      ! Triggering thereshold for ZM convection
    logical  :: zmconv_parcel_pbl = .false.           ! switch for parcel pbl calculation
    real(r8) :: zmconv_parcel_hscale = unset_r8       ! Fraction of PBL depth over which to mix initial parcel
@@ -163,7 +161,7 @@ subroutine zm_conv_readnl(nlfile)
    namelist /zmconv_nl/ zmconv_c0_lnd, zmconv_c0_ocn, zmconv_num_cin, &
                         zmconv_ke, zmconv_ke_lnd,  &
                         zmconv_momcu, zmconv_momcd, &
-                        zmconv_dmpdz, zmconv_tiedke_add, zmconv_capelmt, &
+                        zmconv_dmpdz, zmconv_tiedtke_add, zmconv_capelmt, &
                         zmconv_parcel_pbl,  zmconv_parcel_hscale, zmconv_tau
    !-----------------------------------------------------------------------------
 
@@ -197,8 +195,8 @@ subroutine zm_conv_readnl(nlfile)
    if (ierr /= 0) call endrun("zm_conv_readnl: FATAL: mpi_bcast: zmconv_momcd")
    call mpi_bcast(zmconv_dmpdz,             1, mpi_real8, masterprocid, mpicom, ierr)
    if (ierr /= 0) call endrun("zm_conv_readnl: FATAL: mpi_bcast: zmconv_dmpdz")
-   call mpi_bcast(zmconv_tiedke_add,        1, mpi_real8, masterprocid, mpicom, ierr)
-   if (ierr /= 0) call endrun("zm_conv_readnl: FATAL: mpi_bcast: zmconv_tiedke_add")
+   call mpi_bcast(zmconv_tiedtke_add,        1, mpi_real8, masterprocid, mpicom, ierr)
+   if (ierr /= 0) call endrun("zm_conv_readnl: FATAL: mpi_bcast: zmconv_tiedtke_add")
    call mpi_bcast(zmconv_capelmt,           1, mpi_real8, masterprocid, mpicom, ierr)
    if (ierr /= 0) call endrun("zm_conv_readnl: FATAL: mpi_bcast: zmconv_capelmt")
    call mpi_bcast(zmconv_parcel_pbl,        1, mpi_logical, masterprocid, mpicom, ierr)
@@ -347,7 +345,7 @@ subroutine zm_conv_init(pref_edge)
     call zm_convr_init(plev, plevp, cpair, epsilo, gravit, latvap, tmelt, rair, &
                   pref_edge,zmconv_c0_lnd, zmconv_c0_ocn, zmconv_ke, zmconv_ke_lnd, &
                   zmconv_momcu, zmconv_momcd, zmconv_num_cin,  &
-                  no_deep_pbl, zmconv_tiedke_add, &
+                  no_deep_pbl, zmconv_tiedtke_add, &
                   zmconv_capelmt, zmconv_dmpdz,zmconv_parcel_pbl, zmconv_parcel_hscale, zmconv_tau, &
                   masterproc, iulog, errmsg, errflg)
 
@@ -364,7 +362,7 @@ end subroutine zm_conv_init
 
 subroutine zm_conv_tend(pblh    ,mcon    ,cme     , &
      tpert   ,zdu      , &
-     rliq    ,rice    ,ztodt    , &
+     rliq    ,ztodt    , &
      jctop   ,jcbot , &
      state   ,ptend_all   ,landfrac,  pbuf)
 
@@ -376,7 +374,7 @@ subroutine zm_conv_tend(pblh    ,mcon    ,cme     , &
    use physics_types, only: physics_ptend_sum, physics_ptend_dealloc
 
    use time_manager,  only: get_nstep, is_first_step
-   use physics_buffer, only : pbuf_get_field, physics_buffer_desc, pbuf_old_tim_idx
+   use physics_buffer, only : pbuf_get_field, physics_buffer_desc
    use constituents,  only: pcnst, cnst_get_ind, cnst_is_convtran1
    use physconst,     only: gravit, latice, latvap, tmelt, cpwv, cpliq, rh2o
    use phys_grid,     only: get_rlat_all_p, get_rlon_all_p
@@ -390,7 +388,7 @@ subroutine zm_conv_tend(pblh    ,mcon    ,cme     , &
    type(physics_ptend), intent(out)         :: ptend_all      ! individual parameterization tendencies
    type(physics_buffer_desc), pointer       :: pbuf(:)
 
-   real(r8), intent(in) :: ztodt                       ! 2 delta t (model time increment)
+   real(r8), intent(in) :: ztodt                       ! model physics timestep [s]
    real(r8), intent(in) :: pblh(pcols)                 ! Planetary boundary layer height
    real(r8), intent(in) :: tpert(pcols)                ! Thermal temperature excess
    real(r8), intent(in) :: landfrac(pcols)             ! RBN - Landfrac
@@ -400,7 +398,6 @@ subroutine zm_conv_tend(pblh    ,mcon    ,cme     , &
    real(r8), intent(out) :: zdu(pcols,pver)    ! detraining mass flux
 
    real(r8), intent(out) :: rliq(pcols) ! reserved liquid (not yet in cldliq) for energy integrals
-   real(r8), intent(out) :: rice(pcols) ! reserved ice (not yet in cldice) for energy integrals
 
 
    ! Local variables
@@ -414,7 +411,6 @@ subroutine zm_conv_tend(pblh    ,mcon    ,cme     , &
    integer :: ixcldice, ixcldliq      ! constituent indices for cloud liquid and ice water.
    integer :: lchnk                   ! chunk identifier
    integer :: ncol                    ! number of atmospheric columns
-   integer :: itim_old                ! for physics buffer fields
 
    real(r8) :: ftem(pcols,pver)              ! Temporary workspace for outfld variables
    real(r8) :: ntprprd(pcols,pver)    ! evap outfld: net precip production in layer
@@ -465,8 +461,6 @@ subroutine zm_conv_tend(pblh    ,mcon    ,cme     , &
    real(r8) :: cape(pcols)        ! w  convective available potential energy.
    real(r8) :: mu_out(pcols,pver)
    real(r8) :: md_out(pcols,pver)
-   real(r8) :: dif(pcols,pver)
-
    ! used in momentum transport calculation
    real(r8) :: pguallu(pcols, pver)
    real(r8) :: pguallv(pcols, pver)
@@ -510,8 +504,7 @@ subroutine zm_conv_tend(pblh    ,mcon    ,cme     , &
 !
 ! Associate pointers with physics buffer fields
 !
-   itim_old = pbuf_old_tim_idx()
-   call pbuf_get_field(pbuf, cld_idx,         cld,    start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
+   call pbuf_get_field(pbuf, cld_idx,         cld )
 
    call pbuf_get_field(pbuf, icwmrdp_idx,     ql )
    call pbuf_get_field(pbuf, rprddp_idx,      rprd )
@@ -541,7 +534,6 @@ subroutine zm_conv_tend(pblh    ,mcon    ,cme     , &
 !REMOVECAM - no longer need these when CAM is retired and pcols no longer exists
    ptend_loc%q(:,:,1) = 0._r8
    ptend_loc%s(:,:) = 0._r8
-   dif(:,:) = 0._r8
    mcon(:,:) = 0._r8
    dlf(:,:) = 0._r8
    cme(:,:) = 0._r8
@@ -559,7 +551,6 @@ subroutine zm_conv_tend(pblh    ,mcon    ,cme     , &
    jcbot(:) = 0._r8
    prec(:) = 0._r8
    rliq(:) = 0._r8
-   rice(:) = 0._r8
    ideep(:) = 0._r8
 !REMOVECAM_END
 
@@ -574,11 +565,11 @@ subroutine zm_conv_tend(pblh    ,mcon    ,cme     , &
                     pblh(:ncol), state%zm(:ncol,:), state%phis(:ncol), state%zi(:ncol,:), ptend_loc%q(:ncol,:,1), &
                     ptend_loc%s(:ncol,:), state%pmid(:ncol,:), state%pint(:ncol,:), state%pdel(:ncol,:), &
                     ztodt, mcon(:ncol,:), cme(:ncol,:), cape(:ncol),      &
-                    tpert(:ncol), dlf(:ncol,:), dif(:ncol,:), zdu(:ncol,:), rprd(:ncol,:), &
+                    tpert(:ncol), dlf(:ncol,:), zdu(:ncol,:), rprd(:ncol,:), &
                     mu(:ncol,:), md(:ncol,:), du(:ncol,:), eu(:ncol,:), ed(:ncol,:),       &
                     dp(:ncol,:), dsubcld(:ncol), jt(:ncol), maxg(:ncol), ideep(:ncol),    &
                     ql(:ncol,:),  rliq(:ncol), landfrac(:ncol),                          &
-                    rice(:ncol), lengath, scheme_name, errmsg, errflg)
+                    lengath, scheme_name, errmsg, errflg)
 
    if (errflg /= 0) then
      write(str,*) 'From zm_convr_run: at chunk ',lchnk, ' : '
@@ -824,7 +815,7 @@ subroutine zm_conv_tend_2( state,  ptend,  ztodt, pbuf)
 
    type(physics_buffer_desc), pointer :: pbuf(:)
 
-   real(r8), intent(in) :: ztodt                          ! 2 delta t (model time increment)
+   real(r8), intent(in) :: ztodt                          ! model physics timestep [s]
 
 ! Local variables
    integer :: i, lchnk, istat

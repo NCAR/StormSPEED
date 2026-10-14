@@ -1650,7 +1650,7 @@ contains
           do ikap = 1, nkap
 
             ! Determine the wet radius.
-            call getwetr(carma, igroup, mie_rh(irh), r(ibin), rwet, rho(ibin), rhopwet, rc, kappa=kap(ikap), temp=270._f)
+            call getwetr(carma, igroup, ibin, mie_rh(irh), r(ibin), rwet, rho(ibin), rhopwet, rc, kappa=kap(ikap), temp=270._f)
             rwetbin(irh) = rwet
 
             ! Calculate at each wavelength.
@@ -2102,7 +2102,7 @@ contains
           do ikap = 1, nkap
 
             ! Determine the wet radius.
-            call getwetr(carma, igroup, mie_rh(irh), r(ibin), rwet, rho(ibin), rhopwet, rc, kappa=kap(ikap), temp=270._f)
+            call getwetr(carma, igroup, ibin, mie_rh(irh), r(ibin), rwet, rho(ibin), rhopwet, rc, kappa=kap(ikap), temp=270._f)
             rwetbin(irh) = rwet
 
             ! Calculate at each wavelength.
@@ -2493,7 +2493,7 @@ contains
           ! NOTE: Weight percent is normal a result of the getwetr calculation. To build the
           ! table based upon weight percent, we need to pass in the desired value and a
           ! reference temperature. In that case, the RH is ignored.
-          call getwetr(carma, igroup, mie_rh(1), r(ibin), rwet, rho(ibin), rhopwet, rc, wgtpct=mie_wtp(iwtp)*100._f, temp=270._f)
+          call getwetr(carma, igroup, ibin, mie_rh(1), r(ibin), rwet, rho(ibin), rhopwet, rc, wgtpct=mie_wtp(iwtp)*100._f, temp=270._f)
           if (rc < 0) call endrun('carma_CreateOpticsFile::wetr failed.')
 
           ! Calculate at each wavelength.
@@ -3738,7 +3738,7 @@ contains
     integer                                   :: lchnk                 ! chunk identifier
     integer                                   :: ncol                  ! number of columns in chunk
 
-    real(r8), parameter   :: zero=0_r8, twopi=2_r8*pi, degs2rads = pi/180._r8
+    real(r8), parameter   :: zero=0._r8, twopi=2._r8*pi, degs2rads = pi/180._r8
 
     rc = RC_OK
 

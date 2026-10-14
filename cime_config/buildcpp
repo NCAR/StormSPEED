@@ -34,8 +34,6 @@ def buildcpp(case):
     atm_grid = case.get_value("ATM_GRID")
     pts_mode = case.get_value("PTS_MODE")
     cam_dycore = case.get_value("CAM_DYCORE")
-    comp_ocn = case.get_value("COMP_OCN")
-    docn_mode = case.get_value("DOCN_MODE")
     mpilib = case.get_value("MPILIB")
     compiler = case.get_value("COMPILER") # for chem preprocessor
     nthrds_atm = case.get_value("NTHRDS_ATM")
@@ -89,16 +87,6 @@ def buildcpp(case):
 
     if cam_dycore == 'se':
         config_opts += ["-se_dyn_target", cam_target]
-
-    # The ocean component setting is only used by CAM to do attribute matching for
-    # setting default tuning parameter values.  In SOM mode we want to use the same
-    # tunings as the fully coupled B compset, so set the ocean component to pop in
-    # that case.
-
-    if docn_mode == 'som':
-        config_opts += ["-ocn", "pop"]
-    else:
-        config_opts += ["-ocn", comp_ocn]
 
     # Add user options.
     config_opts += cam_config_opts.split(" ")

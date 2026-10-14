@@ -21,6 +21,9 @@ module chemistry
   use string_utils,        only : to_upper
 #if defined( MODAL_AERO )
   use modal_aero_data,     only : ntot_amode
+  use aerosol_properties_mod, only: aerosol_properties
+  use aerosol_instances_mod, only: aerosol_instances_get_props, &
+       aerosol_instances_get_num_models
 #endif
 
   ! GEOS-Chem derived types
@@ -169,6 +172,9 @@ module chemistry
   ! for nitrogen deposition fluxes to surface models
   logical, parameter :: chem_has_ndep_flx = .false.
 
+#if defined( MODAL_AERO )
+  class(aerosol_properties), pointer :: aero_props=>null()
+#endif
 contains
 
   !================================================================================================
@@ -202,7 +208,7 @@ contains
     use aero_model,          only : aero_model_register
     use modal_aero_data,     only : nspec_max
     use modal_aero_data,     only : ntot_amode, nspec_amode
-    use rad_constituents,    only : rad_cnst_get_info
+    use radiative_aerosol,    only : rad_aer_get_info
 #endif
 
     ! GEOS-Chem interface modules in CAM
@@ -578,7 +584,7 @@ contains
 
     DO M = 1, ntot_amode
        DO L = 1, nspec_amode(M)
-          call rad_cnst_get_info(0,M,L,spec_name=aername)
+          call rad_aer_get_info(0,M,L,spec_name=aername)
           SELECT CASE ( to_upper(aername(:3)) )
              CASE ( 'BC_' )
                 SELECT CASE ( to_upper(aername(4:5)) )
@@ -949,8 +955,6 @@ contains
     ! Purpose: return true if specified constituent is implemented by this package
     ! Author: B. Eaton
 
-    IMPLICIT NONE
-
     CHARACTER(LEN=*), INTENT(IN) :: name   ! constituent name
     LOGICAL :: chem_implements_cnst        ! return value
     INTEGER :: M
@@ -993,7 +997,7 @@ contains
     use tracer_srcs,           only : tracer_srcs_init
 #if defined( MODAL_AERO )
     use aero_model,            only : aero_model_init
-    use mo_setsox,             only : sox_inti
+    use mo_setsox_cam,         only : sox_inti
     use mo_drydep,             only : drydep_inti
     use modal_aero_data,       only : ntot_amode, nspec_amode
 #endif
@@ -1044,6 +1048,7 @@ contains
     INTEGER                :: I, J, L, N, M
     INTEGER                :: RC
     INTEGER                :: nLinoz
+    integer                :: iaermod
 
     ! Logicals
     LOGICAL                :: prtDebug
@@ -1575,8 +1580,14 @@ contains
     ENDIF
 
 #if defined( MODAL_AERO )
+    ! retrieve MAM aerosol properties from aerosol instances
+    do iaermod = 1, aerosol_instances_get_num_models()
+       aero_props => aerosol_instances_get_props(iaermod, 0)
+       if (aero_props%model_is('MAM')) exit
+    end do
+
     ! Initialize aqueous chem
-    CALL SOx_inti()
+    CALL SOx_inti(aero_props)
 
     ! Initialize aerosols
     CALL aero_model_init( pbuf2d )
@@ -1933,13 +1944,13 @@ contains
     use mo_neu_wetdep,       only : neu_wetdep_tend
     use mo_setinv,           only : setinv
     use orbit,               only : zenith                         ! For computing SZA
-    use physics_buffer,      only : physics_buffer_desc, pbuf_get_field, pbuf_old_tim_idx
+    use physics_buffer,      only : physics_buffer_desc, pbuf_get_field
     use physics_buffer,      only : pbuf_get_chunk, pbuf_get_index
     use perf_mod,            only : t_startf, t_stopf
     use phys_grid,           only : get_ncols_p, get_rlat_all_p, get_rlon_all_p
     use phys_grid,           only : get_area_all_p, get_lat_all_p, get_lon_all_p
     use physconst,           only : MWDry, Gravit
-    use rad_constituents,    only : rad_cnst_get_info
+    use radiative_aerosol,    only : rad_aer_get_info
     use short_lived_species, only : get_short_lived_species_gc, set_short_lived_species_gc
     use spmd_utils,          only : masterproc
     use time_manager,        only : Get_Curr_Calday, Get_Curr_Date ! For computing SZA
@@ -2029,7 +2040,7 @@ contains
     REAL(r8)          :: relHum (state%NCOL,PVER)     ! Relative humidity [0-1]
     REAL(r8)          :: satV   (state%NCOL,PVER)     ! Work arrays
     REAL(r8)          :: satQ   (state%NCOL,PVER)     ! Work arrays
-    REAL(r8)          :: qH2O   (state%NCOL,PVER)     ! Specific humidity [kg/kg]
+    REAL(r8)          :: qH2O   (pcols,     PVER)     ! Specific humidity [kg/kg] has to be pcols for newnuc.
     REAL(r8)          :: h2ovmr (state%NCOL,PVER)     ! H2O volume mixing ratio
     REAL(r8)          :: mBar   (state%NCOL,PVER)     ! Mean wet atmospheric mass [amu]
     REAL(r8)          :: invariants(state%NCOL,PVER,nfs)
@@ -2130,7 +2141,6 @@ contains
     REAL(r8), POINTER      :: pbuf_i(:)             ! ptr to pbuf data (/pcols/) horizontal only (horiz_only)
     INTEGER                :: tmpIdx                ! pbuf field id
 
-    INTEGER                :: TIM_NDX
     INTEGER                :: IERR
 
     INTEGER, SAVE          :: iStep = 0
@@ -2343,10 +2353,12 @@ contains
           P = map2MAM4(SM,M) ! Constituent index for GEOS-Chem
           IF ( P > 0 ) K = map2GC(P) ! Index in State_Chm
 
-          ! do not zero out sulfate aerosol here since aerosol distribution for sulfate
-          ! will be prescribed (hplin, 5/9/23)
-          call rad_cnst_get_info(0,M,SM,spec_name=aerName)
-          IF ( to_upper(aerName(:3)) == "SO4" ) CYCLE
+          if (usePrescribedAerDistribution) then
+             ! do not zero out sulfate aerosol here since aerosol distribution for sulfate
+             ! will be prescribed (hplin, 5/9/23)
+             call rad_aer_get_info(0,M,SM,spec_name=aerName)
+             IF ( to_upper(aerName(:3)) == "SO4" ) CYCLE
+          end if
 
           IF ( K > 0 ) State_Chm(LCHNK)%Species(K)%Conc(1,:nY,:nZ) = 0.0e+00_fp
        ENDDO
@@ -2363,10 +2375,12 @@ contains
           ! species (with cnst index P, which corresponds to index K in
           ! State_Chm)
 
-          ! do not zero out sulfate aerosol here since aerosol distribution for sulfate
-          ! will be prescribed (hplin, 5/9/23)
-          call rad_cnst_get_info(0,M,SM,spec_name=aerName)
-          IF ( to_upper(aerName(:3)) == "SO4" ) CYCLE
+          if (usePrescribedAerDistribution) then
+             ! do not zero out sulfate aerosol here since aerosol distribution for sulfate
+             ! will be prescribed (hplin, 5/9/23)
+             call rad_aer_get_info(0,M,SM,spec_name=aerName)
+             IF ( to_upper(aerName(:3)) == "SO4" ) CYCLE
+          end if
 
           ! Multiple MAM4 bins are mapped to same GEOS-Chem species
           State_Chm(LCHNK)%Species(K)%Conc(1,:nY,:nZ) = State_Chm(LCHNK)%Species(K)%Conc(1,:nY,:nZ) &
@@ -2575,9 +2589,9 @@ contains
                                              + REAL(state%q(:nY,nZ:1:-1,N),fp) *         &
                                                 adv_mass(l_SO4) / adv_mass(mapCnst(N))
        ! SO4_gasRatio is in mol/mol
-       SO4_gasRatio(:nY,:nZ) = state%q(:nY,:nZ,N)                      &
-                             * adv_mass(l_SO4) / adv_mass(mapCnst(N))  &
-                             / State_Chm(LCHNK)%Species(K)%Conc(1,:nY,nZ:1:-1)
+       SO4_gasRatio(:nY,:nZ) = state%q(:nY,:nZ,N)                      &       ! kg(H2SO4) kg-1 air
+                             * adv_mass(l_SO4) / adv_mass(mapCnst(N))  &       ! g(SO4) mol(SO4)-1 / g(H2SO4) mol(H2SO4)-1
+                             / State_Chm(LCHNK)%Species(K)%Conc(1,:nY,nZ:1:-1) ! kg(SO4) kg-1 air
        MMR_Beg(:nY,:nZ,K)    = State_Chm(LCHNK)%Species(K)%Conc(1,:nY,:nZ)
     ENDIF
 #endif
@@ -2645,11 +2659,10 @@ contains
     CALL Zenith( Calday, Rlats, Rlons, CSZA, nY )
 
     ! Get all required data from physics buffer
-    TIM_NDX = pbuf_old_tim_idx()
     CALL pbuf_get_field( pbuf, NDX_PBLH,     PblH   )
     CALL pbuf_get_field( pbuf, NDX_FSDS,     Fsds   )
     CALL pbuf_get_field( pbuf, NDX_CLDTOP,   cldTop )
-    CALL pbuf_get_field( pbuf, NDX_CLDFRC,   cldFrc,   START=(/1,1,TIM_NDX/), KOUNT=(/NCOL,PVER,1/) )
+    CALL pbuf_get_field( pbuf, NDX_CLDFRC,   cldFrc,   START=(/1,1/),         KOUNT=(/NCOL,PVER/))
     CALL pbuf_get_field( pbuf, NDX_NEVAPR,   NEvapr,   START=(/1,1/),         KOUNT=(/NCOL,PVER/))
     CALL pbuf_get_field( pbuf, NDX_PRAIN,    PRain,    START=(/1,1/),         KOUNT=(/NCOL,PVER/))
     CALL pbuf_get_field( pbuf, NDX_LSFLXPRC, LsFlxPrc, START=(/1,1/),         KOUNT=(/NCOL,PVERP/))
@@ -4640,11 +4653,7 @@ contains
     use tracer_cnst,      only : init_tracer_cnst_restart
     use tracer_srcs,      only : init_tracer_srcs_restart
 
-    IMPLICIT NONE
-
     TYPE(file_desc_t) :: File
-
-    WRITE(iulog,'(a)') 'chem_init_restart: init restarts for tracer sources and offline fields'
 
     !
     ! data for offline tracers
@@ -4665,11 +4674,7 @@ contains
     use tracer_cnst, only : write_tracer_cnst_restart
     use tracer_srcs, only : write_tracer_srcs_restart
 
-    IMPLICIT NONE
-
     TYPE(file_desc_t) :: File
-
-    WRITE(iulog,'(a)') 'chem_write_restart: writing restarts for tracer sources and offline fields'
 
     ! data for offline tracers
     call write_tracer_cnst_restart(File)
@@ -4687,11 +4692,7 @@ contains
     use tracer_cnst, only : read_tracer_cnst_restart
     use tracer_srcs, only : read_tracer_srcs_restart
 
-    IMPLICIT NONE
-
     TYPE(file_desc_t) :: File
-
-    WRITE(iulog,'(a)') 'GCCALL CHEM_READ_RESTART'
 
     ! data for offline tracers
     call read_tracer_cnst_restart(File)

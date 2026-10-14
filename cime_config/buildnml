@@ -5,6 +5,7 @@ CAM namelist creator
 """
 # pylint: disable=multiple-imports
 import sys, os, shutil, filecmp
+import xml.etree.ElementTree as ET
 
 _CIMEROOT = os.environ.get("CIMEROOT")
 if _CIMEROOT is None:
@@ -47,6 +48,26 @@ def buildnml(case, caseroot, compname):
     RUN_REFDATE         = case.get_value("RUN_REFDATE")
     RUN_REFTOD          = case.get_value("RUN_REFTOD")
     COMP_INTERFACE      = case.get_value("COMP_INTERFACE")
+    CALENDAR            = case.get_value("CALENDAR")
+    COMPSET             = case.get_value("COMPSET")
+    mesh_file           = case.get_value("ATM_DOMAIN_MESH")
+
+# The Gregorian calendar currently can't be used with spinup compsets
+# because CAM's stream-handling code can't handle a request for data
+# for Feb 29 (possibly specified in a leapday testmod) from a non-leap-year
+# in the stream(s) data (specified in a use_case, e.g. 1850_cam_lt.xml).
+# This limitation can be removed when CAM's stream-handling is switched to
+# using CDEPS, which appears to handle this situation. (See discussion in
+# https://github.com/ESCOMP/CAM/issues/1447 for details.)
+    if CALENDAR.startswith("GREGORIAN"):
+        spinup_po = re.compile('\d{4}')
+        spinup = spinup_po.match(COMPSET)
+        expect(spinup == None,
+            "Gregorian calendar (modifier _cG) cannot be used with spinup compset \n  {}".format(COMPSET)
+        )
+
+    if '-tuvx' in CAM_CONFIG_OPTS:
+        tuvx_data_src = os.path.join(srcroot, "libraries", "tuv-x", "data")
 
     testsrc = os.path.join(srcroot, "components", "cam")
     if os.path.exists(testsrc):
@@ -64,6 +85,14 @@ def buildnml(case, caseroot, compname):
         file1 = os.path.join(caseroot,"env_build.xml")
         file2 = os.path.join(caseroot,"LockedFiles","env_build.xml")
         if os.path.isfile(file2) and not filecmp.cmp(file1, file2):
+            call_buildcpp = True
+    if not call_buildcpp:
+        # For cloned cases, the usr_src directory may still be pointing to the old
+        # case's SourceMod directory. If so, we need to call buildcpp to get it
+        # to reference the correct SourceMod directory.
+        expected_usr_src = os.path.join(caseroot, "SourceMods", "src.cam")
+        entry = ET.parse(filename).find(".//entry[@id='usr_src']")
+        if entry is None or entry.get("value") != expected_usr_src:
             call_buildcpp = True
     if call_buildcpp:
         cmd = os.path.join(os.path.join(srcroot,"cime_config","buildcpp"))
@@ -134,6 +163,9 @@ def buildnml(case, caseroot, compname):
             infile_lines.append(" cam_branch_file = '" + cam_branch_file + "'")
             if ninst > 1:
                 logger.info("%s is being used for cam_branch_file", cam_branch_file)
+
+        # ESMF mesh file
+        infile_lines.append(" cam_physics_mesh = '" + mesh_file + "'")
 
         # In python3 integer division returns a float value.
         # Adjust argument of int() to get nearest integer.
@@ -213,6 +245,13 @@ def buildnml(case, caseroot, compname):
                    file2 = os.path.join(rundir, fname)
                    logger.info("GEOS-Chem config file copy: file1 %s file2 %s ", file1, file2)
                    shutil.copy(file1,file2)
+
+        # Copy TUV-x data to rundir
+        if '-tuvx' in CAM_CONFIG_OPTS:
+            dest_data = os.path.join(rundir, "data")
+            if os.path.exists(dest_data):
+                shutil.rmtree(dest_data)
+            shutil.copytree(tuvx_data_src, dest_data)
 
 ###############################################################################
 def _main_func():

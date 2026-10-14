@@ -1,0 +1,176 @@
+<?xml version="1.0"?>
+
+<namelist_defaults>
+
+<!-- ============================================================================== -->
+<!-- Namelist defaults for the HOMME (senh) SE dycore targets.                      -->
+<!-- Used only when se_dyn_target = preqx or theta-l (configure maps preqx_* and    -->
+<!-- theta-l_kokkos to these). build-namelist checks this file before               -->
+<!-- namelist_defaults_cam.xml; variables not set here fall back to that file.      -->
+<!-- Values follow the E3SM "EAM's HOMME dycore" recommended settings:              -->
+<!-- https://e3sm.atlassian.net/wiki/spaces/DOC/pages/1044644202                    -->
+<!-- ============================================================================== -->
+
+<!-- preqx entries use HOMME's own defaults (namelist_mod/control_mod/params_mod), not theta-l values -->
+<!-- HOMME configuration -->
+<se_coord_transform_method se_dyn_target="theta-l"    > 1 </se_coord_transform_method>
+<se_coord_transform_method se_dyn_target="preqx"      > 1 </se_coord_transform_method>
+<se_rk_stage_user          se_dyn_target="theta-l"    > 3 </se_rk_stage_user>
+<se_z2_map_method          se_dyn_target="theta-l"    > 1 </se_z2_map_method>
+<se_z2_map_method          se_dyn_target="preqx"      > 1 </se_z2_map_method>
+<se_geometry               se_dyn_target="theta-l"    > 'sphere' </se_geometry>
+<se_geometry               se_dyn_target="preqx"      > 'sphere' </se_geometry>
+<se_topology               se_dyn_target="theta-l"    > 'cube' </se_topology>
+<se_topology               se_dyn_target="preqx"      > 'cube' </se_topology>
+<se_lx                     se_dyn_target="theta-l"    > 0.0 </se_lx>
+<se_lx                     se_dyn_target="preqx"      > 0.0 </se_lx>
+<se_ly                     se_dyn_target="theta-l"    > 0.0 </se_ly>
+<se_ly                     se_dyn_target="preqx"      > 0.0 </se_ly>
+<se_ne_x                   se_dyn_target="theta-l"    > 0 </se_ne_x>
+<se_ne_x                   se_dyn_target="preqx"      > 0 </se_ne_x>
+<se_ne_y                   se_dyn_target="theta-l"    > 0 </se_ne_y>
+<se_ne_y                   se_dyn_target="preqx"      > 0 </se_ne_y>
+<se_partmethod             se_dyn_target="theta-l"    > 4 </se_partmethod>
+<se_partmethod             se_dyn_target="preqx"      > 4 </se_partmethod>
+<se_mesh_file              se_dyn_target="theta-l"    > '/dev/null' </se_mesh_file>
+<se_mesh_file              se_dyn_target="preqx"      > '/dev/null' </se_mesh_file>
+<se_integration            se_dyn_target="theta-l"    > 'explicit' </se_integration>
+<se_integration            se_dyn_target="preqx"      > 'explicit' </se_integration>
+<se_statefreq              se_dyn_target="theta-l"    > 488 </se_statefreq>
+<se_statefreq              se_dyn_target="preqx"      > 488 </se_statefreq>
+<se_vthreads               se_dyn_target="theta-l"    > 1 </se_vthreads>
+<se_vthreads               se_dyn_target="preqx"      > 1 </se_vthreads>
+
+<se_theta_hydrostatic_mode se_dyn_target="theta-l"    > .false. </se_theta_hydrostatic_mode>
+<se_theta_hydrostatic_mode se_dyn_target="preqx"      > .true. </se_theta_hydrostatic_mode>
+<se_tstep_type             se_dyn_target="theta-l"    > 9 </se_tstep_type>
+<se_tstep_type             se_dyn_target="preqx"      > 5 </se_tstep_type>
+
+<!-- Transport, limiter, remap -->
+<!-- se_ftype: explicit per page (CAM generic is also 2) -->
+<se_ftype                  se_dyn_target="theta-l"    > 2 </se_ftype>
+<se_ftype                  se_dyn_target="preqx"      > 2 </se_ftype>
+<se_limiter_option         se_dyn_target="theta-l"    > 9 </se_limiter_option>
+<!-- preqx limiter: added per page (was CAM generic) -->
+<se_limiter_option         se_dyn_target="preqx"      > 8 </se_limiter_option>
+<!-- theta-l transport_alg: added per page (was CAM generic) -->
+<se_transport_alg          se_dyn_target="theta-l"    > 12 </se_transport_alg>
+<se_transport_alg          se_dyn_target="preqx"      > 0 </se_transport_alg>
+<se_vert_remap_q_alg       se_dyn_target="theta-l"    > 10 </se_vert_remap_q_alg>
+<se_vert_remap_q_alg       se_dyn_target="preqx"      > 1 </se_vert_remap_q_alg>
+<se_theta_advect_form      se_dyn_target="theta-l"    > 1 </se_theta_advect_form>
+<se_theta_advect_form      se_dyn_target="preqx"      > 0 </se_theta_advect_form>
+<se_semi_lagrange_cdr_alg           se_dyn_target="theta-l" > 3 </se_semi_lagrange_cdr_alg>
+<se_semi_lagrange_cdr_alg           se_dyn_target="preqx"   > 3 </se_semi_lagrange_cdr_alg>
+<se_semi_lagrange_cdr_check         se_dyn_target="theta-l" > .false. </se_semi_lagrange_cdr_check>
+<se_semi_lagrange_cdr_check         se_dyn_target="preqx"   > .false. </se_semi_lagrange_cdr_check>
+<se_semi_lagrange_hv_q              se_dyn_target="theta-l" > 1 </se_semi_lagrange_hv_q>
+<se_semi_lagrange_hv_q              se_dyn_target="preqx"   > 1 </se_semi_lagrange_hv_q>
+<se_semi_lagrange_nearest_point_lev se_dyn_target="theta-l" > 256 </se_semi_lagrange_nearest_point_lev>
+<se_semi_lagrange_nearest_point_lev se_dyn_target="preqx"   > 256 </se_semi_lagrange_nearest_point_lev>
+
+<!-- Timesteps. theta-l: se_tstep, dt_remap_factor, dt_tracer_factor; nsplit/rsplit/qsplit = -1. -->
+<!-- preqx: nsplit/rsplit/qsplit; se_tstep and the factors = -1.                                -->
+<se_tstep se_dyn_target="theta-l"                              > 300 </se_tstep>
+<se_tstep se_dyn_target="theta-l" hgrid="ne3np4"               > 300 </se_tstep>
+<se_tstep se_dyn_target="theta-l" hgrid="ne5np4"               > 300 </se_tstep>
+<se_tstep se_dyn_target="theta-l" hgrid="ne16np4"              > 300 </se_tstep>
+<se_tstep se_dyn_target="theta-l" hgrid="ne30np4"              > 300 </se_tstep>
+<!-- ne60: page dt_dyn=150 (was 200) -->
+<se_tstep se_dyn_target="theta-l" hgrid="ne60np4"              > 150 </se_tstep>
+<se_tstep se_dyn_target="theta-l" hgrid="ne120np4"             > 75 </se_tstep>
+<se_tstep se_dyn_target="theta-l" hgrid="ne240np4"             > 37.5 </se_tstep>
+<!-- ne256, ne512: page values (were 33 and 16, which give dt_tracer that does not divide dtime) -->
+<se_tstep se_dyn_target="theta-l" hgrid="ne256np4"             > 33.3333333333333 </se_tstep>
+<se_tstep se_dyn_target="theta-l" hgrid="ne512np4"             > 16.6666666666667 </se_tstep>
+<se_tstep se_dyn_target="theta-l" hgrid="ne1024np4"            > 8.33333333333333 </se_tstep>
+<se_tstep se_dyn_target="theta-l" hgrid="ne0np4.ARCTIC.ne30x4"     > 37.5 </se_tstep>
+<se_tstep se_dyn_target="theta-l" hgrid="ne0np4.ARCTICGRIS.ne30x8" > 18.75 </se_tstep>
+<se_tstep se_dyn_target="preqx"                                > -1 </se_tstep>
+
+<se_dt_remap_factor  se_dyn_target="theta-l"  >  2 </se_dt_remap_factor>
+<se_dt_remap_factor  se_dyn_target="preqx"    > -1 </se_dt_remap_factor>
+<se_dt_tracer_factor se_dyn_target="theta-l"  >  6 </se_dt_tracer_factor>
+<se_dt_tracer_factor se_dyn_target="preqx"    > -1 </se_dt_tracer_factor>
+
+<se_nsplit se_dyn_target="theta-l"                                            > -1 </se_nsplit>
+<se_nsplit se_dyn_target="preqx"                                              >  2 </se_nsplit>
+<se_nsplit se_dyn_target="preqx" hgrid="ne16np4"                              >  1 </se_nsplit>
+<se_nsplit se_dyn_target="preqx" hgrid="ne5np4"   waccm_phys="1"              >  3 </se_nsplit>
+<se_nsplit se_dyn_target="preqx" hgrid="ne16np4"  waccmx="1"                  >  5 </se_nsplit>
+<se_nsplit se_dyn_target="preqx" hgrid="ne16np4"  waccm_phys="1"              >  2 </se_nsplit>
+<se_nsplit se_dyn_target="preqx" hgrid="ne30np4"  waccm_phys="1"              >  4 </se_nsplit>
+<se_nsplit se_dyn_target="preqx" hgrid="ne30np4"                              >  2 </se_nsplit>
+<se_nsplit se_dyn_target="preqx" hgrid="ne120np4"                             >  6 </se_nsplit>
+<se_nsplit se_dyn_target="preqx" hgrid="ne0np4CONUS.ne30x8" waccm_phys="1"    > 10 </se_nsplit>
+<se_nsplit se_dyn_target="preqx" hgrid="ne0np4TESTONLY.ne5x4"                 >  7 </se_nsplit>
+
+<se_rsplit se_dyn_target="theta-l"                                        > -1 </se_rsplit>
+<se_rsplit se_dyn_target="preqx"                                          >  3 </se_rsplit>
+<se_rsplit se_dyn_target="preqx" hgrid="ne120np4"                         >  2 </se_rsplit>
+<se_rsplit se_dyn_target="preqx" waccm_phys="1" waccmx="0"                >  2 </se_rsplit>
+<se_rsplit se_dyn_target="preqx" waccmx="1"                               >  4 </se_rsplit>
+<se_rsplit se_dyn_target="preqx" hgrid="ne0np4CONUS.ne30x8" waccm_phys="1">  3 </se_rsplit>
+
+<se_qsplit se_dyn_target="theta-l"  > -1 </se_qsplit>
+<se_qsplit se_dyn_target="preqx"    >  1 </se_qsplit>
+
+<!-- Hyperviscosity -->
+<se_hypervis_scaling se_dyn_target="theta-l"  > 3.0D0 </se_hypervis_scaling>
+<se_hypervis_scaling se_dyn_target="preqx"    > 0.0D0 </se_hypervis_scaling>
+
+<se_hypervis_subcycle se_dyn_target="theta-l"                   > 1 </se_hypervis_subcycle>
+<se_hypervis_subcycle se_dyn_target="preqx"                     > 3 </se_hypervis_subcycle>
+<se_hypervis_subcycle se_dyn_target="preqx" hgrid="ne120np4"    > 4 </se_hypervis_subcycle>
+
+<!-- theta-l: page rule hypervis_subcycle_q = dt_tracer_factor (ne16 override of 3 removed) -->
+<se_hypervis_subcycle_q se_dyn_target="theta-l"                 > 6 </se_hypervis_subcycle_q>
+<!-- preqx: 1 and ne16=2 were inherited from CAM generic entries; made explicit -->
+<se_hypervis_subcycle_q se_dyn_target="preqx"                   > 1 </se_hypervis_subcycle_q>
+<se_hypervis_subcycle_q se_dyn_target="preqx" hgrid="ne16np4"   > 2 </se_hypervis_subcycle_q>
+<se_hypervis_subcycle_q se_dyn_target="preqx" hgrid="ne30np4"   > 6 </se_hypervis_subcycle_q>
+
+<se_hypervis_subcycle_tom se_dyn_target="theta-l"  > 1 </se_hypervis_subcycle_tom>
+<se_hypervis_subcycle_tom se_dyn_target="preqx"    > 0 </se_hypervis_subcycle_tom>
+
+<!-- theta-l: tensor HV nu=3.4e-8; nu_div=nu_p=nu_q=nu_s=-1 (use nu) -->
+<se_nu     se_dyn_target="theta-l"                  > 3.4e-8 </se_nu>
+<se_nu_div se_dyn_target="theta-l"                  > -1 </se_nu_div>
+<!-- theta-l nu_p: added per page (was CAM generic) -->
+<se_nu_p   se_dyn_target="theta-l"                  > -1 </se_nu_p>
+<se_nu_q   se_dyn_target="theta-l"                  > -1 </se_nu_q>
+<se_nu_s   se_dyn_target="theta-l"                  > -1 </se_nu_s>
+
+<!-- preqx: nu_div = 2.5*nu; nu_p=nu_q=nu_s=nu -->
+<se_nu     se_dyn_target="preqx"                    > 1.0e15 </se_nu>
+<!-- preqx ne120 nu and nu_div: added per page -->
+<se_nu     se_dyn_target="preqx" hgrid="ne120np4"   > 1.5e13 </se_nu>
+<se_nu_div se_dyn_target="preqx"                    > 2.5e15 </se_nu_div>
+<se_nu_div se_dyn_target="preqx" hgrid="ne120np4"   > 3.75e13 </se_nu_div>
+<se_nu_p   se_dyn_target="preqx"                    > 1.0e15 </se_nu_p>
+<se_nu_q   se_dyn_target="preqx"                    > 1.0e15 </se_nu_q>
+<se_nu_s   se_dyn_target="preqx"                    > 1.0e15 </se_nu_s>
+<se_nu_p   se_dyn_target="preqx" hgrid="ne120np4"   > 1.5e13 </se_nu_p>
+<se_nu_q   se_dyn_target="preqx" hgrid="ne120np4"   > 1.5e13 </se_nu_q>
+<se_nu_s   se_dyn_target="preqx" hgrid="ne120np4"   > 1.5e13 </se_nu_s>
+
+<se_nu_top se_dyn_target="theta-l"                                > 2.5e5 </se_nu_top>
+<se_nu_top se_dyn_target="theta-l" hgrid="ne120np4"               > 1.0e5 </se_nu_top>
+<se_nu_top se_dyn_target="theta-l" hgrid="ne240np4"               > 4.0e4 </se_nu_top>
+<se_nu_top se_dyn_target="theta-l" hgrid="ne256np4"               > 4.0e4 </se_nu_top>
+<se_nu_top se_dyn_target="theta-l" hgrid="ne512np4"               > 2.0e4 </se_nu_top>
+<se_nu_top se_dyn_target="theta-l" hgrid="ne1024np4"              > 1.0e4 </se_nu_top>
+<!-- ARCTIC ne30x4 (NE30->NE120 RRM): page suggests starting from the NE120 value -->
+<se_nu_top se_dyn_target="theta-l" hgrid="ne0np4.ARCTIC.ne30x4"     > 1.0e5 </se_nu_top>
+<se_nu_top se_dyn_target="theta-l" hgrid="ne0np4.ARCTICGRIS.ne30x8" > 2.0e4 </se_nu_top>
+<!-- preqx nu_top: page value (was CAM generic 1.25e5, or 1e6 for mt/ht/waccm) -->
+<se_nu_top se_dyn_target="preqx"                                  > 2.5e5 </se_nu_top>
+
+<!-- Settings read only by senh; previously generic entries in namelist_defaults_cam.xml -->
+<!-- se_cubed_sphere_map: keep 0. The page recommends 2 for theta-l, but 0 when using the older ESMF maps -->
+<se_cubed_sphere_map se_dyn_target="theta-l"  > 0 </se_cubed_sphere_map>
+<se_cubed_sphere_map se_dyn_target="preqx"    > 0 </se_cubed_sphere_map>
+<se_hypervis_order   se_dyn_target="theta-l"  > 2 </se_hypervis_order>
+<se_hypervis_order   se_dyn_target="preqx"    > 2 </se_hypervis_order>
+
+</namelist_defaults>

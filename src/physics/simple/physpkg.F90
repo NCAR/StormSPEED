@@ -72,7 +72,7 @@ contains
 
     use physconst,          only: mwh2o, cpwv
     use constituents,       only: cnst_add, cnst_chk_dim
-    use physics_buffer,     only: pbuf_init_time, dtype_r8, pbuf_add_field, pbuf_cam_snapshot_register
+    use physics_buffer,     only: dtype_r8, pbuf_add_field, pbuf_cam_snapshot_register
 
     use cam_diagnostics,    only: diag_register
     use chemistry,          only: chem_register
@@ -93,9 +93,6 @@ contains
                       cam_take_snapshot_after_out = cam_take_snapshot_after, &
                       cam_snapshot_before_num_out = cam_snapshot_before_num, &
                       cam_snapshot_after_num_out  = cam_snapshot_after_num)
-
-    ! Initialize dyn_time_lvls
-    call pbuf_init_time()
 
     ! Register water vapor.
     ! ***** N.B. ***** This must be the first call to cnst_add so that
@@ -314,7 +311,7 @@ contains
     !
     ! Input arguments
     !
-    real(r8), intent(in) :: ztodt            ! physics time step unless nstep=0
+    real(r8), intent(in) :: ztodt            ! model physics timestep [s]
     !
     ! Input/Output arguments
     !
@@ -396,14 +393,14 @@ contains
     ! Second part of atmospheric physics package after updating of surface models
     !
     !-----------------------------------------------------------------------
-    use physics_buffer,         only: physics_buffer_desc, pbuf_get_chunk, pbuf_deallocate, pbuf_update_tim_idx
+    use physics_buffer,         only: physics_buffer_desc, pbuf_get_chunk, pbuf_deallocate
 
 
     use cam_diagnostics, only: diag_deallocate
     !
     ! Input arguments
     !
-    real(r8), intent(in) :: ztodt                       ! physics time step unless nstep=0
+    real(r8), intent(in) :: ztodt                       ! model physics timestep [s]
     !
     ! Input/Output arguments
     !
@@ -451,7 +448,6 @@ contains
     call t_startf ('physpkg_st2')
     call pbuf_deallocate(pbuf2d, 'physpkg')
 
-    call pbuf_update_tim_idx()
     call diag_deallocate()
     call t_stopf ('physpkg_st2')
 
@@ -490,7 +486,7 @@ contains
     !
     !   o Moist Held-Suarez configuration: Compute surface fluxes and PBL mixing
     !-----------------------------------------------------------------------
-    use physics_buffer,  only: physics_buffer_desc, pbuf_get_field, pbuf_old_tim_idx
+    use physics_buffer,  only: physics_buffer_desc, pbuf_get_field
     use physics_types,   only: physics_state, physics_tend, physics_state_check
     use physics_types,   only: physics_dme_adjust, set_dry_to_wet
     use constituents,    only: cnst_get_ind, pcnst
@@ -510,7 +506,7 @@ contains
 
     ! Arguments
     !
-    real(r8),                  intent(in)    :: ztodt ! Two times model timestep (2 delta-t)
+    real(r8),                  intent(in)    :: ztodt ! model physics timestep [s]
 
     type(cam_in_t),            intent(inout) :: cam_in
     type(cam_out_t),           intent(inout) :: cam_out
@@ -537,12 +533,12 @@ contains
     integer                                  :: ixcldice
     integer                                  :: k
     integer                                  :: ncol, lchnk
-    integer                                  :: itim_old
     logical                                  :: moist_mixing_ratio_dycore
 
     real(r8) :: tmp_trac  (pcols,pver,pcnst) ! tmp space
     real(r8) :: tmp_pdel  (pcols,pver)       ! tmp space
     real(r8) :: tmp_ps    (pcols)            ! tmp space
+    real(r8) :: tmp_cpcv  (pcols,pver)       ! tmp space
     real(r8) :: scaling(pcols,pver)
     !--------------------------------------------------------------------------
 
@@ -553,8 +549,6 @@ contains
     ! number of active atmospheric columns
     ncol  = state%ncol
     lchnk = state%lchnk
-    ! Associate pointers with physics buffer fields
-    itim_old = pbuf_old_tim_idx()
 
     ! Validate the physics state.
     if (state_debug_checks) then
@@ -608,12 +602,7 @@ contains
     !     physics_dme_adjust assumes moist. This is done in p_d_coupling for
     !     other dynamics. Bundy, Feb 2004.
     !
-    moist_mixing_ratio_dycore = dycore_is('LR').or. dycore_is('FV3').or.dycore_is('SENH')
-    !
-    ! update cp/cv for energy computation based in updated water variables
-    !
-    call cam_thermo_water_update(state%q(:ncol,:,:), lchnk, ncol, vc_dycore,&
-         to_dry_factor=state%pdel(:ncol,:)/state%pdeldry(:ncol,:))
+    moist_mixing_ratio_dycore = dycore_is('LR').or. dycore_is('FV3') .or. dycore_is('SENH')
 
     if (moist_physics) then
       ! Scale dry mass and energy
@@ -643,6 +632,13 @@ contains
           tmp_trac(:ncol,:pver,:pcnst) = state%q(:ncol,:pver,:pcnst)
           tmp_pdel(:ncol,:pver)        = state%pdel(:ncol,:pver)
           tmp_ps(:ncol)                = state%ps(:ncol)
+          tmp_cpcv(:ncol,:pver)        = cp_or_cv_dycore(:ncol,:pver,lchnk)
+          !
+          ! update cp/cv for energy computation based in updated water variables
+          !
+          call cam_thermo_water_update(state%q(:ncol,:,:), lchnk, ncol, vc_dycore,&
+               to_dry_factor=state%pdel(:ncol,:)/state%pdeldry(:ncol,:))
+
           call physics_dme_adjust(state, tend, qini, totliqini, toticeini, ztodt)
           call tot_energy_phys(state, 'phAM')
           call tot_energy_phys(state, 'dyAM', vc=vc_dycore)
@@ -650,6 +646,7 @@ contains
           state%q(:ncol,:pver,:pcnst) = tmp_trac(:ncol,:pver,:pcnst)
           state%pdel(:ncol,:pver)     = tmp_pdel(:ncol,:pver)
           state%ps(:ncol)             = tmp_ps(:ncol)
+          cp_or_cv_dycore(:ncol,:pver,lchnk) = tmp_cpcv(:ncol,:pver)
         end if
       else
         !
@@ -686,8 +683,7 @@ contains
     end if
 
     ! store T in buffer for use in computing dynamics T-tendency in next timestep
-    call pbuf_get_field(pbuf, dtcore_idx, dtcore,                             &
-         start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
+    call pbuf_get_field(pbuf, dtcore_idx, dtcore)
     do k = 1,pver
       dtcore(:ncol,k) = state%t(:ncol,k)
     end do
@@ -722,8 +718,7 @@ contains
     !-----------------------------------------------------------------------
 
     use physics_buffer,    only: physics_buffer_desc, pbuf_get_field
-    use physics_buffer,    only: pbuf_get_index, pbuf_old_tim_idx
-    use physics_buffer,    only: dyn_time_lvls
+    use physics_buffer,    only: pbuf_get_index
     use physics_types,     only: physics_state_check, physics_tend_init
     use constituents,      only: cnst_get_ind
 
@@ -733,7 +728,6 @@ contains
     use time_manager,      only: get_nstep
     use check_energy,      only: check_energy_cam_chng, check_energy_cam_fix
     use check_energy,      only: check_energy_timestep_init
-    use check_energy,      only: check_tracers_data, check_tracers_init, check_tracers_chng
     use check_energy,      only: tot_energy_phys
     use chemistry,         only: chem_is_active, chem_timestep_tend
     use held_suarez_cam,   only: held_suarez_tend
@@ -764,7 +758,6 @@ contains
     integer                  :: nstep       ! current timestep number
     integer                  :: lchnk       ! chunk identifier
     integer                  :: ncol        ! number of atmospheric columns
-    integer                  :: itim_old
     integer                  :: ixcldliq
     integer                  :: ixcldice
     integer                  :: m, m_cnst
@@ -780,7 +773,6 @@ contains
 
     real(r8)                 :: zero(pcols) ! array of zeros
     real(r8)                 :: flx_heat(pcols)
-    type(check_tracers_data) :: tracerint   ! energy integrals and cummulative boundary fluxes
     !-----------------------------------------------------------------------
 
     call t_startf('bc_init')
@@ -793,11 +785,8 @@ contains
     nstep = get_nstep()
 
     ! Associate pointers with physics buffer fields
-    itim_old = pbuf_old_tim_idx()
-
-    ! Associate pointers with physics buffer fields
-    call pbuf_get_field(pbuf, teout_idx, teout, (/1,itim_old/), (/pcols,1/))
-    call pbuf_get_field(pbuf, dtcore_idx, dtcore, start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
+    call pbuf_get_field(pbuf, teout_idx, teout)
+    call pbuf_get_field(pbuf, dtcore_idx, dtcore)
 
     call pbuf_get_field(pbuf, qini_idx, qini)
     if (moist_physics) then
@@ -820,9 +809,6 @@ contains
 
     ! Dump out "before tphysbc" state
     call diag_state_b4_phys_write(state)
-
-    ! compute mass integrals of input tracers state
-    call check_tracers_init(state, tracerint)
 
     call t_stopf('bc_init')
 
@@ -876,7 +862,7 @@ contains
     call outfld('TEFIX', state%te_cur(:,dyn_te_idx), pcols, lchnk   )
 
     ! T tendency due to dynamics
-    if( nstep > dyn_time_lvls-1 ) then
+    if( nstep > 0 ) then
       dtcore(:ncol,:pver) = (state%t(:ncol,:pver) - dtcore(:ncol,:pver))/ztodt
       call outfld( 'DTCORE', dtcore, pcols, lchnk )
     end if
@@ -977,8 +963,6 @@ contains
     if (chem_is_active()) then
       call t_startf('simple_chem')
 
-      call check_tracers_init(state, tracerint)
-
       if (trim(cam_take_snapshot_before) == "chem_timestep_tend") then
          call cam_snapshot_all_outfld(cam_snapshot_before_num, state, tend, cam_in, cam_out, pbuf)
       end if
@@ -993,8 +977,6 @@ contains
       if (trim(cam_take_snapshot_after) == "chem_timestep_tend") then
          call cam_snapshot_all_outfld(cam_snapshot_after_num, state, tend, cam_in, cam_out, pbuf)
       end if
-
-      call check_tracers_chng(state, tracerint, "chem_timestep_tend", nstep, ztodt, cam_in%cflx)
 
       call t_stopf('simple_chem')
     end if

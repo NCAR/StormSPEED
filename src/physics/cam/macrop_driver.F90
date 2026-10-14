@@ -16,7 +16,7 @@
   use physconst,     only: latice, latvap
   use phys_control,  only: phys_getopts
   use constituents,  only: cnst_get_ind, pcnst
-  use physics_buffer,    only: physics_buffer_desc, pbuf_set_field, pbuf_get_field, pbuf_old_tim_idx
+  use physics_buffer,    only: physics_buffer_desc, pbuf_set_field, pbuf_get_field
   use time_manager,      only: is_first_step
   use cldwat2m_macro,    only: ini_macro
   use perf_mod,          only: t_startf, t_stopf
@@ -96,12 +96,6 @@
 
 
   integer :: &
-    tke_idx = -1,       &! tke defined at the model interfaces
-    qtl_flx_idx = -1,   &! overbar(w'qtl' where qtl = qv + ql) from the PBL scheme
-    qti_flx_idx = -1,   &! overbar(w'qti' where qti = qv + qi) from the PBL scheme
-    cmfr_det_idx = -1,  &! detrained convective mass flux from UNICON
-    qlr_det_idx = -1,   &! detrained convective ql from UNICON
-    qir_det_idx = -1,   &! detrained convective qi from UNICON
     cmfmc_sh_idx = -1
 
   contains
@@ -169,26 +163,26 @@ end subroutine macrop_driver_readnl
   !---------------------------------------------------------------------- !
 
 
-   use physics_buffer, only : pbuf_add_field, dtype_r8, dyn_time_lvls
+   use physics_buffer, only : pbuf_add_field, dtype_r8
 
   !-----------------------------------------------------------------------
 
     call phys_getopts(shallow_scheme_out=shallow_scheme)
 
-    call pbuf_add_field('AST',      'global',  dtype_r8, (/pcols,pver,dyn_time_lvls/), ast_idx)
-    call pbuf_add_field('AIST',     'global',  dtype_r8, (/pcols,pver,dyn_time_lvls/), aist_idx)
-    call pbuf_add_field('ALST',     'global',  dtype_r8, (/pcols,pver,dyn_time_lvls/), alst_idx)
-    call pbuf_add_field('QIST',     'global',  dtype_r8, (/pcols,pver,dyn_time_lvls/), qist_idx)
-    call pbuf_add_field('QLST',     'global',  dtype_r8, (/pcols,pver,dyn_time_lvls/), qlst_idx)
-    call pbuf_add_field('CLD',      'global',  dtype_r8, (/pcols,pver,dyn_time_lvls/), cld_idx)
-    call pbuf_add_field('CONCLD',   'global',  dtype_r8, (/pcols,pver,dyn_time_lvls/), concld_idx)
+    call pbuf_add_field('AST',      'global',  dtype_r8, (/pcols,pver/), ast_idx)
+    call pbuf_add_field('AIST',     'global',  dtype_r8, (/pcols,pver/), aist_idx)
+    call pbuf_add_field('ALST',     'global',  dtype_r8, (/pcols,pver/), alst_idx)
+    call pbuf_add_field('QIST',     'global',  dtype_r8, (/pcols,pver/), qist_idx)
+    call pbuf_add_field('QLST',     'global',  dtype_r8, (/pcols,pver/), qlst_idx)
+    call pbuf_add_field('CLD',      'global',  dtype_r8, (/pcols,pver/), cld_idx)
+    call pbuf_add_field('CONCLD',   'global',  dtype_r8, (/pcols,pver/), concld_idx)
 
-    call pbuf_add_field('QCWAT',    'global',  dtype_r8, (/pcols,pver,dyn_time_lvls/), qcwat_idx)
-    call pbuf_add_field('LCWAT',    'global',  dtype_r8, (/pcols,pver,dyn_time_lvls/), lcwat_idx)
-    call pbuf_add_field('ICCWAT',   'global',  dtype_r8, (/pcols,pver,dyn_time_lvls/), iccwat_idx)
-    call pbuf_add_field('NLWAT',    'global',  dtype_r8, (/pcols,pver,dyn_time_lvls/), nlwat_idx)
-    call pbuf_add_field('NIWAT',    'global',  dtype_r8, (/pcols,pver,dyn_time_lvls/), niwat_idx)
-    call pbuf_add_field('TCWAT',    'global',  dtype_r8, (/pcols,pver,dyn_time_lvls/), tcwat_idx)
+    call pbuf_add_field('QCWAT',    'global',  dtype_r8, (/pcols,pver/), qcwat_idx)
+    call pbuf_add_field('LCWAT',    'global',  dtype_r8, (/pcols,pver/), lcwat_idx)
+    call pbuf_add_field('ICCWAT',   'global',  dtype_r8, (/pcols,pver/), iccwat_idx)
+    call pbuf_add_field('NLWAT',    'global',  dtype_r8, (/pcols,pver/), nlwat_idx)
+    call pbuf_add_field('NIWAT',    'global',  dtype_r8, (/pcols,pver/), niwat_idx)
+    call pbuf_add_field('TCWAT',    'global',  dtype_r8, (/pcols,pver/), tcwat_idx)
 
     call pbuf_add_field('FICE',     'physpkg', dtype_r8, (/pcols,pver/), fice_idx)
 
@@ -224,7 +218,6 @@ end subroutine macrop_driver_readnl
     !-----------------------------------------------------------------------
 
     ! Initialization routine for cloud macrophysics
-    if (shallow_scheme .eq. 'UNICON') rhminl_opt = 1
     call ini_macro(rhminl_opt, rhmini_opt)
 
     call phys_getopts(history_aerosol_out              = history_aerosol      , &
@@ -333,31 +326,6 @@ end subroutine macrop_driver_readnl
     sh_frac_idx = pbuf_get_index('SH_FRAC')
     dp_frac_idx = pbuf_get_index('DP_FRAC')
 
-    if (rhminl_opt > 0 .or. rhmini_opt > 0) then
-       cmfr_det_idx = pbuf_get_index('cmfr_det', istat)
-       if (istat < 0) call endrun(subname//': macrop option requires cmfr_det in pbuf')
-       if (rhminl_opt > 0) then
-          qlr_det_idx  = pbuf_get_index('qlr_det', istat)
-          if (istat < 0) call endrun(subname//': macrop option requires qlr_det in pbuf')
-       end if
-       if (rhmini_opt > 0) then
-          qir_det_idx  = pbuf_get_index('qir_det', istat)
-          if (istat < 0) call endrun(subname//': macrop option requires qir_det in pbuf')
-       end if
-    end if
-
-    if (rhminl_opt == 2 .or. rhmini_opt == 2) then
-       tke_idx = pbuf_get_index('tke')
-       if (rhminl_opt == 2) then
-          qtl_flx_idx = pbuf_get_index('qtl_flx', istat)
-          if (istat < 0) call endrun(subname//': macrop option requires qtl_flx in pbuf')
-       end if
-       if (rhmini_opt == 2) then
-          qti_flx_idx = pbuf_get_index('qti_flx', istat)
-          if (istat < 0) call endrun(subname//': macrop option requires qti_flx in pbuf')
-       end if
-    end if
-
     ! Init pbuf fields.  Note that the fields CLD, CONCLD, QCWAT, LCWAT,
     ! ICCWAT, and TCWAT are initialized in phys_inidat.
     if (is_first_step()) then
@@ -457,7 +425,6 @@ end subroutine macrop_driver_readnl
 
   ! Physics buffer fields
 
-  integer itim_old
   real(r8), pointer, dimension(:,:) :: qcwat        ! Cloud water old q
   real(r8), pointer, dimension(:,:) :: tcwat        ! Cloud water old temperature
   real(r8), pointer, dimension(:,:) :: lcwat        ! Cloud liquid water old q
@@ -483,13 +450,6 @@ end subroutine macrop_driver_readnl
   real(r8), pointer, dimension(:,:) :: cmfmc_sh     ! Shallow convective mass flux (pcols,pverp) [ kg/s/m^2 ]
 
   real(r8), pointer, dimension(:,:) :: cmeliq
-
-  real(r8), pointer, dimension(:,:) :: tke
-  real(r8), pointer, dimension(:,:) :: qtl_flx
-  real(r8), pointer, dimension(:,:) :: qti_flx
-  real(r8), pointer, dimension(:,:) :: cmfr_det
-  real(r8), pointer, dimension(:,:) :: qlr_det
-  real(r8), pointer, dimension(:,:) :: qir_det
 
   ! Convective cloud to the physics buffer for purposes of ql contrib. to radn.
 
@@ -626,30 +586,29 @@ end subroutine macrop_driver_readnl
 
   ! Associate pointers with physics buffer fields
 
-  itim_old = pbuf_old_tim_idx()
 
-  call pbuf_get_field(pbuf, qcwat_idx,   qcwat,   start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
-  call pbuf_get_field(pbuf, tcwat_idx,   tcwat,   start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
-  call pbuf_get_field(pbuf, lcwat_idx,   lcwat,   start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
-  call pbuf_get_field(pbuf, iccwat_idx,  iccwat,  start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
-  call pbuf_get_field(pbuf, nlwat_idx,   nlwat,   start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
-  call pbuf_get_field(pbuf, niwat_idx,   niwat,   start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
+  call pbuf_get_field(pbuf, qcwat_idx,   qcwat )
+  call pbuf_get_field(pbuf, tcwat_idx,   tcwat )
+  call pbuf_get_field(pbuf, lcwat_idx,   lcwat )
+  call pbuf_get_field(pbuf, iccwat_idx,  iccwat )
+  call pbuf_get_field(pbuf, nlwat_idx,   nlwat )
+  call pbuf_get_field(pbuf, niwat_idx,   niwat )
 
-  call pbuf_get_field(pbuf, cc_t_idx,    cc_t,    start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
-  call pbuf_get_field(pbuf, cc_qv_idx,   cc_qv,   start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
-  call pbuf_get_field(pbuf, cc_ql_idx,   cc_ql,   start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
-  call pbuf_get_field(pbuf, cc_qi_idx,   cc_qi,   start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
-  call pbuf_get_field(pbuf, cc_nl_idx,   cc_nl,   start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
-  call pbuf_get_field(pbuf, cc_ni_idx,   cc_ni,   start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
-  call pbuf_get_field(pbuf, cc_qlst_idx, cc_qlst, start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
+  call pbuf_get_field(pbuf, cc_t_idx,    cc_t )
+  call pbuf_get_field(pbuf, cc_qv_idx,   cc_qv )
+  call pbuf_get_field(pbuf, cc_ql_idx,   cc_ql )
+  call pbuf_get_field(pbuf, cc_qi_idx,   cc_qi )
+  call pbuf_get_field(pbuf, cc_nl_idx,   cc_nl )
+  call pbuf_get_field(pbuf, cc_ni_idx,   cc_ni )
+  call pbuf_get_field(pbuf, cc_qlst_idx, cc_qlst )
 
-  call pbuf_get_field(pbuf, cld_idx,     cld,    start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
-  call pbuf_get_field(pbuf, concld_idx,  concld, start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
-  call pbuf_get_field(pbuf, ast_idx,     ast,    start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
-  call pbuf_get_field(pbuf, aist_idx,    aist,   start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
-  call pbuf_get_field(pbuf, alst_idx,    alst,   start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
-  call pbuf_get_field(pbuf, qist_idx,    qist,   start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
-  call pbuf_get_field(pbuf, qlst_idx,    qlst,   start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
+  call pbuf_get_field(pbuf, cld_idx,     cld )
+  call pbuf_get_field(pbuf, concld_idx,  concld )
+  call pbuf_get_field(pbuf, ast_idx,     ast )
+  call pbuf_get_field(pbuf, aist_idx,    aist )
+  call pbuf_get_field(pbuf, alst_idx,    alst )
+  call pbuf_get_field(pbuf, qist_idx,    qist )
+  call pbuf_get_field(pbuf, qlst_idx,    qlst )
 
   call pbuf_get_field(pbuf, cmeliq_idx,  cmeliq)
 
@@ -830,14 +789,6 @@ end subroutine macrop_driver_readnl
    ! ----------------------------------------------------------------------------- !
 
    concld_old(:ncol,top_lev:pver) = concld(:ncol,top_lev:pver)
-
-   nullify(tke, qtl_flx, qti_flx, cmfr_det, qlr_det, qir_det)
-   if (tke_idx      > 0) call pbuf_get_field(pbuf, tke_idx, tke)
-   if (qtl_flx_idx  > 0) call pbuf_get_field(pbuf, qtl_flx_idx,  qtl_flx)
-   if (qti_flx_idx  > 0) call pbuf_get_field(pbuf, qti_flx_idx,  qti_flx)
-   if (cmfr_det_idx > 0) call pbuf_get_field(pbuf, cmfr_det_idx, cmfr_det)
-   if (qlr_det_idx  > 0) call pbuf_get_field(pbuf, qlr_det_idx,  qlr_det)
-   if (qir_det_idx  > 0) call pbuf_get_field(pbuf, qir_det_idx,  qir_det)
 
    clrw_old(:ncol,:top_lev-1) = 0._r8
    clri_old(:ncol,:top_lev-1) = 0._r8
@@ -1041,7 +992,6 @@ end subroutine macrop_driver_readnl
                       CC_T, CC_qv, CC_ql, CC_qi, CC_nl, CC_ni, CC_qlst,          &
                       dlf_T, dlf_qv, dlf_ql, dlf_qi, dlf_nl, dlf_ni,             &
                       concld_old, concld, clrw_old, clri_old, landfrac, snowh,   &
-                      tke, qtl_flx, qti_flx, cmfr_det, qlr_det, qir_det,         &
                       tlat, qvlat, qcten, qiten, ncten, niten,                   &
                       cmeliq, qvadj, qladj, qiadj, qllim, qilim,                 &
                       cld, alst, aist, qlst, qist, do_cldice )

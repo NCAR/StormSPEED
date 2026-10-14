@@ -10,7 +10,7 @@ use cam_control_mod, only: moist_physics
 use physics_types,   only: physics_state, physics_tend, physics_ptend
 use ppgrid,          only: pcols, pver, begchunk, endchunk
 use physics_buffer,  only: physics_buffer_desc, pbuf_add_field, dtype_r8
-use physics_buffer,  only: dyn_time_lvls, pbuf_get_field, pbuf_get_index, pbuf_old_tim_idx
+use physics_buffer,  only: pbuf_get_field, pbuf_get_index
 
 use cam_history,     only: outfld, write_inithist, hist_fld_active, inithist_all, write_camiop
 use cam_history_support, only: max_fieldname_len
@@ -164,9 +164,9 @@ contains
     call pbuf_add_field('PSL', 'physpkg', dtype_r8, (/pcols/), psl_idx)
 
     ! Request physics buffer space for fields that persist across timesteps.
-    call pbuf_add_field('T_TTEND', 'global', dtype_r8, (/pcols,pver,dyn_time_lvls/), t_ttend_idx)
-    call pbuf_add_field('T_UTEND', 'global', dtype_r8, (/pcols,pver,dyn_time_lvls/), t_utend_idx)
-    call pbuf_add_field('T_VTEND', 'global', dtype_r8, (/pcols,pver,dyn_time_lvls/), t_vtend_idx)
+    call pbuf_add_field('T_TTEND', 'global', dtype_r8, (/pcols,pver/), t_ttend_idx)
+    call pbuf_add_field('T_UTEND', 'global', dtype_r8, (/pcols,pver/), t_utend_idx)
+    call pbuf_add_field('T_VTEND', 'global', dtype_r8, (/pcols,pver/), t_vtend_idx)
   end subroutine diag_register_dry
 
   subroutine diag_register_moist()
@@ -230,9 +230,12 @@ contains
     call register_vector_field('UTEND_TOT','VTEND_TOT')
 
     ! Debugging negative water output fields
-    call addfld ('INEGCLPTEND ', (/ 'lev' /), 'A', 'kg/kg/s', 'Cloud ice tendency due to clipping neg values after microp', sampled_on_subcycle=.true.)
-    call addfld ('LNEGCLPTEND ', (/ 'lev' /), 'A', 'kg/kg/s', 'Cloud liq tendency due to clipping neg values after microp', sampled_on_subcycle=.true.)
-    call addfld ('VNEGCLPTEND ', (/ 'lev' /), 'A', 'kg/kg/s', 'Vapor tendency due to clipping neg values after microp', sampled_on_subcycle=.true.)
+    call addfld ('INEGCLPTEND ', (/ 'lev' /), 'A', 'kg/kg/s', &
+                                 'Cloud ice tendency due to clipping neg values after microp', sampled_on_subcycle=.true.)
+    call addfld ('LNEGCLPTEND ', (/ 'lev' /), 'A', 'kg/kg/s', &
+                                 'Cloud liq tendency due to clipping neg values after microp', sampled_on_subcycle=.true.)
+    call addfld ('VNEGCLPTEND ', (/ 'lev' /), 'A', 'kg/kg/s', &
+                                 'Vapor tendency due to clipping neg values after microp', sampled_on_subcycle=.true.)
 
     call addfld ('Z3',         (/ 'lev' /), 'A', 'm',         'Geopotential Height (above sea level)')
     call addfld ('Z1000',      horiz_only,  'A', 'm',         'Geopotential Z at 1000 mbar pressure surface')
@@ -263,7 +266,10 @@ contains
     call addfld ('OMEGA850',   horiz_only,  'A', 'Pa/s',      'Vertical velocity at 850 mbar pressure surface')
     call addfld ('OMEGA500',   horiz_only,  'A', 'Pa/s',      'Vertical velocity at 500 mbar pressure surface')
 
-    call addfld ('PSL',        horiz_only,  'A', 'Pa','Sea level pressure')
+    call addfld ('PSL',        horiz_only,  'A', 'Pa', 'Sea level pressure')
+    call addfld ('PMID',       (/ 'lev' /), 'A', 'Pa', 'Pressure at layer midpoints')
+    call addfld ('PINT',      (/ 'ilev' /), 'A', 'Pa', 'Pressure at layer interfaces')
+    call addfld ('PDEL',       (/ 'lev' /), 'A', 'Pa', 'Pressure difference between levels')
 
     call addfld ('T1000',      horiz_only,  'A', 'K','Temperature at 1000 mbar pressure surface')
     call addfld ('T925',       horiz_only,  'A', 'K','Temperature at 925 mbar pressure surface')
@@ -323,6 +329,16 @@ contains
       call add_default ('UU      ', 1, ' ')
       call add_default ('OMEGAT  ', 1, ' ')
       call add_default ('PSL     ', 1, ' ')
+    end if
+
+    if (dycore_is('SE')) then
+      call add_default ('PMID', 1, ' ')
+    end if
+
+    if (dycore_is('MPAS')) then
+      call add_default ('PMID', 1, ' ')
+      call add_default ('PINT', 1, ' ')
+      call add_default ('PDEL', 1, ' ')
     end if
 
     if (history_vdiag) then
@@ -402,16 +418,26 @@ contains
 
        ! Create budgets that are a sum/dif of 2 stages
 
-       call cam_budget_em_register('dEdt_param_efix_physE','phAP','phBF','phy','dif',longname='dE/dt CAM physics + energy fixer using physics E formula (phAP-phBF)')
-       call cam_budget_em_register('dEdt_param_efix_dynE' ,'dyAP','dyBF','phy','dif',longname='dE/dt CAM physics + energy fixer using dycore E formula (dyAP-dyBF)')
-       call cam_budget_em_register('dEdt_param_physE'     ,'phAP','phBP','phy','dif',longname='dE/dt CAM physics using physics E formula (phAP-phBP)')
-       call cam_budget_em_register('dEdt_param_dynE'      ,'dyAP','dyBP','phy','dif',longname='dE/dt CAM physics using dycore E (dyAP-dyBP)')
-       call cam_budget_em_register('dEdt_dme_adjust_physE','phAM','phAP','phy','dif',longname='dE/dt dry mass adjustment using physics E formula (phAM-phAP)')
-       call cam_budget_em_register('dEdt_dme_adjust_dynE' ,'dyAM','dyAP','phy','dif',longname='dE/dt dry mass adjustment using dycore E (dyAM-dyAP)')
-       call cam_budget_em_register('dEdt_efix_physE'      ,'phBP','phBF','phy','dif',longname='dE/dt energy fixer using physics E formula (phBP-phBF)')
-       call cam_budget_em_register('dEdt_efix_dynE'       ,'dyBP','dyBF','phy','dif',longname='dE/dt energy fixer using dycore E formula (dyBP-dyBF)')
-       call cam_budget_em_register('dEdt_phys_tot_physE'  ,'phAM','phBF','phy','dif',longname='dE/dt physics total using physics E formula (phAM-phBF)')
-       call cam_budget_em_register('dEdt_phys_tot_dynE'   ,'dyAM','dyBF','phy','dif',longname='dE/dt physics total using dycore E (dyAM-dyBF)')
+       call cam_budget_em_register('dEdt_param_efix_physE','phAP','phBF','phy','dif',&
+                                    longname='dE/dt CAM physics + energy fixer using physics E formula (phAP-phBF)')
+       call cam_budget_em_register('dEdt_param_efix_dynE' ,'dyAP','dyBF','phy','dif',&
+                                    longname='dE/dt CAM physics + energy fixer using dycore E formula (dyAP-dyBF)')
+       call cam_budget_em_register('dEdt_param_physE'     ,'phAP','phBP','phy','dif',&
+                                    longname='dE/dt CAM physics using physics E formula (phAP-phBP)')
+       call cam_budget_em_register('dEdt_param_dynE'      ,'dyAP','dyBP','phy','dif',&
+                                    longname='dE/dt CAM physics using dycore E (dyAP-dyBP)')
+       call cam_budget_em_register('dEdt_dme_adjust_physE','phAM','phAP','phy','dif',&
+                                    longname='dE/dt dry mass adjustment using physics E formula (phAM-phAP)')
+       call cam_budget_em_register('dEdt_dme_adjust_dynE' ,'dyAM','dyAP','phy','dif',&
+                                    longname='dE/dt dry mass adjustment using dycore E (dyAM-dyAP)')
+       call cam_budget_em_register('dEdt_efix_physE'      ,'phBP','phBF','phy','dif',&
+                                    longname='dE/dt energy fixer using physics E formula (phBP-phBF)')
+       call cam_budget_em_register('dEdt_efix_dynE'       ,'dyBP','dyBF','phy','dif',&
+                                    longname='dE/dt energy fixer using dycore E formula (dyBP-dyBF)')
+       call cam_budget_em_register('dEdt_phys_tot_physE'  ,'phAM','phBF','phy','dif',&
+                                    longname='dE/dt physics total using physics E formula (phAM-phBF)')
+       call cam_budget_em_register('dEdt_phys_tot_dynE'   ,'dyAM','dyBF','phy','dif',&
+                                    longname='dE/dt physics total using dycore E (dyAM-dyBF)')
     endif
   end subroutine diag_init_dry
 
@@ -461,10 +487,7 @@ contains
     call addfld ('QBOT',       horiz_only,  'A', 'kg/kg','Lowest model level water vapor mixing ratio')
 
     call addfld ('PSDRY',      horiz_only,  'A', 'Pa', 'Dry surface pressure')
-    call addfld ('PMID',       (/ 'lev' /), 'A', 'Pa', 'Pressure at layer midpoints')
-    call addfld ('PINT',       (/ 'ilev' /), 'A', 'Pa', 'Pressure at layer interfaces')
     call addfld ('PDELDRY',    (/ 'lev' /), 'A', 'Pa', 'Dry pressure difference between levels')
-    call addfld ('PDEL',       (/ 'lev' /), 'A', 'Pa', 'Pressure difference between levels')
 
     ! outfld calls in diag_conv
 
@@ -603,13 +626,6 @@ contains
 
     if (dycore_is('SE')) then
       call add_default ('PSDRY', 1, ' ')
-      call add_default ('PMID',  1, ' ')
-   end if
-
-    if (dycore_is('MPAS')) then
-      call add_default ('PINT', 1, ' ')
-      call add_default ('PMID',  1, ' ')
-      call add_default ('PDEL',  1, ' ')
    end if
 
     if (history_eddy) then
@@ -883,14 +899,12 @@ contains
 
     !! initialize to pbuf T_TTEND to temperature at first timestep
     if (is_first_step()) then
-      do m = 1, dyn_time_lvls
-        call pbuf_get_field(pbuf, t_ttend_idx, t_ttend, start=(/1,1,m/), kount=(/pcols,pver,1/))
-        t_ttend(:ncol,:) = state%t(:ncol,:)
-        call pbuf_get_field(pbuf, t_utend_idx, t_utend, start=(/1,1,m/), kount=(/pcols,pver,1/))
-        t_utend(:ncol,:) = state%u(:ncol,:)
-        call pbuf_get_field(pbuf, t_vtend_idx, t_vtend, start=(/1,1,m/), kount=(/pcols,pver,1/))
-        t_vtend(:ncol,:) = state%v(:ncol,:)
-      end do
+      call pbuf_get_field(pbuf, t_ttend_idx, t_ttend)
+      t_ttend(:ncol,:) = state%t(:ncol,:)
+      call pbuf_get_field(pbuf, t_utend_idx, t_utend)
+      t_utend(:ncol,:) = state%u(:ncol,:)
+      call pbuf_get_field(pbuf, t_vtend_idx, t_vtend)
+      t_vtend(:ncol,:) = state%v(:ncol,:)
     end if
 
   end subroutine diag_conv_tend_ini
@@ -1066,6 +1080,10 @@ contains
     call pbuf_get_field(pbuf, psl_idx, psl)
     call cpslec(ncol, state%pmid, state%phis, state%ps, state%t, psl, gravit, rair)
     call outfld('PSL', psl, pcols, lchnk)
+
+    call outfld('PMID', state%pmid, pcols, lchnk)
+    call outfld('PINT', state%pint, pcols, lchnk)
+    call outfld('PDEL', state%pdel, pcols, lchnk)
 
     ! Output T,u,v fields on pressure surfaces
     !
@@ -1282,11 +1300,7 @@ contains
     call constituent_burden_comp(state)
 
     call outfld('PSDRY',   state%psdry,   pcols, lchnk)
-    call outfld('PMID',    state%pmid,    pcols, lchnk)
-    call outfld('PINT',    state%pint,    pcols, lchnk)
     call outfld('PDELDRY', state%pdeldry, pcols, lchnk)
-    call outfld('PDEL',    state%pdel,    pcols, lchnk)
-
 
     ftem(:ncol,:) = state%u(:ncol,:)*state%q(:ncol,:,ixq)
     call outfld ('UQ      ',ftem    ,pcols   ,lchnk     )
@@ -1934,7 +1948,6 @@ contains
     !
     !---------------------------Local workspace-----------------------------
     !
-    integer  :: itim_old          ! indices
 
     real(r8), pointer, dimension(:,:) :: cwat_var
     real(r8), pointer, dimension(:,:) :: conv_var_3d
@@ -1948,35 +1961,34 @@ contains
       !
       ! Associate pointers with physics buffer fields
       !
-      itim_old = pbuf_old_tim_idx()
 
       if (qcwat_idx > 0) then
-        call pbuf_get_field(pbuf, qcwat_idx, cwat_var, start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
+        call pbuf_get_field(pbuf, qcwat_idx, cwat_var )
         call outfld('QCWAT&IC   ',cwat_var, pcols,lchnk)
       end if
 
       if (tcwat_idx > 0) then
-        call pbuf_get_field(pbuf, tcwat_idx,  cwat_var, start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
+        call pbuf_get_field(pbuf, tcwat_idx,  cwat_var )
         call outfld('TCWAT&IC   ',cwat_var, pcols,lchnk)
       end if
 
       if (lcwat_idx > 0) then
-        call pbuf_get_field(pbuf, lcwat_idx,  cwat_var, start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
+        call pbuf_get_field(pbuf, lcwat_idx,  cwat_var )
         call outfld('LCWAT&IC   ',cwat_var, pcols,lchnk)
       end if
 
       if (cld_idx > 0) then
-        call pbuf_get_field(pbuf, cld_idx,    cwat_var, start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
+        call pbuf_get_field(pbuf, cld_idx,    cwat_var )
         call outfld('CLOUD&IC   ',cwat_var, pcols,lchnk)
       end if
 
       if (concld_idx > 0) then
-        call pbuf_get_field(pbuf, concld_idx, cwat_var, start=(/1,1,itim_old/), kount=(/pcols,pver,1/) )
+        call pbuf_get_field(pbuf, concld_idx, cwat_var )
         call outfld('CONCLD&IC   ',cwat_var, pcols,lchnk)
       end if
 
       if (cush_idx > 0) then
-        call pbuf_get_field(pbuf, cush_idx, conv_var_2d ,(/1,itim_old/),  (/pcols,1/))
+        call pbuf_get_field(pbuf, cush_idx, conv_var_2d )
         call outfld('CUSH&IC   ',conv_var_2d, pcols,lchnk)
 
       end if
@@ -2048,7 +2060,7 @@ contains
     real(r8), pointer, dimension(:,:) :: t_ttend
     real(r8), pointer, dimension(:,:) :: t_utend
     real(r8), pointer, dimension(:,:) :: t_vtend
-    integer  :: itim_old,m
+    integer  :: m
 
     !-----------------------------------------------------------------------
 
@@ -2077,10 +2089,9 @@ contains
     ! Total (physics+dynamics, everything!) tendency for Temperature
 
     !! get temperature, U, and V stored in physics buffer
-    itim_old = pbuf_old_tim_idx()
-    call pbuf_get_field(pbuf, t_ttend_idx, t_ttend, start=(/1,1,itim_old/), kount=(/pcols,pver,1/))
-    call pbuf_get_field(pbuf, t_utend_idx, t_utend, start=(/1,1,itim_old/), kount=(/pcols,pver,1/))
-    call pbuf_get_field(pbuf, t_vtend_idx, t_vtend, start=(/1,1,itim_old/), kount=(/pcols,pver,1/))
+    call pbuf_get_field(pbuf, t_ttend_idx, t_ttend)
+    call pbuf_get_field(pbuf, t_utend_idx, t_utend)
+    call pbuf_get_field(pbuf, t_vtend_idx, t_vtend)
 
     !! calculate and outfld the total temperature, U, and V tendencies
     ftem3(:ncol,:) = (state%t(:ncol,:) - t_ttend(:ncol,:))/ztodt
