@@ -35,7 +35,8 @@ jobs:
     env:
       TMP_DIR: tmp
       TMP_OUTPUT: case_output.log
-      GENERATE_BASELINE: true
+      # Baseline uploads are disabled for validation runs
+      GENERATE_BASELINE: false
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_ENDPOINT_URL: ${{ secrets.AWS_ENDPOINT_URL }}
@@ -161,7 +162,10 @@ jobs:
           ################
           export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PIO/lib:$NETCDF_FORTRAN_PATH/lib:$NETCDF_C_PATH/lib:$LAPACK/lib:$LAPACK/lib64:$PNETCDF/lib
           if [ "${{ matrix.runner }}" == "gha-runner-gpu-stormspeed" ]; then
-            export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CUDA_ROOT/lib64:$CUDA_ROOT/lib64/stubs
+            export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CUDA_ROOT/lib64
+            nvidia-smi || echo "nvidia-smi not available"
+            ldconfig -p | grep libcuda || echo "libcuda not in ldconfig cache"
+            ldd /tmp/ci_test/bld/cesm.exe | grep -i cuda || true
           else
             export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$MKLROOT/lib
           fi
