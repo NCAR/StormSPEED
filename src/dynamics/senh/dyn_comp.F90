@@ -858,6 +858,7 @@ subroutine read_inidat(dyn_in)
 
   use aoa_tracers,             only: aoa_tracers_implements_cnst, aoa_tracers_init_cnst
   use constituents,            only: cnst_name, cnst_read_iv, qmin,cnst_is_a_water_species
+  use constituents,            only: cnst_longname, cnst_type
   use cam_control_mod,         only: ideal_phys, aqua_planet
   use cam_initfiles,           only: initial_file_get_id, topo_file_get_id, pertlim, scale_dry_air_mass
   use cam_history_support,     only: max_fieldname_len
@@ -868,7 +869,6 @@ subroutine read_inidat(dyn_in)
   use clubb_intr,              only: clubb_implements_cnst, clubb_init_cnst
   use co2_cycle,               only: co2_implements_cnst, co2_init_cnst
   use const_init,              only: cnst_init_default
-  use constituents,            only: cnst_name, cnst_longname
   use control_mod_cam,         only: initial_total_mass
   use dimensions_mod_cam,      only: cnst_name_gll, cnst_longname_gll
   use dof_mod,                 only: putUniquePoints
@@ -951,6 +951,7 @@ subroutine read_inidat(dyn_in)
     ! Variables for scaling mass
     real(r8), allocatable :: ps_tmp(:,:,:), psdry_tmp(:,:,:)
     real(r8)              :: ps_mean, psdry_mean, psdry_chk
+    real(r8), allocatable :: dp_old(:,:,:,:)
 
     tl = 1
 
@@ -1398,7 +1399,9 @@ subroutine read_inidat(dyn_in)
       if (iam < par%nprocs) then
          ! HOMME's prim_set_mass scales total (moist) mass to control_mod%initial_total_mass,
          ! which CAM never sets.  Convert the requested global-mean dry surface pressure to a
-         ! total-mass target: with Q fixed, scaling ps scales dry and water mass by one factor.
+         ! total-mass. Only do the rescale if reading in moist mass. With PSDRY ICs, psdry_tmp = ps,
+         ! and water term is zero, scaling collapses to the dry-only case where Q is dry-referenced
+         ! and should be left alone.
          allocate(ps_tmp(np,np,nets:nete), psdry_tmp(np,np,nets:nete))
          ! 1. fill ps_v(n0) from the IC time level (must precede the means)
          do ie = nets, nete
@@ -1419,9 +1422,31 @@ subroutine read_inidat(dyn_in)
          psdry_mean = global_integral(elem, psdry_tmp, hybrid, np, nets, nete)
 
          ! 3. guard, set target, scale
+         ! Scale dry air only: total-mass target is the requested global-mean dry ps plus the
+         ! global-mean water vapor column, which is held fixed by rescaling wet tracers below.
          if (psdry_mean <= 0._r8) call endrun(subname//' nonpositive global dry surface pressure')
-         initial_total_mass = (scale_dry_air_mass/psdry_mean) * ps_mean / g_homme
+         initial_total_mass = (scale_dry_air_mass + (ps_mean - psdry_mean)) / g_homme
+
+         allocate(dp_old(np,np,nlev,nets:nete))
+         do ie = nets, nete
+            dp_old(:,:,:,ie) = elem(ie)%state%dp3d(:,:,:,TimeLevel%n0)
+         end do
+
          call prim_set_mass(elem, TimeLevel, hybrid, hvcoord, nets, nete)
+
+         ! Conserve mass of 'wet' tracers and mixing ratio of 'dry' tracers, as CAM SE
+         ! prim_set_dry_mass does.  elem Q index == CAM constituent index (qsize = pcnst).
+         if (inic_wet) then
+            do ie = nets, nete
+               do m_cnst = 1, qsize
+                  if (cnst_type(m_cnst) /= 'dry') then
+                     elem(ie)%state%Q(:,:,:,m_cnst) = max(qmin(m_cnst), elem(ie)%state%Q(:,:,:,m_cnst) * &
+                          dp_old(:,:,:,ie) / elem(ie)%state%dp3d(:,:,:,TimeLevel%n0))
+                  end if
+               end do
+            end do
+         end if
+         deallocate(dp_old)
 
          ! 4. post-check (after prim_set_mass, before set_thermostate)
          do ie = nets, nete
