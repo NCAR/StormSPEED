@@ -246,6 +246,15 @@
   <test compset="F2000climo" grid="ne30_ne30_mg17" name="ERP_Ln9" testmods="cam/outfrq9s">
     <machines>
       <machine name="derecho" compiler="intel" category="prebeta"/>
+      <machine name="derecho" compiler="intel" category="stormbfb"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:10:00</option>
+    </options>
+  </test>
+  <test compset="F2000climo" grid="ne30_ne30_mg17" name="ERP_Ln9" testmods="cam/nochem_clubbmf">
+    <machines>
+      <machine name="derecho" compiler="intel" category="stormbfb"/>
     </machines>
     <options>
       <option name="wallclock">00:10:00</option>
@@ -1861,6 +1870,7 @@
   </test>
   <test compset="FKESSLER" grid="ne16_g17" name="ERP_Ln27" testmods="cam/outfrq9s_thetal" supported="false">
     <machines>
+      <machine name="derecho" compiler="intel" category="stormbfb"/>
       <machine name="izumi" compiler="gnu" category="aux_cam"/>
       <machine name="izumi" compiler="intel" category="aux_cam"/>
       <machine name="izumi" compiler="nag" category="aux_cam"/>

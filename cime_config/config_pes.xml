@@ -428,12 +428,12 @@
     <mach name="derecho">
       <pes pesize="any" compset="any">
 	<ntasks>
-	  <ntasks_atm>-256</ntasks_atm>
-	  <ntasks_lnd>-256</ntasks_lnd>
-	  <ntasks_rof>-256</ntasks_rof>
-	  <ntasks_ice>-256</ntasks_ice>
-	  <ntasks_ocn>-256</ntasks_ocn>
-	  <ntasks_cpl>-256</ntasks_cpl>
+	  <ntasks_atm>-480</ntasks_atm>
+	  <ntasks_lnd>-480</ntasks_lnd>
+	  <ntasks_rof>-480</ntasks_rof>
+	  <ntasks_ice>-480</ntasks_ice>
+	  <ntasks_ocn>-480</ntasks_ocn>
+	  <ntasks_cpl>-480</ntasks_cpl>
 	</ntasks>
 	<nthrds>
 	  <nthrds_atm>1</nthrds_atm>
