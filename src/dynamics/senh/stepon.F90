@@ -290,6 +290,7 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
 
 
    dtime = get_step_size()
+   rec2dt = 1._r8/dtime
 
    ! copy from phys structures -> dynamics structures
    call t_barrierf('sync_p_d_coupling', mpicom)
@@ -368,7 +369,7 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
       do ie=1,nelemd
          call outfld('VOR',tmp_dyn(1,1,1,ie),npsq,ie)
       enddo
-!jt   endif
+   endif
    if (hist_fld_active('DIV')) then
       call compute_div_C0(tmp_dyn,dyn_in%elem,par,tl_f)
       do ie=1,nelemd
@@ -414,7 +415,6 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
          call outfld('FU',RESHAPE(ftmp(:,:,1), (/npsq/)),npsq,ie)
          call outfld('FV',RESHAPE(ftmp(:,:,2), (/npsq/)),npsq,ie)
       end do
-   endif
    endif
 
    do ie = 1,nelemd
