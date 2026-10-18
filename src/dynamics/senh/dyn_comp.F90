@@ -854,6 +854,7 @@ subroutine read_inidat(dyn_in)
 
   use aoa_tracers,             only: aoa_tracers_implements_cnst, aoa_tracers_init_cnst
   use constituents,            only: cnst_name, cnst_read_iv, qmin,cnst_is_a_water_species
+  use constituents,            only: cnst_longname, cnst_type
   use cam_control_mod,         only: ideal_phys, aqua_planet
   use cam_initfiles,           only: initial_file_get_id, topo_file_get_id, pertlim, scale_dry_air_mass
   use cam_history_support,     only: max_fieldname_len
@@ -864,14 +865,16 @@ subroutine read_inidat(dyn_in)
   use clubb_intr,              only: clubb_implements_cnst, clubb_init_cnst
   use co2_cycle,               only: co2_implements_cnst, co2_init_cnst
   use const_init,              only: cnst_init_default
-  use constituents,            only: cnst_name, cnst_longname
+  use control_mod_cam,         only: initial_total_mass
   use dimensions_mod_cam,      only: cnst_name_gll, cnst_longname_gll
   use dof_mod,                 only: putUniquePoints
   use edge_mod,                only : edgevpack_nlyr, edgevunpack_nlyr, edge_g
   use element_ops,             only: set_thermostate
   use gllfvremap_mod,          only: gfr_fv_phys_to_dyn_topo
+  use global_norms_mod,        only: global_integral
   use hycoef,                  only: ps0
   use microp_driver,           only: microp_driver_implements_cnst, microp_driver_init_cnst
+  use physical_constants,      only: g_homme => g
   use phys_control,            only: phys_getopts
   use prim_si_mod,             only: prim_set_mass
 
@@ -940,6 +943,13 @@ subroutine read_inidat(dyn_in)
     integer,  allocatable            :: m_ind(:)
     real(r8), allocatable            :: dbuf4(:,:,:,:)
     integer :: ithr, nets, nete, m
+
+    ! Variables for scaling mass
+    real(r8), allocatable :: ps_tmp(:,:,:), psdry_tmp(:,:,:)
+    real(r8), allocatable :: dp_old(:,:,:,:)
+    real(r8)              :: ps_mean, psdry_mean, psdry_chk
+    real(r8)              :: dp_dry(np,np,nlev), dp_wet(np,np,nlev)
+    real(r8)              :: qv_old(np,np,nlev)
 
     tl = 1
 
@@ -1021,7 +1031,12 @@ subroutine read_inidat(dyn_in)
 !jt    endif
    ! Set ICs.  Either from analytic expressions or read from file.
 
-   if (analytic_ic_active() .and. (iam < par%nprocs)) then
+   if (analytic_ic_active()) then
+
+    ! senh vcoord => vc_moist_pressure
+    inic_wet = .true.
+
+    if (iam < par%nprocs) then
 
       ! PHIS has already been set by set_phis.  Get local copy for
       ! possible use in setting T and PS in the analytic IC code.
@@ -1036,7 +1051,6 @@ subroutine read_inidat(dyn_in)
          end do
       end do
 
-      inic_wet = .false.
       allocate(glob_ind(npsq * nelemd))
       j = 1
       do ie = 1, nelemd
@@ -1104,6 +1118,7 @@ subroutine read_inidat(dyn_in)
          end do
       end do
       deallocate(dbuf4)
+    endif
    else
 
       ! Read ICs from file.  Assume all fields in the initial file are on the GLL grid.
@@ -1373,19 +1388,119 @@ subroutine read_inidat(dyn_in)
 #ifdef COLUMN_OPENMP
    call omp_set_num_threads(vthreads)
 #endif
-   ithr=omp_get_thread_num()
-   nets=dom_mt(ithr)%start
-   nete=dom_mt(ithr)%end
-   hybrid = hybrid_create_cam(par,ithr,hthreads)
+   ! Serial region: cover all local elements with a single-thread hybrid so that
+   ! global_integral (sums global_shared_buf(1:nelemd)) sees every element.
+   nets = 1
+   nete = nelemd
+   hybrid = hybrid_create_cam(par, 0, 1)
 
    ! If scale_dry_air_mass > 0.0 then scale dry air mass to scale_dry_air_mass global average dry pressure
    ! scale PS to achieve prescribed dry mass
    if (scale_dry_air_mass > 0.0_r8) then
       if (iam < par%nprocs) then
-         call prim_set_mass(elem, TimeLevel,hybrid,hvcoord,nets,nete)
+         ! HOMME's prim_set_mass scales total mass to control_mod%initial_total_mass, which CAM
+         ! never sets.  Scale in the IC's native basis: moist for PS ICs, dry for PSDRY ICs (which
+         ! are converted to moist after this block).  The target is the requested global-mean dry
+         ! surface pressure plus the global-mean water vapor column (zero in the dry basis), so
+         ! only dry air is scaled.  Wet tracers are rescaled to conserve their mass in either
+         ! basis; dry tracers keep their mixing ratio, as in CAM SE prim_set_dry_mass.
+
+         allocate(ps_tmp(np,np,nets:nete), psdry_tmp(np,np,nets:nete))
+         ! 1. fill ps_v(n0) from the IC time level (must precede the means)
+         do ie = nets, nete
+            elem(ie)%state%ps_v(:,:,TimeLevel%n0) = elem(ie)%state%ps_v(:,:,tl)
+         end do
+
+         ! 2. pre-scaling global means
+         do ie = nets, nete
+            ps_tmp(:,:,ie) = elem(ie)%state%ps_v(:,:,TimeLevel%n0)
+            if (inic_wet) then
+               psdry_tmp(:,:,ie) = elem(ie)%state%ps_v(:,:,TimeLevel%n0) - &
+                    sum(elem(ie)%state%dp3d(:,:,:,TimeLevel%n0)*elem(ie)%state%Q(:,:,:,1), dim=3)
+            else
+               psdry_tmp(:,:,ie) = elem(ie)%state%ps_v(:,:,TimeLevel%n0)
+            end if
+         end do
+         ps_mean    = global_integral(elem, ps_tmp,    hybrid, np, nets, nete)
+         psdry_mean = global_integral(elem, psdry_tmp, hybrid, np, nets, nete)
+
+         ! 3. guard, set target, scale
+         ! Scale dry air only: total-mass target is the requested global-mean dry ps plus the
+         ! global-mean water vapor column, which is held fixed by rescaling wet tracers below.
+         if (psdry_mean <= 0._r8) call endrun(subname//' nonpositive global dry surface pressure')
+         initial_total_mass = (scale_dry_air_mass + (ps_mean - psdry_mean)) / g_homme
+
+         allocate(dp_old(np,np,nlev,nets:nete))
+         do ie = nets, nete
+            dp_old(:,:,:,ie) = elem(ie)%state%dp3d(:,:,:,TimeLevel%n0)
+         end do
+
+         call prim_set_mass(elem, TimeLevel, hybrid, hvcoord, nets, nete)
+
+         ! Conserve mass of 'wet' tracers and dry mixing ratio of 'dry' tracers, as CAM SE
+         ! prim_set_dry_mass does.  In the moist basis, 'dry' tracers are held as moist Q, so
+         ! keep Q/(1-qv) fixed (physics' dry definition, set_state_pdry); in the dry basis
+         ! their Q is already the dry mixing ratio and is left unchanged.
+         do ie = nets, nete
+            qv_old(:,:,:) = elem(ie)%state%Q(:,:,:,1)
+            do m_cnst = 1, qsize
+               if (cnst_type(m_cnst) /= 'dry') then
+                  elem(ie)%state%Q(:,:,:,m_cnst) = max(qmin(m_cnst), elem(ie)%state%Q(:,:,:,m_cnst) * &
+                       dp_old(:,:,:,ie) / elem(ie)%state%dp3d(:,:,:,TimeLevel%n0))
+               end if
+            end do
+            if (inic_wet) then
+               do m_cnst = 1, qsize
+                  if (cnst_type(m_cnst) == 'dry') then
+                     elem(ie)%state%Q(:,:,:,m_cnst) = elem(ie)%state%Q(:,:,:,m_cnst) * &
+                          (1._r8 - elem(ie)%state%Q(:,:,:,1)) / (1._r8 - qv_old(:,:,:))
+                  end if
+               end do
+            end if
+         end do
+         deallocate(dp_old)
+
+         ! 4. post-check (after prim_set_mass, before set_thermostate)
+         do ie = nets, nete
+            if (inic_wet) then
+               psdry_tmp(:,:,ie) = elem(ie)%state%ps_v(:,:,TimeLevel%n0) - &
+                    sum(elem(ie)%state%dp3d(:,:,:,TimeLevel%n0)*elem(ie)%state%Q(:,:,:,1), dim=3)
+            else
+               psdry_tmp(:,:,ie) = elem(ie)%state%ps_v(:,:,TimeLevel%n0)
+            end if
+         end do
+         psdry_chk = global_integral(elem, psdry_tmp, hybrid, np, nets, nete)
+         if (masterproc) write(iulog,'(a,2f14.4,es12.4)') &
+              'read_inidat: psdry target, actual (Pa), rel err =', &
+              scale_dry_air_mass, psdry_chk, (psdry_chk - scale_dry_air_mass)/scale_dry_air_mass
+         deallocate(ps_tmp, psdry_tmp)
       end if
    end if
 
+   ! theta-l is a moist-pressure dycore holding all tracers as moist mixing ratios.
+   ! A PSDRY IC carries dry pressure and dry mixing ratios: add the vapor column to PS
+   ! and convert every tracer to moist, conserving each tracer's mass per level.
+   if (.not. inic_wet .and. iam < par%nprocs) then
+      do ie = 1, nelemd
+         dp_dry(:,:,:) = elem(ie)%state%dp3d(:,:,:,1)          ! hybrid dp from PSDRY
+         elem(ie)%state%ps_v(:,:,tl) = elem(ie)%state%ps_v(:,:,tl) + &
+              sum(elem(ie)%state%Q(:,:,:,1)*dp_dry(:,:,:), dim=3)
+         do k = 1, nlev
+            dp_wet(:,:,k) = (hvcoord%hyai(k+1) - hvcoord%hyai(k))*ps0 + &
+                            (hvcoord%hybi(k+1) - hvcoord%hybi(k))*elem(ie)%state%ps_v(:,:,tl)
+         end do
+         do m_cnst = 1, qsize
+            elem(ie)%state%Q(:,:,:,m_cnst) = max(qmin(m_cnst), &
+                 elem(ie)%state%Q(:,:,:,m_cnst)*dp_dry(:,:,:)/dp_wet(:,:,:))
+         end do
+         do t = 1, size(elem(ie)%state%dp3d, 4)
+            elem(ie)%state%dp3d(:,:,:,t) = dp_wet(:,:,:)
+         end do
+      end do
+      inic_wet = .true.
+   end if
+
+   ! thermostate working with moist ps and rstar(qv)
    !$omp parallel do private(ie, ps)
    do ie=1,nelemd
       ps=elem(ie)%state%ps_v(:,:,tl)
@@ -1459,9 +1574,10 @@ subroutine set_phis(dyn_in)
    real(r8), allocatable            :: lonvals_phys(:)
 
    integer                          :: nlev_tot
+   logical                          :: phis_from_pg
    character(len=*), parameter      :: sub='set_phis'
    !----------------------------------------------------------------------------
-
+   phis_from_pg = .false.
    fh_topo => topo_file_get_id()
 
    if (iam < par%nprocs) then
@@ -1560,7 +1676,7 @@ subroutine set_phis(dyn_in)
             end if
             call read_phys_field_2d(fieldname, fh_topo, 'ncol', phis_phys_tmp)
             call gfr_fv_phys_to_dyn_topo(par, dom_mt, elem, phis_phys_tmp)
-
+            phis_from_pg = .true.
 !jt            call map_p2his_from_physgrid_to_gll(dyn_in%fvm, elem, phis_phys_tmp, phis_tmp, pmask)
             deallocate(phis_phys_tmp)
          end if
@@ -1599,16 +1715,18 @@ subroutine set_phis(dyn_in)
    deallocate(pmask)
 
    ! Set PHIS in element objects
-   do ie = 1, nelemd
-      elem(ie)%state%phis = 0.0_r8
-      indx = 1
-      do j = 1, np
-         do i = 1, np
-            elem(ie)%state%phis(i,j) = phis_tmp(indx, ie)
-            indx = indx + 1
+   if (.not. phis_from_pg) then
+      do ie = 1, nelemd
+         elem(ie)%state%phis = 0.0_r8
+         indx = 1
+         do j = 1, np
+            do i = 1, np
+               elem(ie)%state%phis(i,j) = phis_tmp(indx, ie)
+               indx = indx + 1
+            end do
          end do
       end do
-   end do
+   end if
    deallocate(phis_tmp)
 
    nlev_tot=1
@@ -2053,8 +2171,13 @@ subroutine read_dyn_field_2d(fieldname, fh, dimname, buffer)
    ! to NaN.  In that case infld can return NaNs where the element GLL points
    ! are not "unique columns"
    ! Set NaNs or fillvalue points to zero
-   where (isnan(buffer) .or. (buffer==fillvalue)) buffer = 0.0_r8
+   ! First, clean up any NaNs in the buffer directly
+   where (isnan(buffer)) buffer = 0.0_r8
 
+   ! Second, ONLY perform the equality check if fillvalue is a valid, finite number
+   if (.not. isnan(fillvalue)) then
+      where (buffer == fillvalue) buffer = 0.0_r8
+   end if
 end subroutine read_dyn_field_2d
 
 !========================================================================================
@@ -2085,7 +2208,13 @@ subroutine read_dyn_field_3d(fieldname, fh, dimname, buffer)
    ! to NaN.  In that case infld can return NaNs where the element GLL points
    ! are not "unique columns"
    ! Set NaNs or fillvalue points to zero
-   where (isnan(buffer) .or. (buffer == fillvalue)) buffer = 0.0_r8
+   ! First, clean up any NaNs in the buffer directly
+   where (isnan(buffer)) buffer = 0.0_r8
+
+   ! Second, ONLY perform the equality check if fillvalue is a valid, finite number
+   if (.not. isnan(fillvalue)) then
+      where (buffer == fillvalue) buffer = 0.0_r8
+   end if
 
 end subroutine read_dyn_field_3d
 
