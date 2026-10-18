@@ -1274,6 +1274,11 @@ end subroutine physics_ptend_copy
        call endrun('physics_dme_adjust: cannot pass in a state which has sub-columns')
     end if
 
+    ! SENH (HOMME theta-l/preqx, moist pressure): HOMME's applyCAMforcing_tracers performs
+    ! the moist mass adjustment from FQ relative to the pre-adjustment dp, as in EAM;
+    ! rescaling q/pdel here as well would double-count it.
+    if (dycore_is('SENH')) return
+
     lchnk = state%lchnk
     ncol  = state%ncol
 
