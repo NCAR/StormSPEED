@@ -23,6 +23,7 @@ use element_state,           only: elem_state_t
 use gllfvremap_mod,          only: gfr_fv_phys_to_dyn_topo
 use hybrid_mod_cam,          only: hybrid_create_cam, hybrid_t
 use inic_analytic,           only: analytic_ic_active, analytic_ic_set_ic
+use inic_analytic_utils,    only: analytic_ic_is_moist
 use ncdio_atm,               only: infld
 use parallel_mod_cam,        only: par, initmp
 use perf_mod,                only: t_startf, t_stopf
@@ -1285,7 +1286,10 @@ subroutine read_inidat(dyn_in)
 
    do m_cnst = 1, pcnst
 
-      if (analytic_ic_active() .and. cnst_is_a_water_species(cnst_name(m_cnst))) cycle
+      ! skip over water species only if analytic ICs are moist
+      if (analytic_ic_active() .and. cnst_is_a_water_species(cnst_name(m_cnst))) then
+         if (analytic_ic_is_moist()) cycle
+      end if
 
       found = .false.
       if (cnst_read_iv(m_cnst)) then
