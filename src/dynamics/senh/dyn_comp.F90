@@ -23,6 +23,7 @@ use element_state,           only: elem_state_t
 use gllfvremap_mod,          only: gfr_fv_phys_to_dyn_topo
 use hybrid_mod_cam,          only: hybrid_create_cam, hybrid_t
 use inic_analytic,           only: analytic_ic_active, analytic_ic_set_ic
+use inic_analytic_utils,    only: analytic_ic_is_moist
 use ncdio_atm,               only: infld
 use parallel_mod_cam,        only: par, initmp
 use perf_mod,                only: t_startf, t_stopf
@@ -651,7 +652,10 @@ subroutine dyn_init(dyn_in, dyn_out)
     use cam_control_mod,  only: aqua_planet, ideal_phys, adiabatic
     use cam_instance,     only: inst_index
     use cam_pio_utils,    only: clean_iodesc_list
-    use constituents,     only: pcnst, cnst_name, cnst_longname
+    use constituents,     only: pcnst, cnst_name, cnst_longname, tottnam, cnst_get_ind
+    use dimensions_mod_cam,only: use_cslam
+    use phys_control,     only: phys_getopts
+    use cam_history,      only: addfld, add_default
     use dimensions_mod_cam,only: cnst_longname_gll, cnst_name_gll
     use prim_driver_mod,  only: prim_init2
     use parallel_mod_cam, only: par
@@ -662,6 +666,8 @@ subroutine dyn_init(dyn_in, dyn_out)
     type (dyn_export_t), intent(out) :: dyn_out
 
     integer                          :: ithr, nets, nete, ie, k, tlev, m
+    logical                          :: history_budget
+    integer                          :: budget_hfile_num, ixcldliq, ixcldice
     real(r8), parameter              :: Tinit=300.0_r8
     type(hybrid_t)                   :: hybrid
     real(r8)                         :: temperature(np,np,nlev),ps(np,np)
@@ -749,6 +755,29 @@ subroutine dyn_init(dyn_in, dyn_out)
 !jt      call write_grid_mapping(par, elem)
 !jt   end if
 
+
+   !
+   ! add dynamical core tracer tendency output
+   !
+   if (use_cslam) then
+     do m = 1, pcnst
+       call addfld(tottnam(m),(/ 'lev' /),'A','kg/kg/s',trim(cnst_name(m))//' horz + vert',  &
+            gridname='FVM')
+     end do
+   else
+     do m = 1, pcnst
+       call addfld(tottnam(m),(/ 'lev' /),'A','kg/kg/s',trim(cnst_name(m))//' horz + vert',  &
+            gridname='GLL')
+     end do
+   end if
+   call phys_getopts(history_budget_out=history_budget, history_budget_histfile_num_out=budget_hfile_num)
+   if ( history_budget ) then
+      call cnst_get_ind('CLDLIQ', ixcldliq)
+      call cnst_get_ind('CLDICE', ixcldice)
+      call add_default(tottnam(       1), budget_hfile_num, ' ')
+      call add_default(tottnam(ixcldliq), budget_hfile_num, ' ')
+      call add_default(tottnam(ixcldice), budget_hfile_num, ' ')
+   end if
 
 end subroutine dyn_init
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1257,7 +1286,10 @@ subroutine read_inidat(dyn_in)
 
    do m_cnst = 1, pcnst
 
-      if (analytic_ic_active() .and. cnst_is_a_water_species(cnst_name(m_cnst))) cycle
+      ! skip over water species only if analytic ICs are moist
+      if (analytic_ic_active() .and. cnst_is_a_water_species(cnst_name(m_cnst))) then
+         if (analytic_ic_is_moist()) cycle
+      end if
 
       found = .false.
       if (cnst_read_iv(m_cnst)) then
@@ -1757,243 +1789,6 @@ subroutine set_phis(dyn_in)
 !!$   end do
 
 end subroutine set_phis
-
-
-!=============================================================================================
-!========================================================================================
-
-subroutine set_phis_old(dyn_in)
-
-   ! Set PHIS according to the following rules.
-   !
-   ! 1) If a topo file is specified use it.  This option has highest precedence.
-   ! 2) If not using topo file, but analytic_ic option is on, use analytic phis.
-   ! 3) Set phis = 0.0.
-   !
-   ! If using the physics grid then the topo file will be on that grid since its
-   ! contents are primarily for the physics parameterizations, and the values of
-   ! PHIS should be consistent with the values of sub-grid variability (e.g., SGH)
-   ! which are computed on the physics grid.  In this case phis on the physics grid
-   ! will be interpolated to the GLL grid.
-
-  use dyn_tests_utils,        only: vcoord=>vc_moist_pressure
-
-   ! Arguments
-   type (dyn_import_t), target, intent(inout) :: dyn_in   ! dynamics import
-
-   ! local variables
-   type(file_desc_t), pointer       :: fh_topo
-
-   type(element_t), pointer         :: elem(:)
-
-   real(r8), allocatable            :: phis_tmp(:,:)      ! (npsp,nelemd)
-   real(r8), allocatable            :: phis_phys_tmp(:,:) ! (fv_nphys**2,nelemd)
-
-   integer                          :: i, ie, indx, j, kptr
-   integer                          :: ierr, pio_errtype
-
-   character(len=max_fieldname_len) :: fieldname
-   character(len=max_hcoordname_len):: grid_name
-   integer                          :: dims(2)
-   integer                          :: dyn_cols
-   integer                          :: ncol_did
-   integer                          :: ncol_size
-
-   integer(iMap), pointer           :: ldof(:)            ! Basic (2D) grid dof
-   logical,  allocatable            :: pmask(:)           ! (npsq*nelemd) unique columns
-
-   ! Variables for analytic initial conditions
-   integer,  allocatable            :: glob_ind(:)
-   logical,  allocatable            :: pmask_phys(:)
-   real(r8), pointer                :: latvals_deg(:)
-   real(r8), pointer                :: lonvals_deg(:)
-   real(r8), allocatable            :: latvals(:)
-   real(r8), allocatable            :: lonvals(:)
-   real(r8), allocatable            :: latvals_phys(:)
-   real(r8), allocatable            :: lonvals_phys(:)
-   integer                          :: nlev_tot
-
-   character(len=*), parameter      :: sub='set_phis'
-   !----------------------------------------------------------------------------
-
-   fh_topo => topo_file_get_id()
-
-   if (iam < par%nprocs) then
-      elem => dyn_in%elem
-   else
-      nullify(elem)
-   end if
-
-   allocate(phis_tmp(npsq,nelemd))
-   phis_tmp = 0.0_r8
-
-!!$   if (fv_nphys > 0) then
-!!$      allocate(phis_phys_tmp(fv_nphys**2,nelemd))
-!!$      phis_phys_tmp = 0.0_r8
-!!$      do ie=1,nelemd
-!!$        elem(ie)%sub_elem_mass_flux=0.0_r8
-!!$#ifdef waccm_debug
-!!$        dyn_in%fvm(ie)%CSLAM_gamma = 0.0_r8
-!!$#endif
-!!$      end do
-!!$   end if
-
-   ! Set mask to indicate which columns are active in GLL grid.
-   nullify(ldof)
-   call cam_grid_get_gcid(cam_grid_id('GLL'), ldof)
-   allocate(pmask(npsq*nelemd))
-   pmask(:) = (ldof /= 0)
-   deallocate(ldof)
-
-   if (associated(fh_topo)) then
-
-      ! Set PIO to return error flags.
-      call pio_seterrorhandling(fh_topo, PIO_BCAST_ERROR, pio_errtype)
-
-      ! Set name of grid object which will be used to read data from file
-      ! into internal data structure via PIO.
-      if (fv_nphys == 0) then
-         grid_name = 'GLL'
-      else
-         grid_name = 'physgrid_d'
-      end if
-
-      ! Get number of global columns from the grid object and check that
-      ! it matches the file data.
-      call cam_grid_dimensions(grid_name, dims)
-      dyn_cols = dims(1)
-
-      ! The dimension of the unstructured grid in the TOPO file is 'ncol'.
-      ierr = pio_inq_dimid(fh_topo, 'ncol', ncol_did)
-      if (ierr /= PIO_NOERR) then
-         call endrun(sub//': dimension ncol not found in bnd_topo file')
-      end if
-      ierr = pio_inq_dimlen(fh_topo, ncol_did, ncol_size)
-      if (ncol_size /= dyn_cols) then
-         if (masterproc) then
-            write(iulog,*) sub//': ncol_size=', ncol_size, ' : dyn_cols=', dyn_cols
-         end if
-         call endrun(sub//': ncol size in bnd_topo file does not match grid definition')
-      end if
-
-      fieldname = 'PHIS'
-      if (dyn_field_exists(fh_topo, trim(fieldname))) then
-         if (fv_nphys == 0) then
-           call read_dyn_var(fieldname, fh_topo, 'ncol', phis_tmp)
-         else
-            call endrun(sub//': fv_nphys > 0 not implemented for nh dycore')
-!!$           call read_phys_field_2d(fieldname, fh_topo, 'ncol', phis_phys_tmp)
-!!$           call map_phis_from_physgrid_to_gll(dyn_in%fvm, elem, phis_phys_tmp, &
-!!$                phis_tmp, pmask)
-         end if
-      else
-         call endrun(sub//': Could not find PHIS field on input datafile')
-      end if
-
-      ! Put the error handling back the way it was
-      call pio_seterrorhandling(fh_topo, pio_errtype)
-
-   else if (analytic_ic_active() .and. (iam < par%nprocs)) then
-
-      ! lat/lon needed in radians
-      latvals_deg => cam_grid_get_latvals(cam_grid_id('GLL'))
-      lonvals_deg => cam_grid_get_lonvals(cam_grid_id('GLL'))
-      allocate(latvals(np*np*nelemd))
-      allocate(lonvals(np*np*nelemd))
-      latvals(:) = latvals_deg(:)*deg2rad
-      lonvals(:) = lonvals_deg(:)*deg2rad
-
-      allocate(glob_ind(npsq*nelemd))
-      j = 1
-      do ie = 1, nelemd
-         do i = 1, npsq
-            ! Create a global(ish) column index
-            glob_ind(j) = elem(ie)%GlobalId
-            j = j + 1
-         end do
-      end do
-      call analytic_ic_set_ic(vcoord, latvals, lonvals, glob_ind, &
-                              PHIS_OUT=phis_tmp, mask=pmask(:))
-      deallocate(glob_ind)
-
-!!$      if (fv_nphys > 0) then
-!!$
-!!$         ! initialize PHIS on physgrid
-!!$         allocate(latvals_phys(fv_nphys*fv_nphys*nelemd))
-!!$         allocate(lonvals_phys(fv_nphys*fv_nphys*nelemd))
-!!$         indx = 1
-!!$         do ie = 1, nelemd
-!!$            do j = 1, fv_nphys
-!!$               do i = 1, fv_nphys
-!!$                  latvals_phys(indx) = dyn_in%fvm(ie)%center_cart_physgrid(i,j)%lat
-!!$                  lonvals_phys(indx) = dyn_in%fvm(ie)%center_cart_physgrid(i,j)%lon
-!!$                  indx = indx + 1
-!!$               end do
-!!$            end do
-!!$         end do
-!!$
-!!$         allocate(pmask_phys(fv_nphys*fv_nphys*nelemd))
-!!$         pmask_phys(:) = .true.
-!!$         allocate(glob_ind(fv_nphys*fv_nphys*nelemd))
-!!$
-!!$         j = 1
-!!$         do ie = 1, nelemd
-!!$            do i = 1, fv_nphys*fv_nphys
-!!$               ! Create a global(ish) column index
-!!$               glob_ind(j) = elem(ie)%GlobalId
-!!$               j = j + 1
-!!$            end do
-!!$         end do
-!!$
-!!$         call analytic_ic_set_ic(vcoord, latvals_phys, lonvals_phys, glob_ind, &
-!!$                                 PHIS_OUT=phis_phys_tmp, mask=pmask_phys)
-!!$
-!!$         deallocate(latvals_phys)
-!!$         deallocate(lonvals_phys)
-!!$         deallocate(pmask_phys)
-!!$         deallocate(glob_ind)
-!!$      end if
-!!$
-   end if
-
-   deallocate(pmask)
-
-   ! Set PHIS in element objects
-   do ie = 1, nelemd
-      elem(ie)%state%phis = 0.0_r8
-      indx = 1
-      do j = 1, np
-         do i = 1, np
-            elem(ie)%state%phis(i,j) = phis_tmp(indx, ie)
-            indx = indx + 1
-         end do
-      end do
-   end do
-!!$   if (fv_nphys > 0) then
-!!$      do ie = 1, nelemd
-!!$         dyn_in%fvm(ie)%phis_physgrid = RESHAPE(phis_phys_tmp(:,ie),(/fv_nphys,fv_nphys/))
-!!$      end do
-!!$   end if
-
-   deallocate(phis_tmp)
-!!$   if (fv_nphys > 0) then
-!!$      deallocate(phis_phys_tmp)
-!!$   end if
-   nlev_tot=1
-   ! boundary exchange to update the redundent columns in the element objects
-   do ie = 1, nelemd
-      kptr = 0
-      call edgeVpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%state%phis,1,kptr,nlev_tot)
-   end do
-   if(iam < par%nprocs) then
-      call bndry_exchangeV(par,edge_g)
-   end if
-   do ie = 1, nelemd
-      kptr = 0
-      call edgeVunpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%state%phis,1,kptr,nlev_tot)
-   end do
-
- end subroutine set_phis_old
 
 !========================================================================================
 

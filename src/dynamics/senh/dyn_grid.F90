@@ -66,8 +66,6 @@ character(len=3), protected :: ini_grid_name
 character(len=6), protected :: ini_grid_hdim_name = ''
 
 
-integer, parameter :: ptimelevels = 2
-
 type (TimeLevel_t)         :: TimeLevel     ! main time level struct (used by tracers)
 type (domain1d_t), pointer :: dom_mt(:) => null()
 type (hvcoord_t)           :: hvcoord
@@ -78,7 +76,6 @@ real(r8),          pointer :: w(:) => null()        ! weights
 public ::  dyn_decomp
 public ::  ini_grid_name
 public ::  ini_grid_hdim_name
-public ::  ptimelevels
 public ::  timelevel
 public ::  dom_mt
 public ::  hvcoord

@@ -3,7 +3,7 @@
 ! dynamics - physics coupling module
 !-------------------------------------------------------------------------------
 module dp_coupling
-  use air_composition, only:  rairv
+  use air_composition, only:  rairv, cpairv
   use bndry_mod,      only: bndry_exchangeV
   use cam_abortutils, only: endrun
   use cam_logfile,    only: iulog
@@ -17,7 +17,7 @@ module dp_coupling
   use kinds,          only: real_kind, int_kind
   use physics_types,  only: physics_state, physics_tend
   use phys_grid,      only: get_ncols_p, get_gcol_all_p
-  use phys_grid,      only: get_dyn_col_p, columns_on_task, get_chunk_info_p
+  use phys_grid,      only: get_dyn_col_p, columns_on_task, get_chunk_info_p, phys_columns_on_task
   use ppgrid,         only: begchunk, endchunk, pcols, pver, pverp
   use perf_mod,       only: t_startf, t_stopf, t_barrierf
   use parallel_mod_cam,   only: par
@@ -37,7 +37,7 @@ CONTAINS
   subroutine d_p_coupling(phys_state, phys_tend,  pbuf2d, dyn_out)
     use dyn_comp,              only: frontgf_idx, frontga_idx, vort4gw_idx
     use gllfvremap_mod,        only: gfr_dyn_to_fv_phys
-    use gravity_waves_sources, only: gws_src_fnct, compute_vorticity_4gw
+    use gravity_waves_sources, only: gws_src_fnct, gws_src_vort
     use phys_control,           only: use_gw_front, use_gw_front_igw,  use_gw_movmtn_pbl
     use physics_buffer,        only: physics_buffer_desc, pbuf_get_chunk, &
                                      pbuf_get_field
@@ -130,7 +130,7 @@ CONTAINS
 
        if (use_gw_front .or. use_gw_front_igw) call gws_src_fnct(elem, tl_f, nphys, frontgf, frontga)
        if (use_gw_movmtn_pbl ) then
-          call compute_vorticity_4gw(vort4gw,tl_f,elem,nphys)
+          call gws_src_vort(elem, tl_f, nphys, vort4gw)
       end if
       if (fv_nphys > 0) then
         !-----------------------------------------------------------------------
@@ -192,7 +192,7 @@ CONTAINS
     !$omp parallel do num_threads(max_num_threads) private (col_ind, lchnk, &
     !$omp icol, ie, blk_ind, ilyr, m, pbuf_chnk, pbuf_frontgf, pbuf_frontga, &
     !$omp pbuf_vort4gw) schedule(dynamic)
-    do col_ind = 1, columns_on_task
+    do col_ind = 1, phys_columns_on_task
        call get_dyn_col_p(col_ind, ie, blk_ind)
        call get_chunk_info_p(col_ind, lchnk, icol)
 
@@ -307,7 +307,7 @@ CONTAINS
     call t_startf('pd_copy')
 
     !$omp parallel do num_threads(max_num_threads) private (col_ind, lchnk, icol, ie, blk_ind, ilyr, m)
-    do col_ind = 1, columns_on_task
+    do col_ind = 1, phys_columns_on_task
        call get_dyn_col_p(col_ind, ie, blk_ind)
        call get_chunk_info_p(col_ind, lchnk, icol)
        do ilyr=1,pver
@@ -444,15 +444,17 @@ CONTAINS
   subroutine derived_phys(phys_state, phys_tend, pbuf2d)
     use physics_buffer, only : physics_buffer_desc, pbuf_get_chunk
     use constituents,  only: qmin
-    use physconst,     only: cpair, gravit, zvir, cappa
+    use physconst,     only: gravit, zvir, cappa
     use spmd_utils,    only: masterproc
     use ppgrid,        only: pver
     use geopotential,  only: geopotential_t
+    use static_energy, only: update_dry_static_energy_run
     use physics_types, only: set_state_pdry, set_wet_to_dry
     use check_energy,  only: check_energy_timestep_init
     use hycoef,   only : hyam, hybm, hyai, hybi, ps0
     use shr_vmath_mod, only: shr_vmath_log
     use gmean_mod,     only: gmean
+    use shr_kind_mod,  only: shr_kind_cx
 
 
     implicit none
@@ -473,12 +475,16 @@ CONTAINS
 
     integer :: m, i, k, ncol
 
+    ! Needed for "update_dry_static_energy" CCPP scheme
+    integer :: errflg
+    character(len=shr_kind_cx) :: errmsg
+
     type(physics_buffer_desc), pointer :: pbuf_chnk(:)
 
 !
 ! Evaluate derived quantities
 !
-!$omp parallel do private (lchnk, ncol, k, i, zvirv, pbuf_chnk)
+!$omp parallel do private (lchnk, ncol, k, i, zvirv, pbuf_chnk, errflg, errmsg)
     do lchnk = begchunk,endchunk
        ncol = get_ncols_p(lchnk)
        do k=1,nlev
@@ -515,24 +521,6 @@ CONTAINS
 ! Compute initial geopotential heights
 !
 
-      ! Compute initial geopotential heights
-      call geopotential_t(phys_state(lchnk)%lnpint, phys_state(lchnk)%lnpmid  ,&
-                          phys_state(lchnk)%pint  , phys_state(lchnk)%pmid    ,&
-                          phys_state(lchnk)%pdel  , phys_state(lchnk)%rpdel   ,&
-                          phys_state(lchnk)%t     , phys_state(lchnk)%q       ,&
-                          rairv(:,:,lchnk)        , gravit, zvirv             ,&
-                          phys_state(lchnk)%zi    , phys_state(lchnk)%zm      ,&
-                          ncol)
-
-       ! Compute initial dry static energy s = g*z + c_p*T
-       do k = 1, pver
-          do i=1,ncol
-             phys_state(lchnk)%s(i,k) = cpair*phys_state(lchnk)%t(i,k) &
-                                      + gravit*phys_state(lchnk)%zm(i,k)  &
-                                      + phys_state(lchnk)%phis(i)
-          end do
-       end do
-
 ! NOTE:  if a tracer is marked "dry", that means physics wants it dry
 !        if dycore advects it wet, it should be converted here
 !        FV dycore does this, and in physics/cam/tphysac.F90 it will
@@ -555,6 +543,23 @@ CONTAINS
 !jt       Could cause differences if checking BFB
        call qneg3('D_P_COUPLING',lchnk  ,ncol    ,pcols   ,pver    , &
                   1, pcnst, qmin  ,phys_state(lchnk)%q)
+
+      ! Compute initial geopotential heights
+      call geopotential_t(phys_state(lchnk)%lnpint, phys_state(lchnk)%lnpmid  ,&
+                          phys_state(lchnk)%pint  , phys_state(lchnk)%pmid    ,&
+                          phys_state(lchnk)%pdel  , phys_state(lchnk)%rpdel   ,&
+                          phys_state(lchnk)%t     , phys_state(lchnk)%q       ,&
+                          rairv(:,:,lchnk)        , gravit, zvirv             ,&
+                          phys_state(lchnk)%zi    , phys_state(lchnk)%zm      ,&
+                          ncol)
+
+       ! Compute initial dry static energy s = g*z + c_p*T
+       call update_dry_static_energy_run(pver, gravit, phys_state(lchnk)%t(1:ncol,:),  &
+                                         phys_state(lchnk)%zm(1:ncol,:),               &
+                                         phys_state(lchnk)%phis(1:ncol),               &
+                                         phys_state(lchnk)%s(1:ncol,:),                &
+                                         cpairv(1:ncol,:,lchnk), errflg, errmsg)
+
 
 ! Compute energy and water integrals of input state
        pbuf_chnk => pbuf_get_chunk(pbuf2d, lchnk)

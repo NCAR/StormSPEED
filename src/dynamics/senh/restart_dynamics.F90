@@ -11,12 +11,12 @@ module restart_dynamics
 ! adjustments into the run.  The restart file containing the unstructured
 ! grid format may also be used for an initial run.
 
-use shr_kind_mod,     only: r8 => shr_kind_r8, i8 => shr_kind_i8
+use shr_kind_mod,     only: r8 => shr_kind_r8
+use shr_kind_mod,     only: i8 => shr_kind_i8
 use spmd_utils,       only: iam, masterproc
 use control_mod_cam,  only: theta_hydrostatic_mode
 
 use constituents,     only: cnst_name, pcnst
-!jtuse dyn_grid,         only: timelevel, fvm, elem, edgebuf
 use dyn_grid,         only: timelevel, elem
 use dyn_comp,         only: dyn_import_t, dyn_export_t, dyn_init, write_restart_unstruct
 use hycoef,           only: init_restart_hycoef, write_restart_hycoef, &
@@ -45,11 +45,11 @@ use cam_abortutils,   only: endrun
 
 use parallel_mod_cam,   only: par
 use thread_mod_cam,     only: horz_num_threads
-use dimensions_mod_cam, only: np, npsq, ne, nlev, qsize, nelemd, nc, ntrac, nlevp
+use dimensions_mod_cam, only: np, npsq, ne, nlev, qsize, nelemd, nc, ntrac, use_cslam, nlevp
 use dof_mod,            only: UniquePoints
 use element_mod,        only: element_t
 use time_mod,           only: tstep, TimeLevel_Qdp
-use edge_mod,           only : edgevpack_nlyr, edgevunpack_nlyr, edge_g
+use edge_mod,           only: edgevpack_nlyr, edgevunpack_nlyr, edge_g
 use bndry_mod,          only: bndry_exchangeV
 
 use fvm_control_volume_mod, only: fvm_struct
@@ -162,7 +162,7 @@ subroutine init_restart_dynamics(file, dyn_out)
 
    ! CSLAM restart fields
 
-   if (ntrac > 0) then
+   if (use_cslam) then
 
       grid_id = cam_grid_id('FVM')
       call cam_grid_write_attr(File, grid_id, info)
@@ -186,7 +186,7 @@ end subroutine init_restart_dynamics
 !=========================================================================================
 
 subroutine write_restart_dynamics(File, dyn_out)
-   use control_mod_cam,      only: qsplit
+  use control_mod_cam,  only: qsplit
    type(file_desc_t), intent(inout) :: File
    type(dyn_export_t), intent(in)   :: dyn_out
 
@@ -239,7 +239,7 @@ subroutine write_restart_dynamics(File, dyn_out)
 
    ! write CSLAM fields
 
-   if (ntrac > 0) then
+   if (use_cslam) then
 
       grid_id = cam_grid_id('FVM')
 
@@ -300,11 +300,12 @@ contains
 subroutine write_elem()
 
    ! local variables
-   integer          :: i, ie, j, k
-   integer          :: ierr
+   integer              :: i, ie, j, k
+   integer              :: ierr
    integer(i8), pointer :: ldof(:)
 
    type(io_desc_t)  :: iodesc2d, iodesc3d
+
    real(kind=r8), pointer :: var3d(:,:,:,:), var2d(:,:,:)
 #ifdef MODEL_THETA_L
    type(io_desc_t)  :: iodesc3dp
@@ -442,7 +443,7 @@ subroutine write_elem()
     endif
 #endif
 
-    do m = 1, qsize
+   do m = 1, qsize
 
       !$omp parallel do num_threads(horz_num_threads) private(ie, k, j, i)
       do ie = 1, nelemd
@@ -467,7 +468,7 @@ subroutine write_elem()
        call pio_freedecomp(File, iodesc3dp)
     endif
 #endif
-    deallocate(qdesc_dp)
+   deallocate(qdesc_dp)
 
    call pio_freedecomp(File, iodesc2d)
    call pio_freedecomp(File, iodesc3d)
@@ -678,7 +679,7 @@ end subroutine write_restart_dynamics
 !=========================================================================================
 
 subroutine read_restart_dynamics(File, dyn_in, dyn_out)
-   use control_mod_cam,      only: qsplit
+  use control_mod_cam,  only: qsplit
    ! arguments
    type(File_desc_t), intent(inout) :: File
    type(dyn_import_t), intent(out)  :: dyn_in
@@ -719,7 +720,6 @@ subroutine read_restart_dynamics(File, dyn_in, dyn_out)
    logical :: readvar
 
    character(len=*), parameter :: sub = 'read_restart_dynamics'
-   type(element_t),  pointer :: pelem(:)
    !----------------------------------------------------------------------------
 
    ! Note1: the hybrid coefficients are read from the same location as for an
@@ -729,10 +729,6 @@ subroutine read_restart_dynamics(File, dyn_in, dyn_out)
    !        objects until dyn_init is called.  Until the restart is better integrated
    !        into dyn_init we just access elem and fvm directly from the dyn_grid
    !        module.
-
-   if (iam .lt. par%nprocs) then
-      pelem => elem
-   endif
 
    tl = timelevel%n0
    call TimeLevel_Qdp(timelevel, qsplit, tlQdp)
@@ -820,7 +816,7 @@ subroutine read_restart_dynamics(File, dyn_in, dyn_out)
 
    ! read cslam fields
 
-   if (ntrac > 0) then
+   if (use_cslam) then
 
       ! Checks that file and model dimensions agree.
 
@@ -1045,7 +1041,7 @@ subroutine read_elem()
    call pio_read_darray(File, wdesc, iodesc3dp, var3dp, ierr)
    call cam_pio_handle_error(ierr, sub//': reading W')
    ii = 0
-   do k = 1, nlev
+   do k = 1, nlevp
       do ie = 1, nelemd
          do j = 1, np
             do i = 1, np
@@ -1061,7 +1057,7 @@ subroutine read_elem()
    call pio_read_darray(File, phinhdesc, iodesc3dp, var3dp, ierr)
    call cam_pio_handle_error(ierr, sub//': reading PHINH')
    ii = 0
-   do k = 1, nlev
+   do k = 1, nlevp
       do ie = 1, nelemd
          do j = 1, np
             do i = 1, np
@@ -1108,7 +1104,7 @@ subroutine read_unstruct()
 
    real(r8), allocatable :: dbuf2(:,:)         ! (npsq,nelemd)
    real(r8), allocatable :: dbuf3(:,:,:)       ! (npsq,nlev,nelemd)
-   real(r8), allocatable :: dbuf3p(:,:,:)       ! (npsq,nlev,nelemd)
+   real(r8), allocatable :: dbuf3p(:,:,:)      ! (npsq,nlevp,nelemd)
 
    character(len=*), parameter :: sub='read_unstruct'
    !----------------------------------------------------------------------------

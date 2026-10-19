@@ -31,6 +31,9 @@ module stepon
    use element_ops,        only : get_field, get_field_i
    use shr_const_mod,      only : SHR_CONST_PI
    use se_iop_intr_mod,    only : iop_broadcast
+   use aerosol_properties_mod, only: aerosol_properties
+   use aerosol_state_mod,      only: aerosol_state
+   use microp_aero,            only: aerosol_state_object, aerosol_properties_object
 
    implicit none
    private
@@ -62,6 +65,8 @@ module stepon
 !
 
   logical :: iop_update_phase1
+  class(aerosol_properties), pointer :: aero_props_obj => null()
+  logical :: aerosols_transported = .false.
 
   type (derivative_t)   :: deriv           ! derivative struct
   type (quadrature_t)   :: gv,gp           ! quadratures on velocity and pressure grids
@@ -172,6 +177,14 @@ subroutine stepon_init(dyn_in, dyn_out )
    call addfld('PHIS_gll'  ,horiz_only , 'I', 'Pa ' ,'PHIS on gll grid'  ,gridname='GLL')
 
 
+   ! get aerosol properties
+   aero_props_obj => aerosol_properties_object()
+
+   if (associated(aero_props_obj)) then
+      ! determine if there are transported aerosol contistuents
+      aerosols_transported = aero_props_obj%number_transported()>0
+   end if
+
 end subroutine stepon_init
 
 !-----------------------------------------------------------------------
@@ -203,6 +216,8 @@ subroutine stepon_run1( dtime_out, phys_state, phys_tend,               &
    type (dyn_export_t), intent(inout) :: dyn_out ! Dynamics export container
    type (physics_buffer_desc), pointer :: pbuf2d(:,:)
    type (element_t), pointer :: elem(:)
+   integer :: c
+   class(aerosol_state), pointer :: aero_state_obj
 
 !-----------------------------------------------------------------------
 
@@ -255,6 +270,19 @@ subroutine stepon_run1( dtime_out, phys_state, phys_tend,               &
    call d_p_coupling (phys_state, phys_tend,  pbuf2d, dyn_out )
    call t_stopf('d_p_coupling')
 
+   !----------------------------------------------------------
+   ! update aerosol state object from CAM physics state constituents
+   !----------------------------------------------------------
+   nullify(aero_state_obj)
+   if (aerosols_transported) then
+      do c = begchunk,endchunk
+         aero_state_obj => aerosol_state_object(c)
+         ! pass number mass or number mixing ratios of aerosol constituents
+         ! to aerosol state object
+         call aero_state_obj%set_transported(phys_state(c)%q)
+      end do
+   end if
+
 end subroutine stepon_run1
 
 subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
@@ -285,12 +313,24 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
    real(r8) :: p_i(np,np,nlevp)   ! temporary interface pressure for DYN_OMEGA output
    real(r8) :: omega(np,np,nlev)  ! temporary omega for DYN_OMEGA output
    real(r8) :: dtime
-   integer :: nlev_tot
-   nlev_tot=(3+pcnst)*nlev
+   integer :: c
+   class(aerosol_state), pointer :: aero_state_obj
 
 
    dtime = get_step_size()
    rec2dt = 1._r8/dtime
+
+   !----------------------------------------------------------
+   ! update physics state with aerosol constituents
+   !----------------------------------------------------------
+   nullify(aero_state_obj)
+   if (aerosols_transported) then
+      do c = begchunk,endchunk
+         aero_state_obj => aerosol_state_object(c)
+         ! get mass or number mixing ratios of aerosol constituents
+         call aero_state_obj%get_transported(phys_state(c)%q)
+      end do
+   end if
 
    ! copy from phys structures -> dynamics structures
    call t_barrierf('sync_p_d_coupling', mpicom)
@@ -450,122 +490,43 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
 
 
 subroutine stepon_run3(dtime, cam_out, phys_state, dyn_in, dyn_out)
-   use camsrfexch,  only: cam_out_t
-   use dyn_comp,    only: dyn_run
-   use time_mod,    only: tstep
-   use hycoef,      only: hyam, hybm
-   use dimensions_mod_cam, only: nlev, nelemd, np, npsq
-   use se_iop_intr_mod, only: iop_setfield, iop_setinitial
-   use dyn_grid,    only: TimeLevel
-   use cam_history,     only: outfld
-   use cam_logfile, only: iulog
-   use mpishorthand
-   real(r8), intent(in) :: dtime   ! Time-step
-   real(r8) :: ftmp_temp(np,np,nlev,nelemd), ftmp_q(np,np,nlev,pcnst,nelemd)
-   real(r8) :: out_temp(npsq,nlev), out_q(npsq,nlev), out_u(npsq,nlev), &
-               out_v(npsq,nlev), out_psv(npsq)  , out_gridx(np,np), out_gridy(np,np)
-   real(r8), parameter :: rad2deg = 180.0 / SHR_CONST_PI
-   real(r8), parameter :: fac = 1000._r8
+
+   use camsrfexch,         only: cam_out_t
+   use dyn_comp,           only: dyn_run
+   use advect_tend,        only: compute_adv_tends_xyz
+   use dyn_grid,           only: TimeLevel
+   use time_mod,           only: TimeLevel_Qdp
+   use control_mod_cam,    only: qsplit
+   use dimensions_mod_cam, only: nelemd
+
+   ! arguments
+   real(r8),            intent(in)    :: dtime   ! Time-step
    type(cam_out_t),     intent(inout) :: cam_out(:) ! Output from CAM to surface
    type(physics_state), intent(inout) :: phys_state(begchunk:endchunk)
    type (dyn_import_t), intent(inout) :: dyn_in  ! Dynamics import container
    type (dyn_export_t), intent(inout) :: dyn_out ! Dynamics export container
-   type (element_t), pointer :: elem(:)
-   integer :: rc, i, j, k, p, ie, tl_f
-#if defined (E3SM_SCM_REPLAY)
-   real(r8) :: forcing_temp(npsq,nlev), forcing_q(npsq,nlev,pcnst)
-#endif
 
-   elem => dyn_out%elem
+   integer :: tl_f, tl_fQdp
+   !--------------------------------------------------------------------------------------
 
-#if (defined E3SM_SCM_REPLAY)
+   ! senh: SCAM/IOP update (se: scm_setfield) not supported; see SE-SCAM to-do
 
-   tl_f = TimeLevel%n0   ! timelevel which was adjusted by physics
-
-   ! Save ftmp stuff to get state before dynamics is called
-   do ie=1,nelemd
-     ftmp_temp(:,:,:,ie) = dyn_in%elem(ie)%state%T(:,:,:,tl_f)
-     ftmp_q(:,:,:,:,ie) = dyn_in%elem(ie)%state%Q(:,:,:,:)
-   enddo
-
-#endif
-
-!!$   if (single_column) then
-!!$
-!!$     ! Update IOP properties e.g. omega, divT, divQ
-!!$
-!!$#ifdef SPMD
-!!$    call mpibcast(doiopupdate,1,mpilog,0,mpicom)
-!!$#endif
-!!$     iop_update_phase1 = .false.
-!!$     if (doiopupdate) then
-!!$       call iop_setinitial(elem)
-!!$       if (masterproc) call readiopdata(iop_update_phase1,hyam,hybm)
-!!$       call iop_broadcast()
-!!$       if (.not. dp_crm) call iop_setfield(elem,iop_update_phase1)
-!!$     endif
-!!$
-!!$   endif
+   call t_startf('comp_adv_tends1')
+   tl_f = TimeLevel%n0
+   call TimeLevel_Qdp(TimeLevel, qsplit, tl_fQdp)
+   if (par%dynproc) call compute_adv_tends_xyz(dyn_in%elem,1,nelemd,tl_fQdp,tl_f)
+   call t_stopf('comp_adv_tends1')
 
    call t_barrierf('sync_dyn_run', mpicom)
-   call t_startf ('dyn_run')
+   call t_startf('dyn_run')
    call dyn_run(dyn_out)
-   call t_stopf  ('dyn_run')
+   call t_stopf('dyn_run')
 
-!!$   if (dp_crm) then
-!!$
-!!$     do ie=1,nelemd
-!!$       out_gridx(:,:) = dyn_in%elem(ie)%spherep(:,:)%lat
-!!$       out_gridy(:,:) = dyn_in%elem(ie)%spherep(:,:)%lon
-!!$       call outfld('crm_grid_x', out_gridx, npsq, ie)
-!!$       call outfld('crm_grid_y', out_gridy, npsq, ie)
-!!$     enddo
-!!$
-!!$   endif
-
-   ! Update to get tendency
-#if (defined E3SM_SCM_REPLAY)
-
+   call t_startf('comp_adv_tends2')
    tl_f = TimeLevel%n0
-
-   do ie=1,nelemd
-     do k=1,nlev
-       do j=1,np
-         do i=1,np
-
-           ! Note that this calculation will not provide b4b results with
-           !  an E3SM because the dynamics tendency is not computed in the exact
-           !  same way as an E3SM run, introducing error with roundoff
-           forcing_temp(i+(j-1)*np,k) = (dyn_in%elem(ie)%state%T(i,j,k,tl_f) - &
-             ftmp_temp(i,j,k,ie))/dtime - dyn_in%elem(ie)%derived%FT(i,j,k)
-           out_temp(i+(j-1)*np,k) = dyn_in%elem(ie)%state%T(i,j,k,tl_f)
-           out_u(i+(j-1)*np,k) = dyn_in%elem(ie)%state%v(i,j,1,k,tl_f)
-           out_v(i+(j-1)*np,k) = dyn_in%elem(ie)%state%v(i,j,2,k,tl_f)
-           out_q(i+(j-1)*np,k) = dyn_in%elem(ie)%state%Q(i,j,k,1)
-           out_psv(i+(j-1)*np) = dyn_in%elem(ie)%state%ps_v(i,j,tl_f)
-
-           do p=1,pcnst
-             forcing_q(i+(j-1)*np,k,p) = (dyn_in%elem(ie)%state%Q(i,j,k,p) - &
-               ftmp_q(i,j,k,p,ie))/dtime
-           enddo
-
-         enddo
-       enddo
-     enddo
-
-     call outfld('Ps',out_psv,npsq,ie)
-     call outfld('t',out_temp,npsq,ie)
-     call outfld('q',out_q,npsq,ie)
-     call outfld('u',out_u,npsq,ie)
-     call outfld('v',out_v,npsq,ie)
-     call outfld('divT3d',forcing_temp,npsq,ie)
-     do p=1,pcnst
-       call outfld(trim(cnst_name(p))//'_dten',forcing_q(:,:,p),npsq,ie)
-     enddo
-
-   enddo
-
-#endif
+   call TimeLevel_Qdp(TimeLevel, qsplit, tl_fQdp)
+   if (par%dynproc) call compute_adv_tends_xyz(dyn_in%elem,1,nelemd,tl_fQdp,tl_f)
+   call t_stopf('comp_adv_tends2')
 
 end subroutine stepon_run3
 
