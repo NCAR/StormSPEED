@@ -4414,6 +4414,8 @@ if ($dyn =~ /se/) {
 		       se_coord_transform_method
 		       se_dt_remap_factor
 		       se_dt_tracer_factor
+		       se_fgf_pgrad_correction
+		       se_fgf_zgrad_correction
 		       se_hypervis_scaling
 		       se_hypervis_subcycle
 		       se_hypervis_subcycle_q

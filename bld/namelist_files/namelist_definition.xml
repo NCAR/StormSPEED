@@ -8841,6 +8841,23 @@ If dt_remap_factor=0, vertically Lagrangian code is off.
 Default: 2
 </entry>
 
+<entry id="se_fgf_pgrad_correction" type="logical" category="se"
+       group="dyn_se_inparm" valid_values="" >
+senh (theta-l) only: compute the frontogenesis function for frontal gravity
+waves from gradients on pressure surfaces rather than model surfaces
+(Charron and Manzini 2002; E3SM EAM implementation). Cannot be combined with
+se_fgf_zgrad_correction.
+Default: TRUE
+</entry>
+
+<entry id="se_fgf_zgrad_correction" type="logical" category="se"
+       group="dyn_se_inparm" valid_values="" >
+senh (theta-l) only: compute the frontogenesis function for frontal gravity
+waves from gradients on height surfaces rather than model surfaces (E3SM EAM
+implementation). Cannot be combined with se_fgf_pgrad_correction.
+Default: FALSE
+</entry>
+
 <entry id="se_fine_ne" type="integer" category="se"
        group="dyn_se_inparm" valid_values="" >
 Set for refined exodus meshes (variable viscosity).
