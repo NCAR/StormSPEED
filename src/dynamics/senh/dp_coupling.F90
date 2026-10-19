@@ -37,7 +37,7 @@ CONTAINS
   subroutine d_p_coupling(phys_state, phys_tend,  pbuf2d, dyn_out)
     use dyn_comp,              only: frontgf_idx, frontga_idx, vort4gw_idx
     use gllfvremap_mod,        only: gfr_dyn_to_fv_phys
-    use gravity_waves_sources, only: gws_src_fnct, compute_vorticity_4gw
+    use gravity_waves_sources, only: gws_src_fnct, gws_src_vort
     use phys_control,           only: use_gw_front, use_gw_front_igw,  use_gw_movmtn_pbl
     use physics_buffer,        only: physics_buffer_desc, pbuf_get_chunk, &
                                      pbuf_get_field
@@ -130,7 +130,7 @@ CONTAINS
 
        if (use_gw_front .or. use_gw_front_igw) call gws_src_fnct(elem, tl_f, nphys, frontgf, frontga)
        if (use_gw_movmtn_pbl ) then
-          call compute_vorticity_4gw(vort4gw,tl_f,elem,nphys)
+          call gws_src_vort(elem, tl_f, nphys, vort4gw)
       end if
       if (fv_nphys > 0) then
         !-----------------------------------------------------------------------

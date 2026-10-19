@@ -19,7 +19,8 @@ module gravity_waves_sources
 
   public  :: gws_src_fnct
   public  :: gws_init
-  public  :: compute_vorticity_4gw
+  public  :: gws_src_vort
+  private :: compute_vorticity_4gw
   private :: compute_frontogenesis
 
   real(r8) :: psurf_ref
@@ -94,7 +95,53 @@ CONTAINS
 
   end subroutine gws_src_fnct
 
-  subroutine compute_vorticity_4gw(vort4gw,tl,elem,nphys)
+  subroutine gws_src_vort(elem, tl, nphys, vort4gw)
+    ! senh: thread-region wrapper for compute_vorticity_4gw, as gws_src_fnct is for
+    ! compute_frontogenesis (se structure).  Previously compute_vorticity_4gw was called
+    ! directly outside any OpenMP region and covered only thread 0's elements.
+    use dimensions_mod_cam, only : nelemd, fv_nphys
+    use dof_mod, only         : UniquePoints
+    use dyn_grid, only        : dom_mt
+    use hybrid_mod_cam, only     : hybrid_create_cam
+    use parallel_mod_cam, only   : par
+    use ppgrid, only          : pver
+    use thread_mod_cam, only     : omp_get_thread_num
+    implicit none
+    type (element_t), intent(in), dimension(:) :: elem
+    integer,               intent(in   ) :: tl
+    integer,               intent(in   ) :: nphys
+    real (kind=real_kind), intent(out  ) :: vort4gw(nphys*nphys,pver,nelemd)
+
+    ! Local variables
+    type (hybrid_t) :: hybrid
+    integer :: nets, nete, ithr, ncols, ie, k
+    real(kind=real_kind), allocatable  ::  vort4gw_thr(:,:,:,:)
+    !---------------------------------------------------------------------------
+    !$OMP PARALLEL NUM_THREADS(hthreads), DEFAULT(SHARED), PRIVATE(ithr,nets,nete,hybrid,ie,ncols,k,vort4gw_thr)
+    ithr=omp_get_thread_num()
+    nets=dom_mt(ithr)%start
+    nete=dom_mt(ithr)%end
+    hybrid = hybrid_create_cam(par,ithr,hthreads)
+    allocate(vort4gw_thr(nphys,nphys,nlev,nets:nete))
+    call compute_vorticity_4gw(vort4gw_thr,tl,elem,hybrid,nets,nete,nphys)
+    if (fv_nphys>0) then
+      do ie = nets,nete
+        do k = 1,nlev
+          vort4gw(:,k,ie) = RESHAPE( vort4gw_thr(:,:,k,ie), (/nphys*nphys/))
+        end do
+      end do
+    else
+      do ie=nets,nete
+        ncols = elem(ie)%idxP%NumUniquePts
+        call UniquePoints(elem(ie)%idxP, nlev, vort4gw_thr(:,:,:,ie), vort4gw(1:ncols,:,ie))
+      end do
+    end if ! fv_nphys>0
+    deallocate(vort4gw_thr)
+    !$OMP END PARALLEL
+
+  end subroutine gws_src_vort
+
+  subroutine compute_vorticity_4gw(vort4gw,tl,elem,hybrid,nets,nete,nphys)
   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   ! compute vorticity for use in gw params
   !   F = ( curl ) [U,V]
@@ -111,31 +158,20 @@ CONTAINS
     use gllfvremap_mod, only: gfr_g2f_scalar
     use prim_driver_mod,only: deriv1
     use dimensions_mod_cam, only: fv_nphys
-    use hybrid_mod_cam, only    : hybrid_create
-    use thread_mod_cam, only    : omp_get_thread_num
-    use dyn_grid, only      : dom_mt
-    use dimensions_mod_cam, only  : nelemd
-    use dof_mod, only         : UniquePoints
+    type(hybrid_t),     intent(in)            :: hybrid
     type(element_t),    intent(in)            :: elem(:)
-    integer,            intent(in)            :: nphys
+    integer,            intent(in)            :: nets,nete,nphys
     integer,            intent(in)            :: tl
-    real(r8),           intent(out)           :: vort4gw(nphys*nphys,nlev,nelemd)
+    real(r8),           intent(out)           :: vort4gw(nphys,nphys,nlev,nets:nete)
 
     ! local
-    type(hybrid_t) :: hybrid
-    real(r8) :: vort(fv_nphys*fv_nphys,nlev)
-    real(r8) :: vort_gll(np,np,nlev,nelemd)
-    integer  :: k,i,j,ie, nete, nets, ithr, ncols
-
-    ithr=omp_get_thread_num()
-    nets=dom_mt(ithr)%start
-    nete=dom_mt(ithr)%end
-    hybrid = hybrid_create(par,ithr,hthreads)
+    real(r8) :: vort_gll(np,np,nlev,nets:nete)
+    real(r8) :: wf1(nphys*nphys,nlev)
+    integer  :: k,ie
 
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     ! First calculate vorticity on GLL grid
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    ! set timelevel=1 fro velocities
     do ie=nets,nete
        do k=1,nlev
           vort_gll(:,:,k,ie) = vorticity_sphere(elem(ie)%state%v(:,:,:,k,tl),deriv1,elem(ie))
@@ -161,13 +197,12 @@ CONTAINS
        ! otherwise just return vorticity on GLL grid
        !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
        if (fv_nphys>0) then
-          call gfr_g2f_scalar(ie, elem(ie)%metdet, vort_gll(:,:,:,ie), vort4gw(:,:,ie))
+          call gfr_g2f_scalar(ie, elem(ie)%metdet, vort_gll(:,:,:,ie), wf1)
+          vort4gw(:,:,:,ie) = reshape(wf1, (/nphys,nphys,nlev/))
        else
-          ncols = elem(ie)%idxP%NumUniquePts
-          call UniquePoints(elem(ie)%idxP, nlev, vort_gll(:,:,:,ie), vort4gw(1:ncols,:,ie))
+          vort4gw(:,:,:,ie) = vort_gll(:,:,:,ie)
        end if
     enddo
-
 
   end subroutine compute_vorticity_4gw
 
