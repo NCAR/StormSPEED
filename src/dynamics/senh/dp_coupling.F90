@@ -3,7 +3,7 @@
 ! dynamics - physics coupling module
 !-------------------------------------------------------------------------------
 module dp_coupling
-  use air_composition, only:  rairv
+  use air_composition, only:  rairv, cpairv
   use bndry_mod,      only: bndry_exchangeV
   use cam_abortutils, only: endrun
   use cam_logfile,    only: iulog
@@ -444,15 +444,17 @@ CONTAINS
   subroutine derived_phys(phys_state, phys_tend, pbuf2d)
     use physics_buffer, only : physics_buffer_desc, pbuf_get_chunk
     use constituents,  only: qmin
-    use physconst,     only: cpair, gravit, zvir, cappa
+    use physconst,     only: gravit, zvir, cappa
     use spmd_utils,    only: masterproc
     use ppgrid,        only: pver
     use geopotential,  only: geopotential_t
+    use static_energy, only: update_dry_static_energy_run
     use physics_types, only: set_state_pdry, set_wet_to_dry
     use check_energy,  only: check_energy_timestep_init
     use hycoef,   only : hyam, hybm, hyai, hybi, ps0
     use shr_vmath_mod, only: shr_vmath_log
     use gmean_mod,     only: gmean
+    use shr_kind_mod,  only: shr_kind_cx
 
 
     implicit none
@@ -473,12 +475,16 @@ CONTAINS
 
     integer :: m, i, k, ncol
 
+    ! Needed for "update_dry_static_energy" CCPP scheme
+    integer :: errflg
+    character(len=shr_kind_cx) :: errmsg
+
     type(physics_buffer_desc), pointer :: pbuf_chnk(:)
 
 !
 ! Evaluate derived quantities
 !
-!$omp parallel do private (lchnk, ncol, k, i, zvirv, pbuf_chnk)
+!$omp parallel do private (lchnk, ncol, k, i, zvirv, pbuf_chnk, errflg, errmsg)
     do lchnk = begchunk,endchunk
        ncol = get_ncols_p(lchnk)
        do k=1,nlev
@@ -525,13 +531,11 @@ CONTAINS
                           ncol)
 
        ! Compute initial dry static energy s = g*z + c_p*T
-       do k = 1, pver
-          do i=1,ncol
-             phys_state(lchnk)%s(i,k) = cpair*phys_state(lchnk)%t(i,k) &
-                                      + gravit*phys_state(lchnk)%zm(i,k)  &
-                                      + phys_state(lchnk)%phis(i)
-          end do
-       end do
+       call update_dry_static_energy_run(pver, gravit, phys_state(lchnk)%t(1:ncol,:),  &
+                                         phys_state(lchnk)%zm(1:ncol,:),               &
+                                         phys_state(lchnk)%phis(1:ncol),               &
+                                         phys_state(lchnk)%s(1:ncol,:),                &
+                                         cpairv(1:ncol,:,lchnk), errflg, errmsg)
 
 ! NOTE:  if a tracer is marked "dry", that means physics wants it dry
 !        if dycore advects it wet, it should be converted here
