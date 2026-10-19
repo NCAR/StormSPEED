@@ -521,22 +521,6 @@ CONTAINS
 ! Compute initial geopotential heights
 !
 
-      ! Compute initial geopotential heights
-      call geopotential_t(phys_state(lchnk)%lnpint, phys_state(lchnk)%lnpmid  ,&
-                          phys_state(lchnk)%pint  , phys_state(lchnk)%pmid    ,&
-                          phys_state(lchnk)%pdel  , phys_state(lchnk)%rpdel   ,&
-                          phys_state(lchnk)%t     , phys_state(lchnk)%q       ,&
-                          rairv(:,:,lchnk)        , gravit, zvirv             ,&
-                          phys_state(lchnk)%zi    , phys_state(lchnk)%zm      ,&
-                          ncol)
-
-       ! Compute initial dry static energy s = g*z + c_p*T
-       call update_dry_static_energy_run(pver, gravit, phys_state(lchnk)%t(1:ncol,:),  &
-                                         phys_state(lchnk)%zm(1:ncol,:),               &
-                                         phys_state(lchnk)%phis(1:ncol),               &
-                                         phys_state(lchnk)%s(1:ncol,:),                &
-                                         cpairv(1:ncol,:,lchnk), errflg, errmsg)
-
 ! NOTE:  if a tracer is marked "dry", that means physics wants it dry
 !        if dycore advects it wet, it should be converted here
 !        FV dycore does this, and in physics/cam/tphysac.F90 it will
@@ -559,6 +543,23 @@ CONTAINS
 !jt       Could cause differences if checking BFB
        call qneg3('D_P_COUPLING',lchnk  ,ncol    ,pcols   ,pver    , &
                   1, pcnst, qmin  ,phys_state(lchnk)%q)
+
+      ! Compute initial geopotential heights
+      call geopotential_t(phys_state(lchnk)%lnpint, phys_state(lchnk)%lnpmid  ,&
+                          phys_state(lchnk)%pint  , phys_state(lchnk)%pmid    ,&
+                          phys_state(lchnk)%pdel  , phys_state(lchnk)%rpdel   ,&
+                          phys_state(lchnk)%t     , phys_state(lchnk)%q       ,&
+                          rairv(:,:,lchnk)        , gravit, zvirv             ,&
+                          phys_state(lchnk)%zi    , phys_state(lchnk)%zm      ,&
+                          ncol)
+
+       ! Compute initial dry static energy s = g*z + c_p*T
+       call update_dry_static_energy_run(pver, gravit, phys_state(lchnk)%t(1:ncol,:),  &
+                                         phys_state(lchnk)%zm(1:ncol,:),               &
+                                         phys_state(lchnk)%phis(1:ncol),               &
+                                         phys_state(lchnk)%s(1:ncol,:),                &
+                                         cpairv(1:ncol,:,lchnk), errflg, errmsg)
+
 
 ! Compute energy and water integrals of input state
        pbuf_chnk => pbuf_get_chunk(pbuf2d, lchnk)
