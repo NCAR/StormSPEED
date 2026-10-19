@@ -17,7 +17,7 @@ module dp_coupling
   use kinds,          only: real_kind, int_kind
   use physics_types,  only: physics_state, physics_tend
   use phys_grid,      only: get_ncols_p, get_gcol_all_p
-  use phys_grid,      only: get_dyn_col_p, columns_on_task, get_chunk_info_p
+  use phys_grid,      only: get_dyn_col_p, columns_on_task, get_chunk_info_p, phys_columns_on_task
   use ppgrid,         only: begchunk, endchunk, pcols, pver, pverp
   use perf_mod,       only: t_startf, t_stopf, t_barrierf
   use parallel_mod_cam,   only: par
@@ -192,7 +192,7 @@ CONTAINS
     !$omp parallel do num_threads(max_num_threads) private (col_ind, lchnk, &
     !$omp icol, ie, blk_ind, ilyr, m, pbuf_chnk, pbuf_frontgf, pbuf_frontga, &
     !$omp pbuf_vort4gw) schedule(dynamic)
-    do col_ind = 1, columns_on_task
+    do col_ind = 1, phys_columns_on_task
        call get_dyn_col_p(col_ind, ie, blk_ind)
        call get_chunk_info_p(col_ind, lchnk, icol)
 
@@ -307,7 +307,7 @@ CONTAINS
     call t_startf('pd_copy')
 
     !$omp parallel do num_threads(max_num_threads) private (col_ind, lchnk, icol, ie, blk_ind, ilyr, m)
-    do col_ind = 1, columns_on_task
+    do col_ind = 1, phys_columns_on_task
        call get_dyn_col_p(col_ind, ie, blk_ind)
        call get_chunk_info_p(col_ind, lchnk, icol)
        do ilyr=1,pver
