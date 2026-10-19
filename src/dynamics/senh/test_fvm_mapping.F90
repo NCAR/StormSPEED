@@ -527,19 +527,19 @@ contains
       !
       fout = 0.5_r8 * ( tanh( 3.0_r8*abs(lat)-pi ) + 1.0_r8)
     case(4)
-      fout = 2.0_r8+cos(5.0_r8+40*lon)!1.0e-8_r8
-      fout = -0.5_r8-0.5_r8*(cos(16*lon)*(sin(2_r8*lat)**16))
+      fout = 2.0_r8+cos(5.0_r8+40._r8*lon)!1.0e-8_r8
+      fout = -0.5_r8-0.5_r8*(cos(16._r8*lon)*(sin(2._r8*lat)**16))
     case(5)
       !
       ! approximately Y^2_2 spherical harmonic
       !
-      fout = sin(lon)*cos(40*lat)!1.0e-8_r8
-      fout = 0.5_r8*(cos(16*lon)*(sin(2_r8*lat)**16))
+      fout = sin(lon)*cos(40._r8*lat)!1.0e-8_r8
+      fout = 0.5_r8*(cos(16._r8*lon)*(sin(2._r8*lat)**16))
     case(6)
       !
       ! approximately Y32_16 spherical harmonic
       !
-      fout = 0.5_r8 + 0.5_r8*(cos(16*lon)*(sin(2_r8*lat)**16))
+      fout = 0.5_r8 + 0.5_r8*(cos(16._r8*lon)*(sin(2._r8*lat)**16))
     case(7)
       fout = 2.0_r8 + lat
     case(8)
