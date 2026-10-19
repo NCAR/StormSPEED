@@ -1888,6 +1888,7 @@
   </test>
   <test compset="FKESSLER" grid="ne16_g17" name="ERP_Ln27" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
     <machines>
+      <machine name="derecho" compiler="intel" category="stormbfb"/>
       <machine name="izumi" compiler="gnu" category="aux_cam"/>
       <machine name="izumi" compiler="intel" category="aux_cam"/>
       <machine name="izumi" compiler="nag" category="aux_cam"/>
