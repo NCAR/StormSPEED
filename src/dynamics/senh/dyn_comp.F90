@@ -651,7 +651,10 @@ subroutine dyn_init(dyn_in, dyn_out)
     use cam_control_mod,  only: aqua_planet, ideal_phys, adiabatic
     use cam_instance,     only: inst_index
     use cam_pio_utils,    only: clean_iodesc_list
-    use constituents,     only: pcnst, cnst_name, cnst_longname
+    use constituents,     only: pcnst, cnst_name, cnst_longname, tottnam, cnst_get_ind
+    use dimensions_mod_cam,only: use_cslam
+    use phys_control,     only: phys_getopts
+    use cam_history,      only: addfld, add_default
     use dimensions_mod_cam,only: cnst_longname_gll, cnst_name_gll
     use prim_driver_mod,  only: prim_init2
     use parallel_mod_cam, only: par
@@ -662,6 +665,8 @@ subroutine dyn_init(dyn_in, dyn_out)
     type (dyn_export_t), intent(out) :: dyn_out
 
     integer                          :: ithr, nets, nete, ie, k, tlev, m
+    logical                          :: history_budget
+    integer                          :: budget_hfile_num, ixcldliq, ixcldice
     real(r8), parameter              :: Tinit=300.0_r8
     type(hybrid_t)                   :: hybrid
     real(r8)                         :: temperature(np,np,nlev),ps(np,np)
@@ -749,6 +754,29 @@ subroutine dyn_init(dyn_in, dyn_out)
 !jt      call write_grid_mapping(par, elem)
 !jt   end if
 
+
+   !
+   ! add dynamical core tracer tendency output
+   !
+   if (use_cslam) then
+     do m = 1, pcnst
+       call addfld(tottnam(m),(/ 'lev' /),'A','kg/kg/s',trim(cnst_name(m))//' horz + vert',  &
+            gridname='FVM')
+     end do
+   else
+     do m = 1, pcnst
+       call addfld(tottnam(m),(/ 'lev' /),'A','kg/kg/s',trim(cnst_name(m))//' horz + vert',  &
+            gridname='GLL')
+     end do
+   end if
+   call phys_getopts(history_budget_out=history_budget, history_budget_histfile_num_out=budget_hfile_num)
+   if ( history_budget ) then
+      call cnst_get_ind('CLDLIQ', ixcldliq)
+      call cnst_get_ind('CLDICE', ixcldice)
+      call add_default(tottnam(       1), budget_hfile_num, ' ')
+      call add_default(tottnam(ixcldliq), budget_hfile_num, ' ')
+      call add_default(tottnam(ixcldice), budget_hfile_num, ' ')
+   end if
 
 end subroutine dyn_init
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
