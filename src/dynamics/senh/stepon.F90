@@ -706,17 +706,19 @@ subroutine diag_dynvar_ic(elem)
          call outfld('U&IC', RESHAPE(elem(ie)%state%v(:,:,1,:,tl_f), (/npsq,nlev/)), npsq, ie)
          call outfld('V&IC', RESHAPE(elem(ie)%state%v(:,:,2,:,tl_f), (/npsq,nlev/)), npsq, ie)
 
-         call get_sum_species(elem(ie)%state%Qdp(:,:,:,:,tl_qdp), &
-              thermodynamic_active_species_idx_dycore, factor_array,dp_dry=elem(ie)%state%dp3d(:,:,:,tl_f))
-         factor_array(:,:,:) = 1.0_r8/factor_array(:,:,:)
+         ! theta-l holds all tracers as moist mixing ratios (Qdp/dp3d).  Write the IC in
+         ! CAM's convention: 'wet' constituents moist, 'dry' constituents dry, using physics'
+         ! dry definition (set_state_pdry): q_dry = q_moist/(1 - qv).  read_inidat inverts this.
+         factor_array(:,:,:) = 1.0_r8/(1.0_r8 - elem(ie)%state%Qdp(:,:,:,1,tl_qdp)/ &
+              elem(ie)%state%dp3d(:,:,:,tl_f))
          do m_cnst = 1, qsize
             if (cnst_type(m_cnst) == 'wet') then
                call outfld(trim(cnst_name(m_cnst))//'&IC', &
-                    RESHAPE(factor_array(:,:,:)*elem(ie)%state%Qdp(:,:,:,m_cnst,tl_qdp)/&
+                    RESHAPE(elem(ie)%state%Qdp(:,:,:,m_cnst,tl_qdp)/&
                     elem(ie)%state%dp3d(:,:,:,tl_f), (/npsq,nlev/)), npsq, ie)
             else
                call outfld(trim(cnst_name(m_cnst))//'&IC', &
-                    RESHAPE(elem(ie)%state%Qdp(:,:,:,m_cnst,tl_qdp)/&
+                    RESHAPE(factor_array(:,:,:)*elem(ie)%state%Qdp(:,:,:,m_cnst,tl_qdp)/&
                     elem(ie)%state%dp3d(:,:,:,tl_f), (/npsq,nlev/)), npsq, ie)
             end if
          end do
