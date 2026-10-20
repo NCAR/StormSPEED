@@ -630,7 +630,7 @@ subroutine write_unstruct()
        call PIO_Write_Darray(File,Wdesc,iodescp,var3dp,ierr)
 
     ! Write Phi
-!$omp parallel do private(ie, k, j, i)
+!$omp parallel do private(ie, k, j, i, ii)
        do ie=1,nelemd
           do k=1,nlevp
              ii = 1

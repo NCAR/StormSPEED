@@ -49,7 +49,7 @@ CONTAINS
     use dimensions_mod_cam, only : npsq, nelemd, fv_nphys
     use dof_mod, only         : UniquePoints
     use dyn_grid, only        : dom_mt
-    use hybrid_mod_cam, only     : hybrid_create_cam
+    use hybrid_mod, only     : hybrid_create
     use parallel_mod_cam, only   : par
     use ppgrid, only          : pver
     use thread_mod_cam, only     : omp_get_thread_num
@@ -70,7 +70,7 @@ CONTAINS
     ithr=omp_get_thread_num()
     nets=dom_mt(ithr)%start
     nete=dom_mt(ithr)%end
-    hybrid = hybrid_create_cam(par,ithr,hthreads)
+    hybrid = hybrid_create(par,ithr,hthreads)
     allocate(frontgf_thr(nphys,nphys,nlev,nets:nete))
     allocate(frontga_thr(nphys,nphys,nlev,nets:nete))
     call compute_frontogenesis(frontgf_thr,frontga_thr,tl,use_fgf_pgrad_correction, &
@@ -102,7 +102,7 @@ CONTAINS
     use dimensions_mod_cam, only : nelemd, fv_nphys
     use dof_mod, only         : UniquePoints
     use dyn_grid, only        : dom_mt
-    use hybrid_mod_cam, only     : hybrid_create_cam
+    use hybrid_mod, only     : hybrid_create
     use parallel_mod_cam, only   : par
     use ppgrid, only          : pver
     use thread_mod_cam, only     : omp_get_thread_num
@@ -121,7 +121,7 @@ CONTAINS
     ithr=omp_get_thread_num()
     nets=dom_mt(ithr)%start
     nete=dom_mt(ithr)%end
-    hybrid = hybrid_create_cam(par,ithr,hthreads)
+    hybrid = hybrid_create(par,ithr,hthreads)
     allocate(vort4gw_thr(nphys,nphys,nlev,nets:nete))
     call compute_vorticity_4gw(vort4gw_thr,tl,elem,hybrid,nets,nete,nphys)
     if (fv_nphys>0) then

@@ -1914,6 +1914,15 @@
       <option name="comment">senh theta-l_kokkos: cam7 physics with aerosols, ne3pg2 physgrid, restart; fast BFB check</option>
     </options>
   </test>
+  <test compset="FHISTC_LTso" grid="ne3pg2_ne3pg2_mt232" name="PET_Ln9_P24x2" testmods="cam/outfrq9s_thetal">
+    <machines>
+      <machine name="derecho" compiler="intel" category="stormbfb"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:10:00</option>
+      <option name="comment">senh theta-l: OpenMP threaded (2 threads) vs single-threaded must be BFB; theta-l_kokkos excluded (threads not supported, as in EAM)</option>
+    </options>
+  </test>
   <!--  Test of CAM-chem component sets with Harmonized Emissions Component (HEMCO) -->
   <test compset="FCSD_HCO" grid="f09_f09_mg17" name="SMS_Lh12" testmods="cam/outfrq3h" supported="false">
     <machines>

@@ -21,7 +21,7 @@ use edge_mod,                only: edgevpack_nlyr, edgevunpack_nlyr, edge_g
 use element_mod,             only: element_t
 use element_state,           only: elem_state_t
 use gllfvremap_mod,          only: gfr_fv_phys_to_dyn_topo
-use hybrid_mod_cam,          only: hybrid_create_cam, hybrid_t
+use hybrid_mod,          only: hybrid_create, hybrid_t
 use inic_analytic,           only: analytic_ic_active, analytic_ic_set_ic
 use inic_analytic_utils,    only: analytic_ic_is_moist
 use ncdio_atm,               only: infld
@@ -323,6 +323,14 @@ subroutine dyn_readnl(NLFileName)
       se_z2_map_method
 
  !--------------------------------------------------------------------------
+
+#ifdef KOKKOS_TARGET
+#if defined(HORIZ_OPENMP) || defined(COLUMN_OPENMP)
+ ! As in E3SM EAM: the Fortran interface threads over elements around prim_run_subcycle,
+ ! which the Kokkos (theta-l_kokkos) dycore does not support.
+ call endrun('dyn_readnl: theta-l_kokkos dycore does not run with threads; set NTHRDS_ATM=1')
+#endif
+#endif
 
  ! namelist default values should be in namelist (but you know users . . .)
  ! NB: Of course, these should keep up with what is in namelist_defaults ...
@@ -751,7 +759,7 @@ subroutine dyn_init(dyn_in, dyn_out)
        ithr=omp_get_thread_num()
        nets=dom_mt(ithr)%start
        nete=dom_mt(ithr)%end
-       hybrid = hybrid_create_cam(par,ithr,hthreads)
+       hybrid = hybrid_create(par,ithr,hthreads)
 
        call t_startf('prim_init2')
        call prim_init2(elem,hybrid,nets,nete, TimeLevel, hvcoord)
@@ -809,7 +817,7 @@ end subroutine dyn_init
     use prim_driver_mod,  only: prim_run_subcycle
     use dimensions_mod_cam, only : nlev
     use time_mod,         only: tstep
-    use hybrid_mod_cam,     only: hybrid_create_cam
+    use hybrid_mod,     only: hybrid_create
     implicit none
 
 
@@ -836,7 +844,7 @@ end subroutine dyn_init
        ithr=omp_get_thread_num()
        nets=dom_mt(ithr)%start
        nete=dom_mt(ithr)%end
-       hybrid = hybrid_create_cam(par,ithr,hthreads)
+       hybrid = hybrid_create(par,ithr,hthreads)
 
        do_prim_run = .true. ! Always do prim_run_subcycle
                             ! Unless turned off by SCM for specific cases
@@ -1438,7 +1446,7 @@ subroutine read_inidat(dyn_in)
    ! global_integral (sums global_shared_buf(1:nelemd)) sees every element.
    nets = 1
    nete = nelemd
-   hybrid = hybrid_create_cam(par, 0, 1)
+   hybrid = hybrid_create(par, 0, 1)
 
    ! A PS (moist) IC carries 'dry' constituents as dry mixing ratios (CAM convention), but
    ! theta-l holds all tracers moist.  Convert with physics' dry definition (set_state_pdry):
