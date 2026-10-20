@@ -8965,9 +8965,13 @@ Default: 0 (i.e., not used)
 
 <entry id="se_laplace_scaling" type="real" category="se"
        group="dyn_se_inparm" valid_values="" >
-Sponge-layer (nu_top) Laplacian viscosity. 0 uses the constant-coefficient
-Laplacian; a positive value uses a tensor Laplacian scaled by the element
-metric, analogous to se_hypervis_scaling (E3SM HOMME tensor sponge, PR #8642).
+Sponge-layer (nu_top) Laplacian viscosity. 0 (default) uses the constant-coefficient
+Laplacian, with se_nu_top in m^2/s. A positive value selects the tensor Laplacian
+(E3SM HOMME tensor sponge, PR #8642), analogous to se_hypervis_scaling; se_nu_top
+must then be given in tensor-scaled units, about 12 orders of magnitude smaller.
+E3SM HOMME tests use se_laplace_scaling = 1 with nu_top = 5e-7 to 8e-7. With the
+default se_nu_top, a positive se_laplace_scaling makes the sponge far too strong
+and the model becomes unstable within a few steps.
 Default: 0.
 </entry>
 
