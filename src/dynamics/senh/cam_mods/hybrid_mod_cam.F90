@@ -25,8 +25,6 @@ module hybrid_mod_cam
   integer              :: region_num_threads
   character(len=64)    :: region_name
 
-  public :: hybrid_create_cam
-
   public  :: set_region_num_threads
   private :: set_loop_ranges
   public  :: get_loop_ranges
@@ -520,21 +518,5 @@ contains
     end_index = beg(ipe+1) - 1
 
   end subroutine create_work_pool
-
-  function hybrid_create_cam(par,ithr,hthreads) result(hybrid)
-  
-    type (parallel_t), intent(in) :: par
-    integer          , intent(in) :: ithr
-    integer          , intent(in) :: hthreads
-    type (hybrid_t)               :: hybrid
-
-    if( hthreads==1) then
-        hybrid = config_thread_region(hybrid,'serial')
-    else
-        hybrid = config_thread_region(hybrid,'horizontal')
-    end if
-    hybrid = hybrid_create(par,ithr,hthreads)
-
-  end function hybrid_create_cam
 
 end module hybrid_mod_cam

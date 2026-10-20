@@ -578,7 +578,7 @@ subroutine diag_dynvar_ic(elem)
    use cam_history_support,    only: max_fieldname_len
    use time_mod,               only: TimeLevel_Qdp   !  dynamics typestep
    use control_mod_cam,        only: qsplit
-   use hybrid_mod_cam,         only: hybrid_create_cam, hybrid_t
+   use hybrid_mod_cam,         only: hybrid_t
    use dimensions_mod_cam,     only: np, npsq, nc, nhc, qsize, ntrac, nlev
    use dimensions_mod_cam,     only: cnst_name_gll, nelemd
    use constituents,           only: cnst_name
