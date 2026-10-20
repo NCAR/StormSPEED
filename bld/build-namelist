@@ -4456,6 +4456,24 @@ if ($dyn =~ /se/) {
 		       se_z2_map_method
 	    );
 	# Add the collected vars
+	# Tensor sponge (se_laplace_scaling > 0): se_nu_top is then a tensor-scaled coefficient,
+	# about 12 orders of magnitude smaller than the m^2/s value used by the constant-coefficient
+	# sponge. E3SM HOMME tests (e.g. thetanh-TC-nutop.nl) use laplace_scaling = 1 with
+	# nu_top = 5e-7 to 8e-7 (low resolution; value for finer grids to be confirmed).
+	my $lap = $nl->get_value('se_laplace_scaling');
+	if (defined $lap) { $lap =~ s/[dD]/e/; }
+	if (defined $lap and $lap > 0) {
+	    my $nutop = $nl->get_value('se_nu_top');
+	    if (!defined $nutop) {
+	        add_default($nl, 'se_nu_top', 'val'=>'5.0e-7');
+	    } else {
+	        $nutop =~ s/[dD]/e/;
+	        if ($nutop > 1.0e-2) {
+	            die "$ProgName - ERROR: se_laplace_scaling > 0 (tensor sponge) requires se_nu_top in tensor-scaled units (e.g. 5.0e-7); se_nu_top = $nutop looks like a constant-coefficient value in m^2/s\n";
+	        }
+	    }
+	}
+
 	foreach my $var (@vars) {
 	    add_default($nl, $var, %opts);
 	}
