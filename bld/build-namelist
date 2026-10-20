@@ -4417,6 +4417,7 @@ if ($dyn =~ /se/) {
 		       se_fgf_pgrad_correction
 		       se_fgf_zgrad_correction
 		       se_hypervis_scaling
+		       se_laplace_scaling
 		       se_hypervis_subcycle
 		       se_hypervis_subcycle_q
 		       se_hypervis_subcycle_tom
