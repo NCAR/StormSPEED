@@ -90,6 +90,9 @@
 
 <se_dt_remap_factor  se_dyn_target="theta-l"  >  2 </se_dt_remap_factor>
 <se_dt_remap_factor  se_dyn_target="preqx"    > -1 </se_dt_remap_factor>
+
+<se_fgf_pgrad_correction> .true.  </se_fgf_pgrad_correction>
+<se_fgf_zgrad_correction> .false.  </se_fgf_zgrad_correction>
 <se_dt_tracer_factor se_dyn_target="theta-l"  >  6 </se_dt_tracer_factor>
 <se_dt_tracer_factor se_dyn_target="preqx"    > -1 </se_dt_tracer_factor>
 

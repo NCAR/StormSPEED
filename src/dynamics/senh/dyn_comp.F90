@@ -119,6 +119,7 @@ subroutine dyn_readnl(NLFileName)
   use constituents,   only: pcnst
   use params_mod,     only: SFCURVE, SPHERE_COORDS, Z2_NO_TASK_MAPPING
   use physical_constants, only: lx, ly
+  use gravity_waves_sources, only: use_fgf_pgrad_correction, use_fgf_zgrad_correction
   use physical_constants, only: scale_factor, scale_factor_inv, &
                                 domain_size, laplacian_rigid_factor, &
                                 DD_PI, rearth, rrearth
@@ -152,6 +153,8 @@ subroutine dyn_readnl(NLFileName)
   !     new se_dt_remap_factor == old dt_tracer_factor/dt_remap_factor
   ! Default values make se_qsplit and se_rsplit control the time steps.
   integer                         :: se_dt_remap_factor = -1, se_dt_tracer_factor = -1
+  logical                         :: se_fgf_pgrad_correction = .true.  ! frontogenesis on pressure surfaces
+  logical                         :: se_fgf_zgrad_correction = .false. ! frontogenesis on height surfaces
   integer                         :: se_ftype
   integer                         :: se_fv_nphys
   character(len=SHR_KIND_CL)      :: se_geometry            ! options: "sphere", "plane"
@@ -258,6 +261,8 @@ subroutine dyn_readnl(NLFileName)
       se_cubed_sphere_map,     &
       se_dp3d_thresh,          &
       se_dt_remap_factor,      &
+      se_fgf_pgrad_correction, &
+      se_fgf_zgrad_correction, &
       se_dt_tracer_factor,     &
       se_ftype,                & ! forcing type
       se_fv_nphys,             &
@@ -381,6 +386,8 @@ subroutine dyn_readnl(NLFileName)
  call MPI_bcast(se_cubed_sphere_map, 1, mpi_integer, masterprocid, mpicom, ierr)
  call MPI_bcast(se_dp3d_thresh, 1, mpi_real8, masterprocid, mpicom, ierr)
  call MPI_bcast(se_dt_remap_factor, 1, mpi_integer, masterprocid, mpicom, ierr)
+ call MPI_bcast(se_fgf_pgrad_correction, 1, mpi_logical, masterprocid, mpicom, ierr)
+ call MPI_bcast(se_fgf_zgrad_correction, 1, mpi_logical, masterprocid, mpicom, ierr)
  call MPI_bcast(se_dt_tracer_factor, 1, mpi_integer, masterprocid, mpicom, ierr)
  call MPI_bcast(se_ftype, 1, mpi_integer, masterprocid, mpicom, ierr)
  call MPI_bcast(se_fv_nphys, 1, mpi_integer, masterprocid, mpicom, ierr)
@@ -500,6 +507,13 @@ subroutine dyn_readnl(NLFileName)
  cubed_sphere_map = se_cubed_sphere_map
  dp3d_thresh = se_dp3d_thresh
  dt_remap_factor = se_dt_remap_factor
+ if (se_fgf_pgrad_correction .and. se_fgf_zgrad_correction) then
+    call endrun('dyn_readnl: se_fgf_pgrad_correction and se_fgf_zgrad_correction cannot both be .true.')
+ end if
+ use_fgf_pgrad_correction = se_fgf_pgrad_correction
+ use_fgf_zgrad_correction = se_fgf_zgrad_correction
+ if (masterproc) write(iulog,*) 'dyn_readnl: se_fgf_pgrad_correction = ', se_fgf_pgrad_correction, &
+                                '  se_fgf_zgrad_correction = ', se_fgf_zgrad_correction
  dt_tracer_factor = se_dt_tracer_factor
  ftype = se_ftype
  fv_nphys = se_fv_nphys
