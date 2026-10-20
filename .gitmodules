@@ -218,7 +218,7 @@ path = src/dynamics/senh/dycore
 url = https://github.com/E3SM-Project/E3SM.git
 fxrequired = AlwaysRequired
 fxsparse = ../.e3sm_sparse_checkout
-fxtag = 057df66
+	fxtag = b70b675a7b
 fxDONOTUSEurl = https://github.com/E3SM-Project/E3SM.git
 
 [submodule "tuv-x"]
