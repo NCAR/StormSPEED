@@ -121,6 +121,8 @@
 <!-- Hyperviscosity -->
 <se_hypervis_scaling se_dyn_target="theta-l"  > 3.0D0 </se_hypervis_scaling>
 <se_hypervis_scaling se_dyn_target="preqx"    > 0.0D0 </se_hypervis_scaling>
+<se_laplace_scaling se_dyn_target="theta-l"   > 0.0D0 </se_laplace_scaling>
+<se_laplace_scaling se_dyn_target="preqx"     > 0.0D0 </se_laplace_scaling>
 
 <se_hypervis_subcycle se_dyn_target="theta-l"                   > 1 </se_hypervis_subcycle>
 <se_hypervis_subcycle se_dyn_target="preqx"                     > 3 </se_hypervis_subcycle>

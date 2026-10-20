@@ -95,6 +95,7 @@ subroutine dyn_readnl(NLFileName)
   use units,          only: getunit, freeunit
   use spmd_utils,       only: masterproc, masterprocid, mpicom, npes, &
                               mpi_real8, mpi_integer, mpi_character, mpi_logical
+  use control_mod_cam,  only: laplace_scaling
   use control_mod_cam,  only: hypervis_order, hypervis_subcycle, hypervis_scaling, &
                               hypervis_subcycle_tom, planar_slice, &
                               hypervis_subcycle_q, integration, statefreq, runtype, &
@@ -170,6 +171,7 @@ subroutine dyn_readnl(NLFileName)
   !            (\div * tensor * \grad) operator uses cartesian laplace
   !
   real (r8)                       :: se_hypervis_scaling    ! use tensor hyperviscosity
+  real (r8)                       :: se_laplace_scaling     ! tensor sponge-layer Laplacian (0=off)
   integer                         :: se_hypervis_subcycle   ! number of subcycles for hyper viscsosity timestep
   integer                         :: se_hypervis_subcycle_tom ! number of subcycles for TOM diffusion
                                                             !   0   apply together with hyperviscosity
@@ -269,6 +271,7 @@ subroutine dyn_readnl(NLFileName)
       se_geometry,             &
       se_hypervis_order,       &
       se_hypervis_scaling,     &
+      se_laplace_scaling,      &
       se_hypervis_subcycle,    &
       se_hypervis_subcycle_q,  &
       se_hypervis_subcycle_tom,&
@@ -345,6 +348,7 @@ subroutine dyn_readnl(NLFileName)
  se_ftype                = 0
  se_hypervis_order       = 2
  se_hypervis_scaling     = 0
+ se_laplace_scaling      = 0
  se_hypervis_subcycle    = 3
  se_hypervis_subcycle_q  = 1
  se_limiter_option       = 8
@@ -402,6 +406,7 @@ subroutine dyn_readnl(NLFileName)
  call MPI_bcast(se_geometry, SHR_KIND_CL,  mpi_character, masterprocid, mpicom, ierr)
  call MPI_bcast(se_hypervis_order, 1, mpi_integer, masterprocid, mpicom, ierr)
  call MPI_bcast(se_hypervis_scaling, 1, mpi_real8, masterprocid, mpicom, ierr)
+ call MPI_bcast(se_laplace_scaling, 1, mpi_real8, masterprocid, mpicom, ierr)
  call MPI_bcast(se_hypervis_subcycle, 1, mpi_integer, masterprocid, mpicom, ierr)
  call MPI_bcast(se_hypervis_subcycle_q, 1, mpi_integer, masterprocid, mpicom, ierr)
  call MPI_bcast(se_hypervis_subcycle_tom, 1, mpi_integer, masterprocid, mpicom, ierr)
@@ -528,6 +533,7 @@ subroutine dyn_readnl(NLFileName)
  geometry = se_geometry
  hypervis_order = se_hypervis_order
  hypervis_scaling = se_hypervis_scaling
+ laplace_scaling = se_laplace_scaling
  hypervis_subcycle = se_hypervis_subcycle
  hypervis_subcycle_tom = se_hypervis_subcycle_tom
  hypervis_subcycle_q = se_hypervis_subcycle_q

@@ -8963,6 +8963,14 @@ doi:10.5194/gmd-7-2803-2014, 2014.
 Default: 0 (i.e., not used)
 </entry>
 
+<entry id="se_laplace_scaling" type="real" category="se"
+       group="dyn_se_inparm" valid_values="" >
+Sponge-layer (nu_top) Laplacian viscosity. 0 uses the constant-coefficient
+Laplacian; a positive value uses a tensor Laplacian scaled by the element
+metric, analogous to se_hypervis_scaling (E3SM HOMME tensor sponge, PR #8642).
+Default: 0.
+</entry>
+
 <entry id="se_hypervis_power" type="real" category="se"
        group="dyn_se_inparm" valid_values="" >
 Scalar viscosity with variable coefficient.
