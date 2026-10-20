@@ -1426,6 +1426,21 @@ subroutine read_inidat(dyn_in)
    nete = nelemd
    hybrid = hybrid_create_cam(par, 0, 1)
 
+   ! A PS (moist) IC carries 'dry' constituents as dry mixing ratios (CAM convention), but
+   ! theta-l holds all tracers moist.  Convert with physics' dry definition (set_state_pdry):
+   ! q_moist = q_dry*(1 - qv).  Done before mass scaling, which assumes moist 'dry' tracers.
+   ! PSDRY ICs are converted to moist after the scaling block.
+   if (inic_wet .and. iam < par%nprocs) then
+      do ie = 1, nelemd
+         do m_cnst = 1, qsize
+            if (cnst_type(m_cnst) == 'dry') then
+               elem(ie)%state%Q(:,:,:,m_cnst) = max(qmin(m_cnst), &
+                    elem(ie)%state%Q(:,:,:,m_cnst)*(1._r8 - elem(ie)%state%Q(:,:,:,1)))
+            end if
+         end do
+      end do
+   end if
+
    ! If scale_dry_air_mass > 0.0 then scale dry air mass to scale_dry_air_mass global average dry pressure
    ! scale PS to achieve prescribed dry mass
    if (scale_dry_air_mass > 0.0_r8) then
