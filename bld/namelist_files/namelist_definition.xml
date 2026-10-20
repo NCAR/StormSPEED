@@ -8975,6 +8975,17 @@ stops with an error if se_nu_top is larger than 1.0e-2 (a value in m^2/s).
 Default: 0.
 </entry>
 
+<entry id="se_tom_sponge_start" type="real" category="se"
+       group="dyn_se_inparm" valid_values="" >
+Pressure (hPa) where the top-of-model sponge layer (se_nu_top) begins. 0 (default)
+keeps HOMME's standard profile, which follows the model-top pressure. A positive
+value scales se_nu_top by 0.15*(se_tom_sponge_start/p)**2, set to 0 where that is
+below 0.15 and capped at 8, so the sponge starts at this pressure. Applies to both
+the constant-coefficient and the tensor (se_laplace_scaling > 0) sponge. E3SM HOMME
+tests use 15 to 30 hPa with the tensor sponge.
+Default: 0.
+</entry>
+
 <entry id="se_hypervis_power" type="real" category="se"
        group="dyn_se_inparm" valid_values="" >
 Scalar viscosity with variable coefficient.
