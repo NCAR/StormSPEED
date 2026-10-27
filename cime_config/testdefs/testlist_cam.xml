@@ -3253,4 +3253,30 @@
     </options>
   </test>
 
+
+  <!-- cam_shmem: node-shared vs private memory must be BFB (SHM system test) -->
+  <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="SHM_D_Ln9" testmods="cam/outfrq9s">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam"/>
+      <machine name="derecho" compiler="gnu" category="aux_cam"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam"/>
+      <machine name="izumi" compiler="nag" category="aux_cam"/>
+      <machine name="izumi" compiler="intel" category="aux_cam"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:30:00</option>
+      <option name="comment">cam_shmem: phys_prop, soil_erod, tracer_data shared vs private BFB</option>
+    </options>
+  </test>
+  <test compset="QPMOZ" grid="f10_f10_mg37" name="SHM_D_Ln3" testmods="cam/outfrq3s_chemproc">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:30:00</option>
+      <option name="comment">cam_shmem: mo_jlong (MOZART photolysis) shared vs private BFB</option>
+    </options>
+  </test>
+
 </testlist>
