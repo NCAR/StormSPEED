@@ -766,10 +766,13 @@ subroutine read_restart_dynamics(File, dyn_in, dyn_out)
 #ifdef MODEL_THETA_L
    ierr = PIO_Inq_varid(File, 'VTheta_dp',     tdesc)
    call cam_pio_handle_error(ierr, sub//': cannot find VTheta_dp')
+   ! hydrostatic: W and PHINH are not on the restart file (see write_elem/write_unstruct)
+   if (.not. theta_hydrostatic_mode) then
    ierr = PIO_Inq_varid(File, 'W',     wdesc)
    call cam_pio_handle_error(ierr, sub//': cannot find W')
    ierr = PIO_Inq_varid(File, 'PHINH',     PHINHdesc)
    call cam_pio_handle_error(ierr, sub//': cannot find PHINH')
+   end if
 #else
    ierr = PIO_Inq_varid(File, 'T',     tdesc)
    call cam_pio_handle_error(ierr, sub//': cannot find T')
@@ -1033,6 +1036,14 @@ subroutine read_elem()
    end do
 
 #ifdef MODEL_THETA_L
+   if (theta_hydrostatic_mode) then
+      ! hydrostatic: W and PHINH are not on the restart file; as in E3SM/EAM,
+      ! they are not prognostic and are zeroed here (phinh_i is rediagnosed)
+      do ie = 1, nelemd
+         elem(ie)%state%w_i = 0._r8
+         elem(ie)%state%phinh_i = 0._r8
+      end do
+   else
    allocate(var3dp(nelemd*np*np*nlevp), stat=ierr)
    if (ierr/=0) call endrun( sub//': not able to allocate var3dp' )
 
@@ -1068,6 +1079,7 @@ subroutine read_elem()
       end do
    end do
    deallocate(var3dp)
+   end if
 #endif
 
    do m = 1, qsize
@@ -1197,6 +1209,14 @@ subroutine read_unstruct()
 
 #ifdef MODEL_THETA_L
 
+   if (theta_hydrostatic_mode) then
+      ! hydrostatic: W and PHINH are not on the restart file; as in E3SM/EAM,
+      ! they are not prognostic and are zeroed here (phinh_i is rediagnosed)
+      do ie = 1, nelemd
+         elem(ie)%state%w_i = 0._r8
+         elem(ie)%state%phinh_i = 0._r8
+      end do
+   else
    allocate(dbuf3p(npsq,nlevp,nelemd))
 
    call read_3dp('W', dbuf3p)
@@ -1222,6 +1242,7 @@ subroutine read_unstruct()
    end do
 
    deallocate(dbuf3p)
+   end if
 
 #endif
    do m = 1, qsize
