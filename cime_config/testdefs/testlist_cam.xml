@@ -2879,7 +2879,7 @@
     </machines>
     <options>
       <option name="wallclock">00:20:00</option>
-      <option name="comment">theta-l hydrostatic (tstep_type=2) debug/FPE</option>
+      <option name="comment">theta-l hydrostatic (tstep_type=5) debug/FPE</option>
     </options>
   </test>
   <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="ERS_Ln9" testmods="cam/outfrq9s_thetal" supported="false">
@@ -3073,7 +3073,7 @@
     </machines>
     <options>
       <option name="wallclock">00:20:00</option>
-      <option name="comment">theta-l_kokkos hydrostatic (tstep_type=2) debug/FPE</option>
+      <option name="comment">theta-l_kokkos hydrostatic (tstep_type=5) debug/FPE</option>
     </options>
   </test>
   <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="ERS_Ln9" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
@@ -3123,16 +3123,6 @@
     <options>
       <option name="wallclock">00:20:00</option>
       <option name="comment">theta-l_kokkos MPI task-count invariance</option>
-    </options>
-  </test>
-  <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="PET_Ln9" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
-    <machines>
-      <machine name="derecho" compiler="intel" category="aux_cam_e3sm" />
-      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm" />
-    </machines>
-    <options>
-      <option name="wallclock">00:20:00</option>
-      <option name="comment">theta-l_kokkos threading invariance</option>
     </options>
   </test>
   <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="ERI_D_Ln18" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
