@@ -1853,7 +1853,6 @@
       <machine name="izumi" compiler="intel" category="aux_cam_e3sm"/>
       <machine name="izumi" compiler="nag" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
-      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
     </machines>
     <options>
@@ -1889,7 +1888,6 @@
       <machine name="izumi" compiler="intel" category="aux_cam_e3sm"/>
       <machine name="izumi" compiler="nag" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
-      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
     </machines>
     <options>
@@ -3052,7 +3050,6 @@
     <machines>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm" />
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm" />
-      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm" />
       <machine name="izumi" compiler="gnu" category="aux_cam_e3sm" />
       <machine name="izumi" compiler="intel" category="aux_cam_e3sm" />
       <machine name="izumi" compiler="nag" category="aux_cam_e3sm" />
@@ -3066,7 +3063,6 @@
     <machines>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm" />
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm" />
-      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm" />
       <machine name="izumi" compiler="gnu" category="aux_cam_e3sm" />
       <machine name="izumi" compiler="intel" category="aux_cam_e3sm" />
       <machine name="izumi" compiler="nag" category="aux_cam_e3sm" />
@@ -3080,7 +3076,6 @@
     <machines>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm" />
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm" />
-      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm" />
       <machine name="izumi" compiler="gnu" category="aux_cam_e3sm" />
       <machine name="izumi" compiler="intel" category="aux_cam_e3sm" />
     </machines>
@@ -3093,7 +3088,6 @@
     <machines>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm" />
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm" />
-      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm" />
       <machine name="izumi" compiler="gnu" category="aux_cam_e3sm" />
       <machine name="izumi" compiler="intel" category="aux_cam_e3sm" />
     </machines>
@@ -3106,7 +3100,6 @@
     <machines>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm" />
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm" />
-      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm" />
       <machine name="izumi" compiler="gnu" category="aux_cam_e3sm" />
       <machine name="izumi" compiler="intel" category="aux_cam_e3sm" />
     </machines>
@@ -3149,7 +3142,6 @@
     <machines>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm" />
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm" />
-      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm" />
       <machine name="izumi" compiler="gnu" category="aux_cam_e3sm" />
       <machine name="izumi" compiler="intel" category="aux_cam_e3sm" />
       <machine name="izumi" compiler="nag" category="aux_cam_e3sm" />
@@ -3163,7 +3155,6 @@
     <machines>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm" />
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm" />
-      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm" />
       <machine name="izumi" compiler="gnu" category="aux_cam_e3sm" />
       <machine name="izumi" compiler="intel" category="aux_cam_e3sm" />
       <machine name="izumi" compiler="nag" category="aux_cam_e3sm" />
@@ -3177,7 +3168,6 @@
     <machines>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm" />
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm" />
-      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm" />
       <machine name="izumi" compiler="gnu" category="aux_cam_e3sm" />
       <machine name="izumi" compiler="intel" category="aux_cam_e3sm" />
     </machines>
