@@ -1822,7 +1822,11 @@ if ($dyn_pkg eq 'se') {
 	my $npg = $cfg_ref->get('npg');
 
 	if ($smp eq 'ON') {
-	    $cfg_cppdefs .= " -D_OPENMP -DHORIZ_OPENMP";
+	    if ($se_dyn_target eq 'theta-l_kokkos') {
+            $cfg_cppdefs .= " -D_OPENMP";
+        } else {
+            $cfg_cppdefs .= " -D_OPENMP -DHORIZ_OPENMP";
+        }
 	}
 
 	if ($spmd eq 'ON') {
@@ -2273,42 +2277,64 @@ sub write_filepath
     print $fh "$camsrcdir/src/atmos_phys/schemes/cloud_water\n";
 
     # Dynamics package and test utilities
-    if ($dyn eq 'se' and ($se_dyn_target eq 'preqx' or$se_dyn_target eq 'theta-l' or $se_dyn_target eq 'theta-l_kokkos')) {
-	print $fh "$camsrcdir/src/dynamics/senh\n";
-    } else {
-	print $fh "$camsrcdir/src/dynamics/$dyn\n";
+    print $fh "$camsrcdir/src/dynamics/$dyn
+";
+    if ($dyn eq 'se') {
+       if ($se_dyn_target eq 'cam') {
+          print $fh "$camsrcdir/src/dynamics/se/dycore
+";
+       }
+       elsif ($se_dyn_target eq 'preqx') {
+          print $fh "$camsrcdir/src/dynamics/se/cam_mods
+";
+          print $fh "$camsrcdir/src/dynamics/se/homme/components/homme/src/share
+";
+          print $fh "$camsrcdir/src/dynamics/se/homme/components/homme/src/preqx
+";
+          print $fh "$camsrcdir/src/dynamics/se/homme/components/homme/src/preqx/share
+";
+       }
+       elsif ($se_dyn_target eq 'theta-l') {
+          print $fh "$KOKKOSROOT/include
+";
+          print $fh "$camsrcdir/src/dynamics/se/cam_mods
+";
+          print $fh "$camsrcdir/src/dynamics/se/homme/components/homme/src/share
+";
+          print $fh "$camsrcdir/src/dynamics/se/homme/components/homme/src/share/compose
+";
+          print $fh "$camsrcdir/src/dynamics/se/homme/components/homme/src/theta-l
+";
+          print $fh "$camsrcdir/src/dynamics/se/homme/components/homme/src/theta-l/share
+";
+       }
+       elsif ($se_dyn_target eq 'theta-l_kokkos') {
+          print $fh "$KOKKOSROOT/include
+";
+          print $fh "$camsrcdir/src/dynamics/se/cam_mods
+";
+          print $fh "$camsrcdir/src/dynamics/se/homme/components/homme/src/share
+";
+          print $fh "$camsrcdir/src/dynamics/se/homme/components/homme/src/share/compose
+";
+          print $fh "$camsrcdir/src/dynamics/se/homme/components/homme/src/share/cxx
+";
+          print $fh "$camsrcdir/src/dynamics/se/homme/components/homme/src/share/cxx/mpi
+";
+          print $fh "$camsrcdir/src/dynamics/se/homme/components/homme/src/share/cxx/utilities
+";
+          print $fh "$camsrcdir/src/dynamics/se/homme/components/homme/src/share/cxx/vector
+";
+          print $fh "$camsrcdir/src/dynamics/se/homme/components/homme/src/theta-l_kokkos
+";
+          print $fh "$camsrcdir/src/dynamics/se/homme/components/homme/src/theta-l_kokkos/cxx
+";
+          print $fh "$camsrcdir/src/dynamics/se/homme/components/homme/src/theta-l/share
+";
+       }
     }
-    if($se_dyn_target eq 'cam') {
-       print $fh "$camsrcdir/src/dynamics/se/dycore\n";
-    }
-    if($se_dyn_target eq 'preqx') {
-	   print $fh "$camsrcdir/src/dynamics/senh/cam_mods\n";
-       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share\n";
-       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/preqx\n";
-       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/preqx/share\n";
-    }
-    if($se_dyn_target eq 'theta-l') {
-       print $fh "$KOKKOSROOT/include\n";
-	   print $fh "$camsrcdir/src/dynamics/senh/cam_mods\n";
-       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share\n";
-       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share/compose\n";
-       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/theta-l\n";
-       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/theta-l/share\n";
-    }
-    if ($se_dyn_target eq 'theta-l_kokkos') {
-	   print $fh "$KOKKOSROOT/include\n";
-	   print $fh "$camsrcdir/src/dynamics/senh/cam_mods\n";
-	   print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share\n";
-       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share/compose\n";
-       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share/cxx\n";
-       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share/cxx/mpi\n";
-       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share/cxx/utilities\n";
-       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/share/cxx/vector\n";
-       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/theta-l_kokkos\n";
-       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/theta-l_kokkos/cxx\n";
-       print $fh "$camsrcdir/src/dynamics/senh/dycore/components/homme/src/theta-l_kokkos/share\n";
-    }
-    print $fh "$camsrcdir/src/dynamics/tests\n";
+    print $fh "$camsrcdir/src/dynamics/tests
+";
     if($inic_val) {
        print $fh "$camsrcdir/src/dynamics/tests/initial_conditions\n";
     }

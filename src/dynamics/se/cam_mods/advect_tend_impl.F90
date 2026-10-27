@@ -2,7 +2,7 @@
 ! this module computes the total advection tendencies of advected
 ! constituents for the finite volume dycore
 !----------------------------------------------------------------------
-module advect_tend
+module advect_tend_impl
 
   use shr_kind_mod, only : r8 => shr_kind_r8
 
@@ -86,4 +86,4 @@ contains
     deallocate(ftmp)
   end subroutine compute_adv_tends_xyz
 
-end module advect_tend
+end module advect_tend_impl

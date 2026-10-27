@@ -1,4 +1,4 @@
-module dyn_grid
+module dyn_grid_impl
 !-------------------------------------------------------------------------------
 !
 ! Define SE computational grids on the dynamics decomposition.
@@ -961,4 +961,4 @@ subroutine get_horiz_grid_d(nxy,clat_d_out,clon_d_out,area_d_out, &
   !
   !=================================================================================================
   !
-end module dyn_grid
+end module dyn_grid_impl

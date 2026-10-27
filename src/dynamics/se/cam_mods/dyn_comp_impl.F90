@@ -1,4 +1,4 @@
-module dyn_comp
+module dyn_comp_impl
 
 use bndry_mod,               only: bndry_exchangev
 use cam_abortutils,          only: endrun
@@ -13,9 +13,9 @@ use cam_logfile,             only: iulog
 use cam_map_utils,           only: iMap
 use control_mod_cam,         only: hypervis_subcycle_q, integration, statefreq, runtype, use_moisture, refined_mesh
 use dimensions_mod_cam,      only: nelemd, nlev, np, npsq, ne, ne_x, ne_y, fv_nphys,qsize
-use dyn_grid,                only: timelevel, dom_mt, hvcoord, ini_grid_hdim_name
-!jtuse dyn_grid,                only: get_horiz_grid_dim_d, dyn_decomp, fv_nphys, ini_grid_name
-use dyn_grid,                only: get_horiz_grid_dim_d, dyn_decomp, ini_grid_name
+use dyn_grid_impl,                only: timelevel, dom_mt, hvcoord, ini_grid_hdim_name
+!jtuse dyn_grid_impl,                only: get_horiz_grid_dim_d, dyn_decomp, fv_nphys, ini_grid_name
+use dyn_grid_impl,                only: get_horiz_grid_dim_d, dyn_decomp, ini_grid_name
 use dyn_tests_utils,         only: vcoord=>vc_moist_pressure, vc_moist_pressure, vc_dycore, string_vc, vc_str_lgth
 use edge_mod,                only: edgevpack_nlyr, edgevunpack_nlyr, edge_g
 use element_mod,             only: element_t
@@ -120,7 +120,7 @@ subroutine dyn_readnl(NLFileName)
   use constituents,   only: pcnst
   use params_mod,     only: SFCURVE, SPHERE_COORDS, Z2_NO_TASK_MAPPING
   use physical_constants, only: lx, ly
-  use gravity_waves_sources, only: use_fgf_pgrad_correction, use_fgf_zgrad_correction
+  use gravity_waves_sources_impl, only: use_fgf_pgrad_correction, use_fgf_zgrad_correction
   use physical_constants, only: scale_factor, scale_factor_inv, &
                                 domain_size, laplacian_rigid_factor, &
                                 DD_PI, rearth, rrearth
@@ -681,7 +681,7 @@ subroutine dyn_init(dyn_in, dyn_out)
     use air_composition,    only: thermodynamic_active_species_liq_idx,thermodynamic_active_species_ice_idx
     use air_composition,    only: thermodynamic_active_species_liq_idx_dycore,thermodynamic_active_species_ice_idx_dycore
     use air_composition,    only: thermodynamic_active_species_liq_num, thermodynamic_active_species_ice_num
-    use dyn_grid,         only: elem
+    use dyn_grid_impl,         only: elem
     use cam_control_mod,  only: aqua_planet, ideal_phys, adiabatic
     use cam_instance,     only: inst_index
     use cam_pio_utils,    only: clean_iodesc_list
@@ -2086,4 +2086,4 @@ end subroutine read_phys_field_2d
 !========================================================================================
 
 
-end module dyn_comp
+end module dyn_comp_impl

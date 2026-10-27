@@ -3,7 +3,7 @@
 ! !MODULE: stepon -- FV Dynamics specific time-stepping
 !
 ! !INTERFACE:
-module stepon
+module stepon_impl
 
 ! !USES:
 ! from cam
@@ -16,7 +16,7 @@ module stepon
    use ppgrid,         only: begchunk, endchunk
    use physconst,      only: zvir, cappa, gravit
    use physics_types,  only: physics_state, physics_tend
-   use dyn_comp,       only: dyn_import_t, dyn_export_t
+   use dyn_comp_impl,       only: dyn_import_t, dyn_export_t
    use perf_mod,       only: t_startf, t_stopf, t_barrierf
    use time_manager,   only: get_step_size, is_first_restart_step
 ! from SE
@@ -89,7 +89,7 @@ subroutine stepon_init(dyn_in, dyn_out )
   use dimensions_mod_cam,     only: cnst_longname_gll, cnst_name_gll
   use cam_history,            only: addfld, add_default, horiz_only
   use cam_history,            only: register_vector_field
-  use gravity_waves_sources,  only: gws_init
+  use gravity_waves_sources_impl,  only: gws_init
   use phys_control,           only: use_gw_front
   use cam_history_support,    only: max_fieldname_len
 
@@ -196,7 +196,7 @@ end subroutine stepon_init
 subroutine stepon_run1( dtime_out, phys_state, phys_tend,               &
                         pbuf2d, dyn_in, dyn_out )
 
-  use dp_coupling, only: d_p_coupling
+  use dp_coupling_impl, only: d_p_coupling
   use time_mod,    only: tstep      ! dynamics timestep
   use time_manager, only: is_last_step, is_first_step
   use control_mod_cam, only: ftype
@@ -287,8 +287,8 @@ end subroutine stepon_run1
 
 subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
    use dimensions_mod_cam, only: nlev, nlevp, nelemd, np, npsq
-   use dyn_grid,           only: TimeLevel, hvcoord, dom_mt
-   use dp_coupling,        only: p_d_coupling
+   use dyn_grid_impl,           only: TimeLevel, hvcoord, dom_mt
+   use dp_coupling_impl,        only: p_d_coupling
    use parallel_mod_cam,   only: par
    use time_mod,           only: tstep, TimeLevel_Qdp   !  dynamics typestep
    use control_mod_cam,    only: ftype, qsplit
@@ -492,9 +492,9 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
 subroutine stepon_run3(dtime, cam_out, phys_state, dyn_in, dyn_out)
 
    use camsrfexch,         only: cam_out_t
-   use dyn_comp,           only: dyn_run
-   use advect_tend,        only: compute_adv_tends_xyz
-   use dyn_grid,           only: TimeLevel
+   use dyn_comp_impl,           only: dyn_run
+   use advect_tend_impl,        only: compute_adv_tends_xyz
+   use dyn_grid_impl,           only: TimeLevel
    use time_mod,           only: TimeLevel_Qdp
    use control_mod_cam,    only: qsplit
    use dimensions_mod_cam, only: nelemd
@@ -537,7 +537,7 @@ end subroutine stepon_run3
 !
 ! !INTERFACE:
 subroutine stepon_final(dyn_in, dyn_out)
-  use dyn_grid,           only: fv_physgrid_final
+  use dyn_grid_impl,           only: fv_physgrid_final
   use dimensions_mod_cam, only: fv_nphys
   use cam_logfile,        only: iulog
   use prim_driver_mod,    only: prim_finalize
@@ -574,7 +574,7 @@ end subroutine stepon_final
 subroutine diag_dynvar_ic(elem)
    use cam_history,            only: outfld, hist_fld_active, write_inithist
    use constituents,           only: cnst_type
-   use dyn_grid,               only: TimeLevel, hvcoord
+   use dyn_grid_impl,               only: TimeLevel, hvcoord
    use cam_history_support,    only: max_fieldname_len
    use time_mod,               only: TimeLevel_Qdp   !  dynamics typestep
    use control_mod_cam,        only: qsplit
@@ -730,4 +730,4 @@ subroutine diag_dynvar_ic(elem)
 end subroutine diag_dynvar_ic
 
 
-end module stepon
+end module stepon_impl

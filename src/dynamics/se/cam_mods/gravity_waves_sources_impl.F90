@@ -1,4 +1,4 @@
-module gravity_waves_sources
+module gravity_waves_sources_impl
   use derivative_mod, only : derivative_t
   use dimensions_mod_cam, only : np,nlev,nlevp
   use edgetype_mod, only       : EdgeBuffer_t
@@ -48,7 +48,7 @@ CONTAINS
   subroutine gws_src_fnct(elem, tl, nphys, frontgf, frontga)
     use dimensions_mod_cam, only : npsq, nelemd, fv_nphys
     use dof_mod, only         : UniquePoints
-    use dyn_grid, only        : dom_mt
+    use dyn_grid_impl, only        : dom_mt
     use hybrid_mod, only     : hybrid_create
     use parallel_mod_cam, only   : par
     use ppgrid, only          : pver
@@ -101,7 +101,7 @@ CONTAINS
     ! directly outside any OpenMP region and covered only thread 0's elements.
     use dimensions_mod_cam, only : nelemd, fv_nphys
     use dof_mod, only         : UniquePoints
-    use dyn_grid, only        : dom_mt
+    use dyn_grid_impl, only        : dom_mt
     use hybrid_mod, only     : hybrid_create
     use parallel_mod_cam, only   : par
     use ppgrid, only          : pver
@@ -241,7 +241,7 @@ CONTAINS
     use derivative_mod,     only: gradient_sphere, ugradv_sphere
     use edge_mod,           only: edge_g, edgevpack_nlyr, edgevunpack_nlyr
     use bndry_mod,          only: bndry_exchangev
-    use dyn_grid,           only: hvcoord
+    use dyn_grid_impl,           only: hvcoord
     use spmd_utils,         only: iam
     use parallel_mod_cam,   only: par
     use element_ops,        only: get_temperature, get_hydro_pressure_i
@@ -484,4 +484,4 @@ CONTAINS
     end do
   end subroutine compute_vertical_derivative
   !-------------------------------------------------------------------------------------------------
-end module gravity_waves_sources
+end module gravity_waves_sources_impl

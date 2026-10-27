@@ -2,7 +2,7 @@
 !-------------------------------------------------------------------------------
 ! dynamics - physics coupling module
 !-------------------------------------------------------------------------------
-module dp_coupling
+module dp_coupling_impl
   use air_composition, only:  rairv, cpairv
   use bndry_mod,      only: bndry_exchangeV
   use cam_abortutils, only: endrun
@@ -10,8 +10,8 @@ module dp_coupling
   use constituents,   only: pcnst, cnst_name
   use dimensions_mod_cam, only: np, npsq, nelemd, nlev, fv_nphys
   use dof_mod,        only: UniquePoints, PutUniquePoints
-  use dyn_comp,       only: dyn_export_t, dyn_import_t
-  use dyn_grid,       only: TimeLevel, hvcoord, dom_mt
+  use dyn_comp_impl,       only: dyn_export_t, dyn_import_t
+  use dyn_grid_impl,       only: TimeLevel, hvcoord, dom_mt
   use element_ops,    only: get_temperature
   use element_mod,    only: element_t
   use kinds,          only: real_kind, int_kind
@@ -35,9 +35,9 @@ CONTAINS
 
 !===============================================================================
   subroutine d_p_coupling(phys_state, phys_tend,  pbuf2d, dyn_out)
-    use dyn_comp,              only: frontgf_idx, frontga_idx, vort4gw_idx
+    use dyn_comp_impl,              only: frontgf_idx, frontga_idx, vort4gw_idx
     use gllfvremap_mod,        only: gfr_dyn_to_fv_phys
-    use gravity_waves_sources, only: gws_src_fnct, gws_src_vort
+    use gravity_waves_sources_impl, only: gws_src_fnct, gws_src_vort
     use phys_control,           only: use_gw_front, use_gw_front_igw,  use_gw_movmtn_pbl
     use physics_buffer,        only: physics_buffer_desc, pbuf_get_chunk, &
                                      pbuf_get_field
@@ -601,4 +601,4 @@ CONTAINS
   end subroutine derived_phys
 
 
-end module dp_coupling
+end module dp_coupling_impl

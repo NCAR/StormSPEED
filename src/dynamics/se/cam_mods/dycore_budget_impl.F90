@@ -1,4 +1,4 @@
-module dycore_budget
+module dycore_budget_impl
 use shr_kind_mod, only: r8=>shr_kind_r8
 implicit none
 
@@ -525,4 +525,4 @@ end subroutine print_budget
 !!$    end if
 !!$  end if
 !!$end function abs_diff
-end module dycore_budget
+end module dycore_budget_impl

@@ -1,10 +1,10 @@
-module interp_mod
+module interp_mod_impl
   use shr_kind_mod,        only: r8 => shr_kind_r8, r4 => shr_kind_r4
   use dimensions_mod_cam,  only: nelemd, np, ne
   use interpolate_mod_cam, only: interpdata_t, &
                                  interp_lat => lat, interp_lon => lon, &
                                  interp_gweight => gweight
-  use dyn_grid,            only: elem
+  use dyn_grid_impl,            only: elem
   use spmd_utils,          only: iam
   use cam_history_support, only: fillvalue
   use hybrid_mod_cam,      only: hybrid_t, config_thread_region
@@ -614,4 +614,4 @@ CONTAINS
 
   end subroutine write_interpolated_vector
 
-end module interp_mod
+end module interp_mod_impl

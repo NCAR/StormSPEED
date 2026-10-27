@@ -1,4 +1,4 @@
-module restart_dynamics
+module restart_dynamics_impl
 
 ! Write and read dynamics fields from the restart file.  For exact restart
 ! it is necessary to write all element data, including duplicate columns,
@@ -14,11 +14,10 @@ module restart_dynamics
 use shr_kind_mod,     only: r8 => shr_kind_r8
 use shr_kind_mod,     only: i8 => shr_kind_i8
 use spmd_utils,       only: iam, masterproc
-use control_mod_cam,  only: theta_hydrostatic_mode
 
-use constituents,     only: cnst_name, pcnst
-use dyn_grid,         only: timelevel, elem
-use dyn_comp,         only: dyn_import_t, dyn_export_t, dyn_init, write_restart_unstruct
+use constituents,     only: cnst_name
+use dyn_grid_impl,         only: timelevel, fvm, elem, edgebuf
+use dyn_comp_impl,         only: dyn_import_t, dyn_export_t, dyn_init, write_restart_unstruct
 use hycoef,           only: init_restart_hycoef, write_restart_hycoef, &
                             hyai, hybi, ps0
 use ref_pres,         only: ptop_ref
@@ -43,14 +42,16 @@ use infnan,           only: isnan
 use cam_logfile,      only: iulog
 use cam_abortutils,   only: endrun
 
-use parallel_mod_cam,   only: par
-use thread_mod_cam,     only: horz_num_threads
-use dimensions_mod_cam, only: np, npsq, ne, nlev, qsize, nelemd, nc, ntrac, use_cslam, nlevp
-use dof_mod,            only: UniquePoints
-use element_mod,        only: element_t
-use time_mod,           only: tstep, TimeLevel_Qdp
-use edge_mod,           only: edgevpack_nlyr, edgevunpack_nlyr, edge_g
-use bndry_mod,          only: bndry_exchangeV
+use parallel_mod,     only: par
+use thread_mod,       only: horz_num_threads
+use dimensions_mod,   only: np, npsq, ne, nlev, qsize, nelemd, nc, ntrac, use_cslam
+use dof_mod,          only: UniquePoints
+use element_mod,      only: element_t
+use se_dyn_time_mod,  only: tstep, TimeLevel_Qdp
+
+use edge_mod,         only: initEdgeBuffer, edgeVpack, edgeVunpack, FreeEdgeBuffer
+use edgetype_mod,     only: EdgeBuffer_t
+use bndry_mod,        only: bndry_exchange
 
 use fvm_control_volume_mod, only: fvm_struct
 
@@ -65,10 +66,7 @@ public :: &
 
 ! these variables are module data so they can be shared between the
 ! file definition and write phases
-type(var_desc_t)              :: ps_desc, udesc, vdesc, tdesc, omegadesc, phisdesc
-#ifdef MODEL_THETA_L
-type(var_desc_t)              :: wdesc, PHINHdesc
-#endif
+type(var_desc_t)              :: psdry_desc, udesc, vdesc, tdesc
 type(var_desc_t), allocatable :: qdesc_dp(:)
 type(var_desc_t)              :: dp_fvm_desc
 type(var_desc_t), pointer     :: c_fvm_desc(:)
@@ -104,7 +102,6 @@ subroutine init_restart_dynamics(file, dyn_out)
    integer :: i
    integer :: vdimids(2)
    integer :: nlev_dimid
-   integer :: nlevp_dimid
    integer :: ncol_dimid
    integer :: ncol_fvm_dimid
    integer :: time_dimid
@@ -119,7 +116,6 @@ subroutine init_restart_dynamics(file, dyn_out)
    call init_nelem_tot()
    call init_restart_hycoef(file, vdimids)
    nlev_dimid = vdimids(1)
-   nlevp_dimid = vdimids(2)
 
    call pio_seterrorhandling(File, pio_bcast_error, err_handling)
 
@@ -139,20 +135,11 @@ subroutine init_restart_dynamics(file, dyn_out)
       ierr = PIO_Put_Att(File, PIO_GLOBAL, 'np', np)
    end if
 
-   ierr = PIO_Def_Var(File, 'PS', pio_double, (/ncol_dimid, time_dimid/), ps_desc)
-   ierr = PIO_Def_Var(File, 'OMEGA', pio_double, (/ncol_dimid, nlev_dimid/), omegadesc)
-   ierr = PIO_Def_Var(File, 'PHIS', pio_double, (/ncol_dimid/), phisdesc)
+   ierr = PIO_Def_Var(File, 'PSDRY', pio_double, (/ncol_dimid, time_dimid/), psdry_desc)
    ierr = PIO_Def_Var(File, 'U', pio_double, (/ncol_dimid, nlev_dimid, time_dimid/), Udesc)
    ierr = PIO_Def_Var(File, 'V', pio_double, (/ncol_dimid, nlev_dimid, time_dimid/), Vdesc)
-#ifdef MODEL_THETA_L
-    ierr = PIO_Def_Var(File, 'VTheta_dp', pio_double, (/ncol_dimid, nlev_dimid, time_dimid/), Tdesc)
-    if( .not. theta_hydrostatic_mode ) then
-       ierr = PIO_Def_Var(File, 'W', pio_double, (/ncol_dimid, nlevp_dimid, time_dimid/), Wdesc)
-       ierr = PIO_Def_Var(File, 'PHINH', pio_double, (/ncol_dimid, nlevp_dimid, time_dimid/), PHINHdesc)
-    endif
-#else
    ierr = PIO_Def_Var(File, 'T', pio_double, (/ncol_dimid, nlev_dimid, time_dimid/), Tdesc)
-#endif
+
    allocate(qdesc_dp(qsize))
 
    do i=1,qsize
@@ -186,7 +173,7 @@ end subroutine init_restart_dynamics
 !=========================================================================================
 
 subroutine write_restart_dynamics(File, dyn_out)
-  use control_mod_cam,  only: qsplit
+  use control_mod,      only: qsplit
    type(file_desc_t), intent(inout) :: File
    type(dyn_export_t), intent(in)   :: dyn_out
 
@@ -222,9 +209,7 @@ subroutine write_restart_dynamics(File, dyn_out)
 
    if (iam .lt. par%nprocs) then
       elem => dyn_out%elem
-#ifndef MODEL_THETA_L
       fvm => dyn_out%fvm
-#endif
    else
       allocate (elem(0), fvm(0))
    endif
@@ -257,7 +242,7 @@ subroutine write_restart_dynamics(File, dyn_out)
             ii = 1
             do j = 1, nc
                do i = 1, nc
-!jt                  buf3d(ii,k,ie) = fvm(ie)%dp_fvm(i,j,k)
+                  buf3d(ii,k,ie) = fvm(ie)%dp_fvm(i,j,k)
                   ii = ii + 1
                end do
             end do
@@ -272,7 +257,7 @@ subroutine write_restart_dynamics(File, dyn_out)
                ii = 1
                do j = 1, nc
                   do i = 1, nc
-!jt                     buf3d(ii,k,ie) = fvm(ie)%c(i,j,k,m)
+                     buf3d(ii,k,ie) = fvm(ie)%c(i,j,k,m)
                      ii = ii + 1
                   end do
                end do
@@ -307,10 +292,6 @@ subroutine write_elem()
    type(io_desc_t)  :: iodesc2d, iodesc3d
 
    real(kind=r8), pointer :: var3d(:,:,:,:), var2d(:,:,:)
-#ifdef MODEL_THETA_L
-   type(io_desc_t)  :: iodesc3dp
-   real(kind=r8), pointer :: var3dp(:,:,:,:)
-#endif
    !----------------------------------------------------------------------------
 
    ldof => get_restart_decomp(elem, 1)
@@ -321,52 +302,19 @@ subroutine write_elem()
    call PIO_InitDecomp(pio_subsystem, pio_double, (/nelem_tot*np*np,nlev/), ldof, iodesc3d)
    deallocate(ldof)
 
-#ifdef MODEL_THETA_L
-    if( .not. theta_hydrostatic_mode ) then
-       ldof => get_restart_decomp(elem, nlevp)
-       call PIO_InitDecomp(pio_subsystem, pio_double, (/nelem_tot*np*np,nlevp/),ldof , iodesc3dp)
-       deallocate(ldof)
-    endif
-#endif
-
    allocate(var2d(np,np,nelemd))
    allocate(var3d(np,np,nelemd,nlev))
-#ifdef MODEL_THETA_L
-   allocate(var3dp(np,np,nelemd,nlevp))
-#endif
 
    !$omp parallel do num_threads(horz_num_threads) private(ie, j, i)
    do ie = 1, nelemd
       do j = 1, np
          do i = 1, np
-            var2d(i,j,ie) = elem(ie)%state%phis(i,j)
+            var2d(i,j,ie) = elem(ie)%state%psdry(i,j)
          end do
       end do
    end do
-   call PIO_Write_Darray(File, phisdesc, iodesc2d, var2d, ierr)
-
-   !$omp parallel do num_threads(horz_num_threads) private(ie, k, j, i)
-   do ie = 1, nelemd
-      do k = 1, nlev
-         do j = 1, np
-            do i = 1, np
-               var3d(i,j,ie,k) = elem(ie)%derived%omega_p(i,j,k)
-            end do
-         end do
-      end do
-   end do
-   call PIO_Write_Darray(File, omegadesc, iodesc3d, var3d, ierr)
-
-   !$omp parallel do num_threads(horz_num_threads) private(ie, j, i)
-   do ie = 1, nelemd
-      do j = 1, np
-         do i = 1, np
-            var2d(i,j,ie) = elem(ie)%state%ps_v(i,j,tl)
-         end do
-      end do
-   end do
-   call PIO_Setframe(File, ps_desc, t_idx)
-   call PIO_Write_Darray(File, ps_desc, iodesc2d, var2d, ierr)
+   call PIO_Setframe(File, psdry_desc, t_idx)
+   call PIO_Write_Darray(File, psdry_desc, iodesc2d, var2d, ierr)
 
    !$omp parallel do num_threads(horz_num_threads) private(ie, k, j, i)
    do ie = 1, nelemd
@@ -399,49 +347,13 @@ subroutine write_elem()
       do k = 1, nlev
          do j = 1, np
             do i = 1, np
-#ifdef MODEL_THETA_L
-                var3d(i,j,ie,k) = elem(ie)%state%VTheta_dp(i,j,k,tl)
-#else
                var3d(i,j,ie,k) = elem(ie)%state%T(i,j,k,tl)
-#endif
             end do
          end do
       end do
    end do
    call PIO_Setframe(File, Tdesc, t_idx)
    call PIO_Write_Darray(File, Tdesc, iodesc3d, var3d, ierr)
-
-#ifdef MODEL_THETA_L
-    if( .not. theta_hydrostatic_mode )then
-    ! Write W
-!$omp parallel do private(ie, k, j, i)
-       do ie=1,nelemd
-          do k=1,nlevp
-             do j=1,np
-                do i=1,np
-                   var3dp(i,j,ie,k) = elem(ie)%state%w_i(i,j,k,tl)
-                end do
-             end do
-          end do
-       end do
-       call PIO_Setframe(File,Wdesc, t_idx)
-       call PIO_Write_Darray(File,Wdesc,iodesc3dp,var3dp,ierr)
-
-    ! Write Phi
-!$omp parallel do private(ie, k, j, i)
-       do ie=1,nelemd
-          do k=1,nlevp
-             do j=1,np
-                do i=1,np
-                   var3dp(i,j,ie,k) = elem(ie)%state%phinh_i(i,j,k,tl)
-                end do
-             end do
-          end do
-       end do
-       call PIO_Setframe(File,PHINHdesc, t_idx)
-       call PIO_Write_Darray(File,PHINHdesc,iodesc3dp,var3dp,ierr)
-    endif
-#endif
 
    do m = 1, qsize
 
@@ -462,12 +374,6 @@ subroutine write_elem()
 
    deallocate(var2d)
    deallocate(var3d)
-#ifdef MODEL_THETA_L
-    if( .not. theta_hydrostatic_mode ) then
-       deallocate(var3dp)
-       call pio_freedecomp(File, iodesc3dp)
-    endif
-#endif
    deallocate(qdesc_dp)
 
    call pio_freedecomp(File, iodesc2d)
@@ -485,13 +391,6 @@ subroutine write_unstruct()
 
    integer :: array_lens_3d(3), array_lens_2d(2)
    integer :: file_lens_2d(2), file_lens_1d(1)
-
-#ifdef MODEL_THETA_L
-   integer :: array_lens_3dp(3)
-   integer :: file_lens_2dp(2)
-   type(io_desc_t), pointer :: iodescp
-   real(r8),    allocatable :: var3dp(:,:,:)
-#endif
 
    type(io_desc_t), pointer :: iodesc
    real(r8),    allocatable :: var2d(:,:), var3d(:,:,:)
@@ -516,24 +415,13 @@ subroutine write_unstruct()
       ii = 1
       do j = 1, np
          do i = 1, np
-            var2d(ii,ie) = elem(ie)%state%ps_v(i,j,tl)
+            var2d(ii,ie) = elem(ie)%state%psdry(i,j)
             ii = ii + 1
          end do
       end do
    end do
-   call PIO_Setframe(File, ps_desc, t_idx)
-   call PIO_Write_Darray(File, ps_desc, iodesc, var2d, ierr)
-
-   do ie = 1, nelemd
-      ii = 1
-      do j = 1, np
-         do i = 1, np
-            var2d(ii,ie) = elem(ie)%state%phis(i,j)
-            ii = ii + 1
-         end do
-      end do
-   end do
-   call PIO_Write_Darray(File, phisdesc, iodesc, var2d, ierr)
+   call PIO_Setframe(File, psdry_desc, t_idx)
+   call PIO_Write_Darray(File, psdry_desc, iodesc, var2d, ierr)
 
    nullify(iodesc)
    deallocate(var2d)
@@ -544,26 +432,6 @@ subroutine write_unstruct()
    call cam_grid_get_decomp(grid_id, array_lens_3d, file_lens_2d, pio_double, iodesc)
 
    allocate(var3d(npsq,nlev,nelemd))
-#ifdef MODEL_THETA_L
-   ! create map for distributed write of 3D nlevp fields
-   array_lens_3dp = (/npsq, nlevp, nelemd/)
-   file_lens_2dp  = (/grid_dimlens(1), nlevp/)
-   call cam_grid_get_decomp(grid_id, array_lens_3dp, file_lens_2dp, pio_double, iodescp)
-   allocate(var3dp(npsq,nlevp,nelemd))
-#endif
-
-   do ie = 1, nelemd
-      do k = 1, nlev
-         ii = 1
-         do j = 1, np
-            do i = 1, np
-               var3d(ii,k,ie) = elem(ie)%derived%omega_p(i,j,k)
-               ii = ii + 1
-            end do
-         end do
-      end do
-   end do
-   call PIO_Write_Darray(File, omegadesc, iodesc, var3d, ierr)
 
    do ie = 1, nelemd
       do k = 1, nlev
@@ -598,11 +466,7 @@ subroutine write_unstruct()
          ii = 1
          do j = 1, np
             do i = 1, np
-#ifdef MODEL_THETA_L
-               var3d(ii,k,ie) = elem(ie)%state%VTheta_dp(i,j,k,tl)
-#else
                var3d(ii,k,ie) = elem(ie)%state%T(i,j,k,tl)
-#endif
                ii = ii + 1
             end do
          end do
@@ -611,41 +475,6 @@ subroutine write_unstruct()
    call PIO_Setframe(File, Tdesc, t_idx)
    call PIO_Write_Darray(File, Tdesc, iodesc, var3d, ierr)
 
-#ifdef MODEL_THETA_L
-    if( .not. theta_hydrostatic_mode )then
-    ! Write W
-!$omp parallel do private(ie, k, j, i, ii)
-       do ie = 1, nelemd
-          do k = 1, nlevp
-             ii = 1
-             do j = 1, np
-                do i = 1, np
-                   var3dp(ii,k,ie) = elem(ie)%state%w_i(i,j,k,tl)
-                   ii = ii + 1
-                end do
-             end do
-          end do
-       end do
-       call PIO_Setframe(File,Wdesc, t_idx)
-       call PIO_Write_Darray(File,Wdesc,iodescp,var3dp,ierr)
-
-    ! Write Phi
-!$omp parallel do private(ie, k, j, i, ii)
-       do ie=1,nelemd
-          do k=1,nlevp
-             ii = 1
-             do j=1,np
-                do i=1,np
-                   var3dp(ii,k,ie) = elem(ie)%state%phinh_i(i,j,k,tl)
-                   ii = ii + 1
-                end do
-             end do
-          end do
-       end do
-       call PIO_Setframe(File,PHINHdesc, t_idx)
-       call PIO_Write_Darray(File,PHINHdesc,iodescp,var3dp,ierr)
-    endif
-#endif
    do m = 1, qsize
 
       !$omp parallel do num_threads(horz_num_threads) private(ie, k, j, i)
@@ -667,9 +496,7 @@ subroutine write_unstruct()
 
    deallocate(var3d)
    deallocate(qdesc_dp)
-#ifdef MODEL_THETA_L
-   deallocate(var3dp)
-#endif
+
 end subroutine write_unstruct
 
 !-------------------------------------------------------------------------------
@@ -679,7 +506,7 @@ end subroutine write_restart_dynamics
 !=========================================================================================
 
 subroutine read_restart_dynamics(File, dyn_in, dyn_out)
-  use control_mod_cam,  only: qsplit
+  use control_mod,      only: qsplit
    ! arguments
    type(File_desc_t), intent(inout) :: File
    type(dyn_import_t), intent(out)  :: dyn_in
@@ -698,17 +525,10 @@ subroutine read_restart_dynamics(File, dyn_in, dyn_out)
    integer :: ncol_dimid
    integer :: ncol_fvm_dimid
 
-   type(var_desc_t) :: phisdesc
-   type(var_desc_t) :: omegadesc
    type(var_desc_t) :: udesc
    type(var_desc_t) :: vdesc
    type(var_desc_t) :: tdesc
-   type(var_desc_t) :: ps_desc
-#ifdef MODEL_THETA_L
-   type(var_desc_t) :: wdesc
-   type(var_desc_t) :: PHINHdesc
-#endif
-
+   type(var_desc_t) :: psdry_desc
    type(var_desc_t), allocatable :: qdesc_dp(:)
 
    integer :: grid_id
@@ -754,29 +574,15 @@ subroutine read_restart_dynamics(File, dyn_in, dyn_out)
       call endrun(sub//': Restart file nlev does not match model.')
    end if
 
-   ierr = PIO_Inq_varid(File, 'OMEGA',     omegadesc)
-   call cam_pio_handle_error(ierr, sub//': cannot find OMEGA')
-   ierr = PIO_Inq_varid(File, 'PHIS',     phisdesc)
-   call cam_pio_handle_error(ierr, sub//': cannot find PHIS')
    ! variable descriptors of required dynamics fields
    ierr = PIO_Inq_varid(File, 'U',     udesc)
    call cam_pio_handle_error(ierr, sub//': cannot find U')
    ierr = PIO_Inq_varid(File, 'V',     Vdesc)
    call cam_pio_handle_error(ierr, sub//': cannot find V')
-#ifdef MODEL_THETA_L
-   ierr = PIO_Inq_varid(File, 'VTheta_dp',     tdesc)
-   call cam_pio_handle_error(ierr, sub//': cannot find VTheta_dp')
-   ierr = PIO_Inq_varid(File, 'W',     wdesc)
-   call cam_pio_handle_error(ierr, sub//': cannot find W')
-   ierr = PIO_Inq_varid(File, 'PHINH',     PHINHdesc)
-   call cam_pio_handle_error(ierr, sub//': cannot find PHINH')
-#else
    ierr = PIO_Inq_varid(File, 'T',     tdesc)
    call cam_pio_handle_error(ierr, sub//': cannot find T')
-#endif
-   ierr = PIO_Inq_varid(File, 'PS', ps_desc)
-   call cam_pio_handle_error(ierr, sub//': cannot find PS')
-
+   ierr = PIO_Inq_varid(File, 'PSDRY', psdry_desc)
+   call cam_pio_handle_error(ierr, sub//': cannot find PSDRY')
    allocate(qdesc_dp(qsize))
    do m = 1, qsize
       ierr = PIO_Inq_varid(File, "dp"//trim(cnst_name(m)), Qdesc_dp(m))
@@ -799,11 +605,11 @@ subroutine read_restart_dynamics(File, dyn_in, dyn_out)
 
    deallocate(qdesc_dp)
 
-   ! recompute dp3d from ps
+   ! recompute dp3d from psdry
    do ie = 1, nelemd
       do k = 1, nlev
          elem(ie)%state%dp3d(:,:,k,tl) = ((hyai(k+1) - hyai(k))*ps0) + &
-                              ((hybi(k+1) - hybi(k))*elem(ie)%state%ps_v(:,:,tl))
+                              ((hybi(k+1) - hybi(k))*elem(ie)%state%psdry(:,:))
       end do
    end do
 
@@ -851,7 +657,7 @@ subroutine read_restart_dynamics(File, dyn_in, dyn_out)
             ii = 1
             do j = 1, nc
                do i = 1, nc
-!jt                  fvm(ie)%dp_fvm(i,j,k) = var3d_fvm(ii,k,ie)
+                  fvm(ie)%dp_fvm(i,j,k) = var3d_fvm(ii,k,ie)
                   ii = ii + 1
                end do
             end do
@@ -868,7 +674,7 @@ subroutine read_restart_dynamics(File, dyn_in, dyn_out)
                ii = 1
                do j = 1, nc
                   do i = 1, nc
-!jt                     fvm(ie)%c(i,j,k,m) = var3d_fvm(ii,k,ie)
+                     fvm(ie)%c(i,j,k,m) = var3d_fvm(ii,k,ie)
                      ii = ii + 1
                   end do
                end do
@@ -880,7 +686,7 @@ subroutine read_restart_dynamics(File, dyn_in, dyn_out)
       do ie = 1, nelemd
          do j = 1, nc
             do i = 1, nc
-!jt               fvm(ie)%psc(i,j) = sum(fvm(ie)%dp_fvm(i,j,:)) +  ptop_ref
+               fvm(ie)%psc(i,j) = sum(fvm(ie)%dp_fvm(i,j,:)) +  ptop_ref
             end do
          end do
       end do
@@ -908,10 +714,6 @@ subroutine read_elem()
    real(r8), allocatable :: var3d(:), var2d(:)
 
    character(len=*), parameter :: sub='read_elem'
-#ifdef MODEL_THETA_L
-   type(io_desc_t)  :: iodesc3dp
-   real(kind=r8), pointer :: var3dp(:)
-#endif
    !----------------------------------------------------------------------------
 
    ierr = PIO_Inq_dimlen(File, ncol_dimid, ncol)
@@ -925,39 +727,19 @@ subroutine read_elem()
    call PIO_InitDecomp(pio_subsystem, pio_double, (/ncol,nlev/), ldof, iodesc3d)
    deallocate(ldof)
 
-#ifdef MODEL_THETA_L
-   ldof => get_restart_decomp(elem, nlevp)
-   call PIO_InitDecomp(pio_subsystem, pio_double, (/ncol,nlevp/), ldof, iodesc3dp)
-   deallocate(ldof)
-#endif
-
    allocate(var2d(nelemd*np*np), stat=ierr)
    if (ierr/=0) call endrun( sub//': not able to allocate var2d' )
    var2d = 0._r8
 
-   call pio_setframe(File, ps_desc, t_idx)
-   call pio_read_darray(File, ps_desc, iodesc2d, var2d, ierr)
-   call cam_pio_handle_error(ierr, sub//': reading PS')
+   call pio_setframe(File, psdry_desc, t_idx)
+   call pio_read_darray(File, psdry_desc, iodesc2d, var2d, ierr)
+   call cam_pio_handle_error(ierr, sub//': reading PSDRY')
    ii = 0
    do ie = 1, nelemd
       do j = 1, np
          do i = 1, np
             ii = ii + 1
-            elem(ie)%state%ps_v(i,j,tl) = var2d(ii)
-         end do
-      end do
-   end do
-
-   var2d = 0._r8
-
-   call pio_read_darray(File, phisdesc, iodesc2d, var2d, ierr)
-   call cam_pio_handle_error(ierr, sub//': reading PHIS')
-   ii = 0
-   do ie = 1, nelemd
-      do j = 1, np
-         do i = 1, np
-            ii = ii + 1
-            elem(ie)%state%phis(i,j) = var2d(ii)
+            elem(ie)%state%psdry(i,j) = var2d(ii)
          end do
       end do
    end do
@@ -965,22 +747,6 @@ subroutine read_elem()
    deallocate(var2d)
    allocate(var3d(nelemd*np*np*nlev), stat=ierr)
    if (ierr/=0) call endrun( sub//': not able to allocate var3d' )
-
-   var3d = 0._r8
-   call pio_read_darray(File, omegadesc, iodesc3d, var3d, ierr)
-   call cam_pio_handle_error(ierr, sub//': reading OMEGA')
-   ii = 0
-   do k = 1, nlev
-      do ie = 1, nelemd
-         do j = 1, np
-            do i = 1, np
-               ii = ii + 1
-               elem(ie)%derived%omega_p(i,j,k) = var3d(ii)
-            end do
-         end do
-      end do
-   end do
-
    var3d = 0._r8
 
    call pio_setframe(File, udesc, t_idx)
@@ -1022,53 +788,11 @@ subroutine read_elem()
          do j = 1, np
             do i = 1, np
                ii = ii + 1
-#ifdef MODEL_THETA_L
-               elem(ie)%state%VTheta_dp(i,j,k,tl) = var3d(ii)
-#else
                elem(ie)%state%T(i,j,k,tl) = var3d(ii)
-#endif
             end do
          end do
       end do
    end do
-
-#ifdef MODEL_THETA_L
-   allocate(var3dp(nelemd*np*np*nlevp), stat=ierr)
-   if (ierr/=0) call endrun( sub//': not able to allocate var3dp' )
-
-   var3dp = 0._r8
-   call pio_setframe(File, wdesc, t_idx)
-   call pio_read_darray(File, wdesc, iodesc3dp, var3dp, ierr)
-   call cam_pio_handle_error(ierr, sub//': reading W')
-   ii = 0
-   do k = 1, nlevp
-      do ie = 1, nelemd
-         do j = 1, np
-            do i = 1, np
-               ii = ii + 1
-               elem(ie)%state%w_i(i,j,k,tl) = var3dp(ii)
-            end do
-         end do
-      end do
-   end do
-
-   var3dp = 0._r8
-   call pio_setframe(File, phinhdesc, t_idx)
-   call pio_read_darray(File, phinhdesc, iodesc3dp, var3dp, ierr)
-   call cam_pio_handle_error(ierr, sub//': reading PHINH')
-   ii = 0
-   do k = 1, nlevp
-      do ie = 1, nelemd
-         do j = 1, np
-            do i = 1, np
-               ii = ii + 1
-               elem(ie)%state%phinh_i(i,j,k,tl) = var3dp(ii)
-            end do
-         end do
-      end do
-   end do
-   deallocate(var3dp)
-#endif
 
    do m = 1, qsize
       call pio_setframe(File, qdesc_dp(m), t_idx)
@@ -1100,11 +824,12 @@ subroutine read_unstruct()
    ! local variables
    integer :: grid_id
 
-   integer :: i, ie, ii, j, kptr, m, nlev_tot
+   integer :: i, ie, ii, j, kptr, m
 
    real(r8), allocatable :: dbuf2(:,:)         ! (npsq,nelemd)
    real(r8), allocatable :: dbuf3(:,:,:)       ! (npsq,nlev,nelemd)
-   real(r8), allocatable :: dbuf3p(:,:,:)      ! (npsq,nlevp,nelemd)
+
+   type(EdgeBuffer_t) :: edge
 
    character(len=*), parameter :: sub='read_unstruct'
    !----------------------------------------------------------------------------
@@ -1117,23 +842,12 @@ subroutine read_unstruct()
 
    allocate(dbuf2(npsq,nelemd))
 
-   call read_2d('PS', dbuf2)
+   call read_2d('PSDRY', dbuf2)
    do ie = 1, nelemd
       ii = 1
       do j = 1, np
          do i = 1, np
-            elem(ie)%state%ps_v(i,j,tl) = dbuf2(ii,ie)
-            ii = ii + 1
-         end do
-      end do
-   end do
-
-   call read_2d('PHIS', dbuf2)
-   do ie = 1, nelemd
-      ii = 1
-      do j = 1, np
-         do i = 1, np
-            elem(ie)%state%phis(i,j) = dbuf2(ii,ie)
+            elem(ie)%state%psdry(i,j) = dbuf2(ii,ie)
             ii = ii + 1
          end do
       end do
@@ -1142,17 +856,6 @@ subroutine read_unstruct()
    deallocate(dbuf2)
 
    allocate(dbuf3(npsq,nlev,nelemd))
-
-   call read_3d('OMEGA', dbuf3)
-   do ie = 1, nelemd
-      ii = 1
-      do j = 1, np
-         do i = 1, np
-            elem(ie)%derived%omega_p(i,j,:) = dbuf3(ii,:,ie)
-            ii = ii + 1
-         end do
-      end do
-   end do
 
    call read_3d('U', dbuf3)
    do ie = 1, nelemd
@@ -1176,54 +879,17 @@ subroutine read_unstruct()
       end do
    end do
 
-#ifdef MODEL_THETA_L
    call read_3d('T', dbuf3)
-#else
-   call read_3d('VTheta_dp', dbuf3)
-#endif
    do ie = 1, nelemd
       ii = 1
       do j = 1, np
          do i = 1, np
-#ifdef MODEL_THETA_L
-            elem(ie)%state%VTheta_dp(i,j,:,tl) = dbuf3(ii,:,ie)
-#else
             elem(ie)%state%T(i,j,:,tl) = dbuf3(ii,:,ie)
-#endif
             ii = ii + 1
          end do
       end do
    end do
 
-#ifdef MODEL_THETA_L
-
-   allocate(dbuf3p(npsq,nlevp,nelemd))
-
-   call read_3dp('W', dbuf3p)
-   do ie = 1, nelemd
-      ii = 1
-      do j = 1, np
-         do i = 1, np
-            elem(ie)%state%w_i(i,j,:,tl) = dbuf3p(ii,:,ie)
-            ii = ii + 1
-         end do
-      end do
-   end do
-
-   call read_3dp('PHINH', dbuf3p)
-   do ie = 1, nelemd
-      ii = 1
-      do j = 1, np
-         do i = 1, np
-            elem(ie)%state%phinh_i(i,j,:,tl) = dbuf3p(ii,:,ie)
-            ii = ii + 1
-         end do
-      end do
-   end do
-
-   deallocate(dbuf3p)
-
-#endif
    do m = 1, qsize
 
       call read_3d('dp'//trim(cnst_name(m)), dbuf3)
@@ -1242,59 +908,37 @@ subroutine read_unstruct()
    deallocate(dbuf3)
 
    ! boundary exchange
-   nlev_tot=2+(4+pcnst)*nlev+2*nlevp
-
-   do ie = 1, nelemd
-      kptr = 0
-      call edgeVpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%state%ps_v(:,:,tl), 1, kptr, nlev_tot)
-      kptr = kptr + 1
-      call edgeVpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%state%phis(:,:), 1, kptr, nlev_tot)
-      kptr = kptr + 1
-      call edgeVpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%derived%omega_p(:,:,:), nlev, kptr, nlev_tot)
-      kptr = kptr + nlev
-      call edgeVpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%state%v(:,:,:,:,tl), 2*nlev, kptr, nlev_tot)
-      kptr = kptr + (2 * nlev)
-#ifdef MODEL_THETA_L
-      call edgeVpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%state%VTheta_dp(:,:,:,tl), nlev, kptr, nlev_tot)
-#else
-      call edgeVpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%state%T(:,:,:,tl), nlev, kptr, nlev_tot)
-#endif
-      kptr = kptr + nlev
-#ifdef MODEL_THETA_L
-      call edgeVpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%state%w_i(:,:,:,tl), nlevp, kptr, nlev_tot)
-      kptr = kptr + nlevp
-      call edgeVpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%state%phinh_i(:,:,:,tl), nlevp, kptr, nlev_tot)
-      kptr = kptr + nlevp
-#endif
-      call edgeVpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%state%Qdp(:,:,:,:,tlQdp), nlev*qsize, kptr, nlev_tot)
-   end do
    if (iam < par%nprocs) then
-      call bndry_exchangeV(par, edge_g)
+      call initEdgeBuffer(par, edge, elem, (3+qsize)*nlev + 1 )
    end if
    do ie = 1, nelemd
       kptr = 0
-      call edgeVunpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%state%ps_v(:,:,tl), 1, kptr, nlev_tot)
+      call edgeVpack(edge, elem(ie)%state%psdry(:,:), 1, kptr, ie)
       kptr = kptr + 1
-      call edgeVunpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%state%phis(:,:), 1, kptr, nlev_tot)
-      kptr = kptr + 1
-      call edgeVunpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%derived%omega_p(:,:,:), nlev, kptr, nlev_tot)
-      kptr = kptr + nlev
-      call edgeVunpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%state%v(:,:,:,:,tl), 2*nlev, kptr, nlev_tot)
+      call edgeVpack(edge, elem(ie)%state%v(:,:,:,:,tl), 2*nlev, kptr, ie)
       kptr = kptr + (2 * nlev)
-#ifdef MODEL_THETA_L
-      call edgeVunpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%state%VTheta_dp(:,:,:,tl), nlev, kptr, nlev_tot)
-#else
-      call edgeVunpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%state%T(:,:,:,tl), nlev, kptr, nlev_tot)
-#endif
+      call edgeVpack(edge, elem(ie)%state%T(:,:,:,tl), nlev, kptr, ie)
       kptr = kptr + nlev
-#ifdef MODEL_THETA_L
-      call edgeVunpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%state%w_i(:,:,:,tl), nlevp, kptr, nlev_tot)
-      kptr = kptr + nlevp
-      call edgeVunpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%state%phinh_i(:,:,:,tl), nlevp, kptr, nlev_tot)
-      kptr = kptr + nlevp
-#endif
-      call edgeVunpack_nlyr(edge_g, elem(ie)%desc, elem(ie)%state%Qdp(:,:,:,:,tlQdp), nlev*qsize, kptr, nlev_tot)
+      call edgeVpack(edge, elem(ie)%state%Qdp(:,:,:,:,tlQdp), nlev*qsize, kptr, ie)
    end do
+   if (iam < par%nprocs) then
+      call bndry_exchange(par, edge, location='read_restart_dynamics::read_ustruct')
+   end if
+   do ie = 1, nelemd
+      kptr = 0
+      call edgeVunpack(edge, elem(ie)%state%psdry(:,:), 1, kptr, ie)
+      kptr = kptr + 1
+      call edgeVunpack(edge, elem(ie)%state%v(:,:,:,:,tl), 2*nlev, kptr, ie)
+      kptr = kptr + (2 * nlev)
+      call edgeVunpack(edge, elem(ie)%state%T(:,:,:,tl), nlev, kptr, ie)
+      kptr = kptr + nlev
+      call edgeVunpack(edge, elem(ie)%state%Qdp(:,:,:,:,tlQdp), nlev*qsize, kptr, ie)
+   end do
+
+   if (iam < par%nprocs) then
+      call FreeEdgeBuffer(edge)
+   end if
+
 end subroutine read_unstruct
 
 !-------------------------------------------------------------------------------
@@ -1348,30 +992,6 @@ subroutine read_3d(fieldname, buffer)
 end subroutine read_3d
 
 !-------------------------------------------------------------------------------
-subroutine read_3dp(fieldname, buffer)
-
-   character(len=*),  intent(in)    :: fieldname
-   real(r8),          intent(inout) :: buffer(:,:,:)
-
-   logical :: found
-   !----------------------------------------------------------------------------
-
-   buffer = 0.0_r8
-   call infld(trim(fieldname), file, dimname1, 'ilev', 1, npsq, 1, nlevp, &
-              1, nelemd, buffer, found, gridname='GLL', timelevel=int(t_idx))
-   if (.not. found) then
-      call endrun('read_restart_dynamics: read_unstruct: read_3dp: Could not find ' // &
-                   trim(fieldname))
-   end if
-
-   ! This code allows use of compiler option to set uninitialized values
-   ! to NaN.  In that case infld can return NaNs where the element GLL points
-   ! are not "unique columns"
-   where (isnan(buffer)) buffer = 0.0_r8
-
- end subroutine read_3dp
-
-!-------------------------------------------------------------------------------
 end subroutine read_restart_dynamics
 
 !=========================================================================================
@@ -1379,6 +999,7 @@ end subroutine read_restart_dynamics
 !=========================================================================================
 
 function get_restart_decomp(elem, lev) result(ldof)
+
 
    ! Get the integer mapping of a variable in the dynamics decomp in memory.
    ! The canonical ordering is as on the file. A 0 value indicates that the
@@ -1388,9 +1009,7 @@ function get_restart_decomp(elem, lev) result(ldof)
    integer,         intent(in) :: lev
    integer(i8),     pointer    :: ldof(:)
 
-   integer     :: i, j, k, ie
-   integer(i8) :: base ! force integer(i8) calculation
-
+   integer :: i, j, k, ie
    !----------------------------------------------------------------------------
 
    allocate(ldof(nelemd*np*np*lev))
@@ -1398,9 +1017,8 @@ function get_restart_decomp(elem, lev) result(ldof)
    j = 1
    do k = 1, lev
       do ie = 1, nelemd
-         base = int(elem(ie)%GlobalID-1, i8)*np*np + int(k-1, i8)*nelem_tot*np*np
          do i = 1, np*np
-            ldof(j) = base + i
+            ldof(j) = (elem(ie)%GlobalID-1)*np*np + (k-1)*nelem_tot*np*np + i
             j = j + 1
          end do
       end do
@@ -1414,7 +1032,7 @@ function get_restart_decomp_fvm(elem, lev) result(ldof)
 
    type(element_t), intent(in) :: elem(:)
    integer,         intent(in) :: lev
-   integer,         pointer    :: ldof(:)
+   integer(i8),     pointer    :: ldof(:)
 
    integer :: i, j, k, ie
    !----------------------------------------------------------------------------
@@ -1435,4 +1053,4 @@ end function get_restart_decomp_fvm
 
 !=========================================================================================
 
-end module restart_dynamics
+end module restart_dynamics_impl
