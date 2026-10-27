@@ -52,6 +52,7 @@ CONTAINS
                                    get_interp_parameter, set_interp_parameter, &
                                    get_interp_gweight, setup_latlon_interp
     use parallel_mod_cam,    only: par
+    use dimensions_mod_cam,  only: fv_nphys
 
     ! Dummy arguments
     logical,             intent(inout) :: interp_ok
@@ -69,6 +70,16 @@ CONTAINS
     !---------------------------------------------------------------------------
 
     nullify(grid_map)
+
+    ! The E3SM (HOMME) dycores have no physics-grid path for interpolated
+    ! history output (E3SM/EAM aborts here as well). Without this check,
+    ! physgrid fields were reshaped as np x np GLL blocks and written as
+    ! garbage. Physgrid support is planned as a separate development.
+    if (any(interp_output) .and. fv_nphys > 0) then
+       call endrun('setup_history_interpolation: interpolated output is not '// &
+            'supported with physgrid (fv_nphys > 0) for the E3SM dycores; '// &
+            'use a GLL (np4) grid or set interpolate_output = .false.')
+    end if
 
     ! For this dycore, interpolated output should be OK
     interp_ok = (iam < par%nprocs)
