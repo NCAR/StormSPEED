@@ -1,0 +1,84 @@
+StormSPEED ChangeLog
+====================
+
+StormSPEED tags are named <CAM base tag>_ss.<NN>, e.g. cam6_4_211_ss.01:
+  - <CAM base tag> is the ESCOMP CAM tag the stormspeed branch is synced to.
+  - ss.<NN> increases by one for each PR merged into stormspeed and restarts at
+    .01 when stormspeed is synced to a newer CAM tag.
+Regression baselines are named after the tag and compiler, e.g.
+cam6_4_211_ss.02_intel, and each PR is compared against the baselines of the
+previous StormSPEED tag (or of the CAM base tag for ss.01).
+Newest entries are at the top.  CAM's own history is in doc/ChangeLog.
+
+===============================================================
+
+Tag name: cam6_4_211_ss.01
+Originator(s): jtruesdal
+Date: <date>
+One-line Summary: ccs_config fixes for Izumi: GNU BOZ flag restored, C++ compiler for NAG
+Github PR URL: <url>
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+- Izumi GNU builds failed on BOZ literals (e.g. src/control/cam_history.F90:
+  gen_hash_key_offset = z'000053db'): the forked machines/izumi/gnu_izumi.cmake had
+  dropped the upstream unconditional
+  string(APPEND FFLAGS " -fallow-argument-mismatch -fallow-invalid-boz ").
+- Izumi NAG builds of theta-l / theta-l_kokkos failed ("ERROR:  is not in PATH?"):
+  CAM's buildlib builds Kokkos for both targets and nag.cmake defined no C++
+  compiler.  Use GNU C++ (MPICXX mpicxx, SCXX g++) alongside NAG Fortran, as is
+  already done for C.
+
+Describe any changes made to build system:
+- ccs_config updated to ccs_config_cesm1.0.91_nh.03 (jtruesdal/ccs_config_cesm).
+
+Describe any changes made to the namelist: N/A
+
+List any changes to the defaults for the boundary datasets: N/A
+
+Describe any substantial timing or memory changes: N/A
+
+Code reviewed by: <reviewers>
+
+List all files eliminated: N/A
+
+List all files added and what they do:
+A       doc/ChangeLog_stormspeed
+  - StormSPEED tag history (this file).
+
+List all existing files that have been modified, and describe the changes:
+M       .gitmodules
+M       ccs_config
+  - ccs_config_cesm1.0.91_nh.02 -> ccs_config_cesm1.0.91_nh.03:
+    machines/cmake_macros/nag.cmake: set(MPICXX "mpicxx"), set(SCXX "g++")
+    machines/izumi/gnu_izumi.cmake: restore
+      string(APPEND FFLAGS " -fallow-argument-mismatch -fallow-invalid-boz ")
+
+If there were any failures reported from running test_driver.sh on any test
+platform, they are listed below with their justification.
+
+derecho/intel/aux_cam: <results>
+
+derecho/nvhpc/aux_cam: <results>
+
+izumi/nag/aux_cam: <results>
+
+izumi/gnu/aux_cam: <results>
+
+CAM tag used for the baseline comparison tests if different than previous
+tag: cam6_4_211
+
+Summarize any changes to answers: <expected: none; machine-config change only>
+
+===============================================================
+
+Tag name: cam6_4_211_ss.00
+Date: Oct 27, 2026
+One-line Summary: Starting point for StormSPEED tags (stormspeed at a222d67)
+
+stormspeed branch at a222d67 (Merge pull request #98 from NCAR/senh_pr4_threads),
+based on CAM cam6_4_211.  E3SM HOMME dycores (CAM_TARGET=theta-l, theta-l_kokkos,
+preqx) in src/dynamics/senh with E3SM pinned at 057df66; ccs_config at
+ccs_config_cesm1.0.91_nh.02.  This tag predates this file; it is recorded here as
+the reference point for later StormSPEED tags.
+
+===============================================================
