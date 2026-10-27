@@ -1,0 +1,2 @@
+se_theta_hydrostatic_mode = .true.
+se_tstep_type = 2
