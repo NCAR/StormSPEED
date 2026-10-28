@@ -3211,4 +3211,63 @@
     </options>
   </test>
 
+
+  <!-- StormSPEED production configuration: ne30pg2 FHISTC_LTso (climate runs; TAMU template) -->
+  <test compset="FHISTC_LTso" grid="ne30pg2_ne30pg2_mt232" name="ERS_Ln9" testmods="cam/outfrq9s_thetal" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:59:00</option>
+      <option name="comment">theta-l production grid (pg2) exact restart</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne30pg2_ne30pg2_mt232" name="ERS_Ln9" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:59:00</option>
+      <option name="comment">theta-l_kokkos production grid (pg2) exact restart</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne30pg2_ne30pg2_mt232" name="ERS_Lm2" testmods="cam/outfrq1m_thetal" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm_climate"/>
+    </machines>
+    <options>
+      <option name="wallclock">03:00:00</option>
+      <option name="comment">theta-l climate smoke: 2 months, restart at month boundary, monthly history</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne30pg2_ne30pg2_mt232" name="ERS_Lm2" testmods="cam/outfrq1m_thetal_kokkos" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm_climate"/>
+    </machines>
+    <options>
+      <option name="wallclock">03:00:00</option>
+      <option name="comment">theta-l_kokkos climate smoke: 2 months, restart at month boundary, monthly history</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne30pg2_ne30pg2_mt232" name="SMS_Ln9" testmods="cam/outfrq9s_thetal_kokkos_gpu" supported="false">
+    <machines>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm_gpu"/>
+      <machine name="casper" compiler="gnu" category="aux_cam_e3sm_gpu"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:59:00</option>
+      <option name="comment">theta-l_kokkos HOMME on GPUs (casper h100 ~ TAMU VISION h200; derecho a100)</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne30pg2_ne30pg2_mt232" name="ERS_Ln9" testmods="cam/outfrq9s_thetal_kokkos_gpu" supported="false">
+    <machines>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm_gpu"/>
+      <machine name="casper" compiler="gnu" category="aux_cam_e3sm_gpu"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:59:00</option>
+      <option name="comment">theta-l_kokkos HOMME on GPUs: exact restart</option>
+    </options>
+  </test>
+
 </testlist>

@@ -1,0 +1,11 @@
+# theta-l_kokkos with the HOMME dycore on NVIDIA GPUs: one MPI rank per GPU
+./xmlchange NTASKS=16
+./xmlchange NTHRDS=1
+./xmlchange ROOTPE=0
+./xmlchange NGPUS_PER_NODE=4
+./xmlchange OVERSUBSCRIBE_GPU=FALSE
+./xmlchange KOKKOS_GPU_OFFLOAD=TRUE
+case `./xmlquery --value MACH` in
+  casper) ./xmlchange GPU_TYPE=h100 ;;
+  *)      ./xmlchange GPU_TYPE=a100 ;;
+esac
