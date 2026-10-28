@@ -14,9 +14,9 @@ Newest entries are at the top.  CAM's own history is in doc/ChangeLog.
 
 Tag name: cam6_4_211_ss.01
 Originator(s): jtruesdal
-Date: <date>
+Date: Oct 28, 2026
 One-line Summary: ccs_config fixes for Izumi: GNU BOZ flag, C++ compiler for NAG, Intel heap arrays
-Github PR URL: <url>
+Github PR URL: https://github.com/NCAR/StormSPEED/pull/108
 
 Purpose of changes (include the issue number and title text for each relevant GitHub issue):
 - Izumi GNU builds failed on BOZ literals (e.g. src/control/cam_history.F90:
@@ -40,7 +40,7 @@ List any changes to the defaults for the boundary datasets: N/A
 
 Describe any substantial timing or memory changes: N/A
 
-Code reviewed by: <reviewers>
+Code reviewed by: self (jtruesdal)
 
 List all files eliminated: N/A
 
@@ -63,13 +63,16 @@ platform, they are listed below with their justification.
 derecho/intel/aux_cam, derecho/nvhpc/aux_cam: not affected (only izumi machine
   files and the NAG compiler macros change); see ss.00 for the derecho status.
 
-izumi/intel: <intel103 rerun: SMS_D/ERS FHISTC_LTso and SMS_D QPC6 theta-l>
-  <izumi/intel/aux_cam results>
+izumi/intel (nh.04): SMS_D_Ln9.ne3_ne3_mg37.QPC6 and SMS_D_Ln9.ne3pg3_ne3pg3_mt232.FHISTC_LTso
+  theta-l PASS (previously segfaults in RRTMG from stack overflow, #103).
+  ERS_Ln9.ne3pg3_ne3pg3_mt232.FHISTC_LTso theta-l (optimized build) segfaults in the FoX
+  XML parser during CDEPS stream initialization (#107; not dycore-related).  izumi intel
+  is not a gate platform.
 
 izumi/gnu: the BOZ build failure is fixed: SMS_D_Ln9.ne3pg3_ne3pg3_mt232.FHISTC_LTso
   .izumi_gnu.cam-outfrq9s_thetal and SMS_D_Ln3.ne3pg3_ne3pg3_mt232.FHIST_C4
   .izumi_gnu.cam-outfrq3s_pc7 PASS (previously MODEL_BUILD FAIL).
-  <full izumi/gnu/aux_cam: results>
+  izumi/gnu/aux_cam: see ss.02 (full physics on izumi also needs the cam_shmem fallback, #106).
 
 izumi/nag: the missing C++ compiler is fixed; NAG theta-l builds then stop at
   E3SM's sort_mod.F90 (#102), so NAG is removed from theta-l testing in ss.02.
@@ -134,7 +137,9 @@ derecho/intel/aux_cam and derecho/nvhpc/aux_cam vs cam6_4_211: answers BFB for a
       RUN: CTSM initInterp set_mindist: Cannot find any input points matching output point
   - ERS_Ln9.f09_f09_mg17.FX2000.derecho_intel.cam-outfrq9s_ltr
       RUN: esm_time_clockInit: rpointer file rpointer.cpl.<date> not found
-  <cause: from the cam6_4_211 / upstream-CTSM experiments>
+  Cause: ERC_D mpasa120 fails with the CTSM fork and passes with upstream ctsm5.4.057, both
+  in cam6_4_211 and in stormspeed (full-size experiments); return to upstream CTSM is
+  planned for ss.05.  The two WACCM failures: under investigation.
 izumi: no full-physics configuration runs at this tag.
   - gnu: nothing builds (BOZ literals; fixed in ss.01).
   - intel: simple physics runs (FKESSLER theta-l and theta-l_kokkos SMS_D, ERS_Ln27,
