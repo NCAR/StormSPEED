@@ -12,6 +12,138 @@ Newest entries are at the top.  CAM's own history is in doc/ChangeLog.
 
 ===============================================================
 
+Tag name: cam6_4_211_ss.02
+Originator(s): jtruesdal
+Date: <date>
+One-line Summary: E3SM-dycore regression tests; hydrostatic restart fix; cam_shmem probe/fallback; tracer_data fix; SHM test
+Github PR URL: <url>
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+- Add regression tests for the E3SM HOMME dycores (CAM_TARGET=theta-l and
+  theta-l_kokkos): debug runs with FPE traps (SMS_D), exact restart (ERS),
+  PE-layout/thread/task-count reproducibility (ERP, PET, PEM), initial/hybrid/branch
+  starts (ERI_D), nonhydrostatic and hydrostatic, physgrid ne3pg3, GLL ne3 (QPC6),
+  analytic IC (FKESSLER ne16), ne16pg3 and ne30.  New categories:
+    aux_cam_e3sm         gate: derecho intel (33 tests), derecho gnu (16), izumi gnu (12)
+    aux_cam_e3sm_canary  derecho nvhpc theta-l smoke test (see #100, #101)
+    aux_cam_e3sm_unify   tests for the planned src/dynamics/se unification
+    aux_cam_e3sm_perf    PFS throughput (ne30)
+    aux_cam_preqx        preqx (does not build yet, #104)
+- Fix: theta-l hydrostatic restarts aborted ("cannot find W"): the restart reader
+  always read W and PHINH, which hydrostatic runs do not write.  Skip them when
+  theta_hydrostatic_mode and zero w_i/phinh_i, as E3SM does.
+- Fix (#106): on izumi (Intel and NAG MVAPICH2) MPI_Win_shared_query returns size 0
+  and no address to all non-leader ranks inside CESM, so cam_shmem_mod's node-shared
+  tables (soil_erod, phys_prop, mo_jlong, tracer_data) were null on 23 of 24 ranks
+  ("Reference to disassociated pointer" in soil_erod_mod).  init_comms now probes a
+  small window collectively and, if any rank cannot see it, gives every rank private
+  copies; answers are unchanged.  The atm log reports the probe result and the mode.
+- New namelist switch cam_shmem_nl/cam_shmem_force_private (default .false.) forces
+  private memory; used by the new SHM system test.
+- tracer_data: from ESCOMP/CAM PR #1643 (commit 0b0bd236): the carry-forward of a
+  time record also requires the same file name (PIO handles can be reused across
+  files), and the node-shared source field is read on masterproc only and broadcast
+  to the node leaders.
+- New system test SHM (SystemTestsCompareTwo, one build): default cam_shmem settings
+  vs cam_shmem_force_private = .true.; history must be BFB.
+- Platforms removed from theta-l testing until their blockers are fixed:
+  derecho nvhpc (#100 HOMME C++ does not build with nvc++; #101 not reproducible
+  across MPI decompositions), izumi nag (#102 E3SM sort_mod.F90 declaration order),
+  izumi intel (#103: stack overflow in large automatic arrays; fixed in ss.01 by
+  -heap-arrays 64, to be re-added once verified).
+
+Describe any changes made to build system: N/A
+
+Describe any changes made to the namelist:
+- New group cam_shmem_nl with cam_shmem_force_private (logical, default .false.).
+  Defined in namelist_definition.xml only; not written to atm_in by default, so
+  existing namelists are unchanged.
+
+List any changes to the defaults for the boundary datasets: N/A
+
+Describe any substantial timing or memory changes:
+- None where shared windows work (one 64-byte probe window at init).  Where the
+  probe fails, each rank holds private copies of the shared tables (the memory
+  behavior before cam_shmem_mod).
+
+Code reviewed by: <reviewers>
+
+List all files eliminated: N/A
+
+List all files added and what they do:
+A       cime_config/SystemTests/shm.py
+  - SHM system test: node-shared vs private cam_shmem memory must be BFB.
+A       cime_config/testdefs/testmods_dirs/cam/outfrq9s_thetal_hy/
+A       cime_config/testdefs/testmods_dirs/cam/outfrq9s_thetal_kokkos_hy/
+  - hydrostatic theta-l / theta-l_kokkos (se_theta_hydrostatic_mode, se_tstep_type=5)
+A       cime_config/testdefs/testmods_dirs/cam/outfrq3s_eri_thetal/
+A       cime_config/testdefs/testmods_dirs/cam/outfrq3s_eri_thetal_kokkos/
+  - ERI tests (CAM's outfrq3s_eri settings) for theta-l / theta-l_kokkos
+A       cime_config/testdefs/testmods_dirs/cam/outfrq9s_thetal_rstunstruct/
+A       cime_config/testdefs/testmods_dirs/cam/outfrq9s_thetal_kokkos_rstunstruct/
+  - unstructured-format restart (for the planned se unification)
+A       cime_config/testdefs/testmods_dirs/cam/outfrq9s_thetal_interp/
+  - interpolated history output on the GLL grid (for the planned se unification)
+A       cime_config/testdefs/testmods_dirs/cam/outfrq9s_preqx/
+  - preqx target
+
+List all existing files that have been modified, and describe the changes:
+M       src/dynamics/senh/restart_dynamics.F90
+  - hydrostatic restart: do not read W/PHINH (read_restart_dynamics, read_elem,
+    read_unstruct); zero w_i/phinh_i instead.
+M       src/utils/cam_shmem_mod.F90
+  - shared-window probe in init_comms; per-rank private fallback; atm log report;
+    cam_shmem_readnl (cam_shmem_force_private).
+M       src/control/runtime_opts.F90
+  - call cam_shmem_readnl.
+M       src/control/cam_comp.F90
+  - call cam_shmem_init after read_namelist (so cam_shmem_force_private is known).
+M       src/chemistry/utils/tracer_data.F90
+  - carry-forward matches file name; masterproc reads the shared source field
+    (from ESCOMP/CAM PR #1643).
+M       bld/namelist_files/namelist_definition.xml
+  - cam_shmem_force_private.
+M       cime_config/config_tests.xml
+  - SHM test definition.
+M       cime_config/testdefs/testlist_cam.xml
+  - E3SM-dycore tests and categories (above); SHM tests in aux_cam:
+      SHM_D_Ln9.ne3pg3_ne3pg3_mt232.FHISTC_LTso (derecho intel/gnu; izumi gnu/nag/intel)
+      SHM_D_Ln3.f10_f10_mg37.QPMOZ (derecho intel; izumi gnu)
+    The pre-existing FKESSLER ERS_Ln27/ERP_Ln27 theta-l tests keep aux_cam on
+    derecho intel and izumi gnu only.
+
+If there were any failures reported from running test_driver.sh on any test
+platform, they are listed below with their justification.
+
+derecho/intel/aux_cam_e3sm: All PASS (33/33); baselines stormspeed_2647799a_e3sm_intel
+
+derecho/gnu/aux_cam_e3sm: All PASS (16/16); baselines stormspeed_2647799a_e3sm_gnu
+
+derecho SHM tests (intel FHISTC_LTso and QPMOZ, gnu FHISTC_LTso): All PASS; atm logs
+  confirm run one used node-shared tables (probe PASSED) and run two private memory.
+
+derecho/intel/aux_cam: <results vs cam6_4_211_ss.00_intel>
+
+derecho/nvhpc/aux_cam: <results vs cam6_4_211_ss.00_nvhpc>
+
+izumi/gnu/aux_cam_e3sm: <results>
+
+izumi SHM tests (gnu, nag, intel): <results; probe PASSED/FAILED per compiler>
+
+izumi/gnu/aux_cam: <results>
+
+izumi/nag/aux_cam: <results>
+
+CAM tag used for the baseline comparison tests if different than previous
+tag: cam6_4_211_ss.00 (aux_cam); aux_cam_e3sm baselines are new with this tag.
+
+Summarize any changes to answers:
+- None expected from cam_shmem (SHM: shared and private are BFB) or from the
+  restart fix (restart-only).  tracer_data: answers change only where the old
+  carry-forward matched the wrong file: <confirm from aux_cam results>.
+
+===============================================================
+
 Tag name: cam6_4_211_ss.01
 Originator(s): jtruesdal
 Date: <date>
