@@ -1,0 +1,156 @@
+StormSPEED ChangeLog
+====================
+
+StormSPEED tags are named <CAM base tag>_ss.<NN>, e.g. cam6_4_211_ss.01:
+  - <CAM base tag> is the ESCOMP CAM tag the stormspeed branch is synced to.
+  - ss.<NN> increases by one for each PR merged into stormspeed and restarts at
+    .01 when stormspeed is synced to a newer CAM tag.
+Regression baselines are named after the tag and compiler, e.g.
+cam6_4_211_ss.02_intel, and each PR is compared against the baselines of the
+previous StormSPEED tag (or of the CAM base tag for ss.01).
+Newest entries are at the top.  CAM's own history is in doc/ChangeLog.
+
+===============================================================
+
+Tag name: cam6_4_211_ss.01
+Originator(s): jtruesdal
+Date: Oct 28, 2026
+One-line Summary: ccs_config fixes for Izumi: GNU BOZ flag, C++ compiler for NAG, Intel heap arrays
+Github PR URL: https://github.com/NCAR/StormSPEED/pull/108
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+- Izumi GNU builds failed on BOZ literals (e.g. src/control/cam_history.F90:
+  gen_hash_key_offset = z'000053db'): the forked machines/izumi/gnu_izumi.cmake had
+  dropped the upstream unconditional
+  string(APPEND FFLAGS " -fallow-argument-mismatch -fallow-invalid-boz ").
+- Izumi NAG builds of theta-l / theta-l_kokkos failed ("ERROR:  is not in PATH?"):
+  CAM's buildlib builds Kokkos for both targets and nag.cmake defined no C++
+  compiler.  Use GNU C++ (MPICXX mpicxx, SCXX g++) alongside NAG Fortran, as is
+  already done for C.  (NAG theta-l then stops at E3SM's sort_mod.F90, #102.)
+- #103: Izumi Intel (20.0.1) runs segfaulted in routines with large automatic
+  arrays (e.g. RRTMG rrtmg_sw_spcvmc.f90 line 300; earlier seen in COMPOSE) because
+  they were placed on the stack.  Add -heap-arrays 64 for Izumi Intel.
+
+Describe any changes made to build system:
+- ccs_config updated to ccs_config_cesm1.0.91_nh.04 (jtruesdal/ccs_config_cesm).
+
+Describe any changes made to the namelist: N/A
+
+List any changes to the defaults for the boundary datasets: N/A
+
+Describe any substantial timing or memory changes: N/A
+
+Code reviewed by: self (jtruesdal)
+
+List all files eliminated: N/A
+
+List all files added and what they do:
+A       doc/ChangeLog_stormspeed
+  - StormSPEED tag history (this file).
+
+List all existing files that have been modified, and describe the changes:
+M       .gitmodules
+M       ccs_config
+  - ccs_config_cesm1.0.91_nh.02 -> ccs_config_cesm1.0.91_nh.04:
+    machines/cmake_macros/nag.cmake: set(MPICXX "mpicxx"), set(SCXX "g++")
+    machines/izumi/gnu_izumi.cmake: restore
+      string(APPEND FFLAGS " -fallow-argument-mismatch -fallow-invalid-boz ")
+    machines/izumi/intel_izumi.cmake: string(APPEND FFLAGS " -heap-arrays 64")
+
+If there were any failures reported from running test_driver.sh on any test
+platform, they are listed below with their justification.
+
+derecho/intel/aux_cam, derecho/nvhpc/aux_cam: not affected (only izumi machine
+  files and the NAG compiler macros change); see ss.00 for the derecho status.
+
+izumi/intel (nh.04): SMS_D_Ln9.ne3_ne3_mg37.QPC6 and SMS_D_Ln9.ne3pg3_ne3pg3_mt232.FHISTC_LTso
+  theta-l PASS (previously segfaults in RRTMG from stack overflow, #103).
+  ERS_Ln9.ne3pg3_ne3pg3_mt232.FHISTC_LTso theta-l (optimized build) segfaults in the FoX
+  XML parser during CDEPS stream initialization (#107; not dycore-related).  izumi intel
+  is not a gate platform.
+
+izumi/gnu: the BOZ build failure is fixed: SMS_D_Ln9.ne3pg3_ne3pg3_mt232.FHISTC_LTso
+  .izumi_gnu.cam-outfrq9s_thetal and SMS_D_Ln3.ne3pg3_ne3pg3_mt232.FHIST_C4
+  .izumi_gnu.cam-outfrq3s_pc7 PASS (previously MODEL_BUILD FAIL).
+  izumi/gnu/aux_cam: see ss.02 (full physics on izumi also needs the cam_shmem fallback, #106).
+
+izumi/nag: the missing C++ compiler is fixed; NAG theta-l builds then stop at
+  E3SM's sort_mod.F90 (#102), so NAG is removed from theta-l testing in ss.02.
+
+CAM tag used for the baseline comparison tests if different than previous
+tag: cam6_4_211
+
+Summarize any changes to answers: none (machine configuration only; heap vs stack
+storage does not change results).
+
+===============================================================
+
+Tag name: cam6_4_211_ss.00
+Date: Oct 27, 2026
+One-line Summary: Starting point for StormSPEED tags (stormspeed at a222d67)
+
+stormspeed branch at a222d67 (Merge pull request #98 from NCAR/senh_pr4_threads),
+based on CAM cam6_4_211.  This tag predates this file; it is recorded here as the
+reference point for later StormSPEED tags.
+
+E3SM HOMME dycores: CAM_TARGET=theta-l, theta-l_kokkos, preqx in src/dynamics/senh
+(externals senh/dycore = E3SM 057df66, libraries/kokkos = E3SM-Project/kokkos 6a19eb9).
+
+CAM changes beyond cam6_4_211 outside the dycore (not on the CAM trunk at this tag):
+- Memory reduction for high-resolution initialization (precursor of ESCOMP/CAM
+  PR #1643): cam_shmem_mod (MPI-3 node-shared read-only tables) used by phys_prop,
+  soil_erod, mo_jlong and tracer_data; tables freed after init (physprop_final,
+  photo_final/jlong_final); initial file closed after init; new namelist
+  stream_ndep_mapalgo (N-deposition stream mapping).
+- ne1024 restart fix (#71): 64-bit history/restart map sizes (cam_grid_support,
+  cam_map_utils).
+- CLUBB-MF (#73) for high-resolution convection; aircraft_emit latitude weighting
+  only for the FV (LR) dycore.
+- SENH hooks in physics: SENH treated like FV/FV3/MPAS/SE where needed (cam_budget,
+  geopotential, moist mixing ratio in cam/cam7/simple physpkg); physics_dme_adjust
+  skipped for SENH (moist mass adjusted in HOMME, #92).
+- Portability: no 16-byte reals with NVHPC (physconst NO_R16); Fortran conformance.
+- Build/infrastructure: senh and Kokkos support (configure, build-namelist,
+  buildlib, buildcpp, config_pes, namelist_defaults_senh.xml); GitHub CI workflows
+  and dockerfiles.
+
+Forked externals (vs cam6_4_211):
+- ccs_config_cesm1.0.91_nh.02: ne1024/ne1024pg2/ne16pg2/ne16pg3/MIDWEST grids;
+  Kokkos SERIAL on derecho; izumi Kokkos/NAG 7.0 settings; Intel C/C++ icc/icpc.
+- cmeps1.1.71_nh.01: ATM_NCPL 864 for the ne1024 grids.
+- ctsm5.4.057_nh_kluzekdobbins_03: ne1024np4.pg2 fsurdat default; self-test,
+  bypass and memory-diagnostic code (testing only); for_testing_run_ncdiopio_tests
+  moved to a new namelist group.
+
+Status at this tag:
+derecho/intel/aux_cam and derecho/nvhpc/aux_cam vs cam6_4_211: answers BFB for all
+  45 comparable tests (intel 44, nvhpc 1).  Baselines: stormspeed_6015d58f_intel and
+  stormspeed_6015d58f_nvhpc (= cam6_4_211_ss.00_intel / _nvhpc).
+  Expected namelist differences (NLCOMP), no answer changes:
+  - lnd_in: for_testing_run_ncdiopio_tests in a new group (CTSM fork; 43 tests);
+  - atm_in: new stream_ndep_mapalgo (21 tests).
+  Theta-l tests in aux_cam have no cam6_4_211 baseline (StormSPEED only).
+  Known failures (all PASS in cam6_4_211 testing):
+  - ERC_D_Ln9.mpasa120_mpasa120.F2000climo.derecho_intel.cam-outfrq9s_mpasa120
+      RUN: floating invalid in CTSM initInterp (set_mindist, initInterpMindist.F90:270)
+  - ERP_Ln9.ne30pg3_ne30pg3_mg17.FHISTC_WAma.derecho_intel.cam-outfrq9s
+      RUN: CTSM initInterp set_mindist: Cannot find any input points matching output point
+  - ERS_Ln9.f09_f09_mg17.FX2000.derecho_intel.cam-outfrq9s_ltr
+      RUN: esm_time_clockInit: rpointer file rpointer.cpl.<date> not found
+  Cause: ERC_D mpasa120 fails with the CTSM fork and passes with upstream ctsm5.4.057, both
+  in cam6_4_211 and in stormspeed (full-size experiments); return to upstream CTSM is
+  planned for ss.05.  The two WACCM failures: under investigation.
+izumi: no full-physics configuration runs at this tag.
+  - gnu: nothing builds (BOZ literals; fixed in ss.01).
+  - intel: simple physics runs (FKESSLER theta-l and theta-l_kokkos SMS_D, ERS_Ln27,
+    ERP_Ln27 PASS); full physics fails: MPI-3 shared windows unusable with this
+    MVAPICH2 (null node-shared tables, #106, fixed in ss.02) and segfaults from
+    large automatic arrays on the stack (#103, fixed in ss.01).
+  - nag: theta-l has no C++ compiler (fixed in ss.01; then E3SM sort_mod.F90, #102);
+    full physics fails as for intel (#106).  The only passing aux_cam test is the
+    single-task ERC_D_Ln9_P1x1.ne3pg3_ne3pg3_mt232.FADIAB.
+  Baselines: stormspeed_6015d58f_nag and stormspeed_6015d58f_gnu hold namelists only,
+  except NAG's ERC_D_Ln9_P1x1 FADIAB; there is no usable izumi baseline set for ss.00.
+  The first izumi baselines come with ss.02.
+
+===============================================================
