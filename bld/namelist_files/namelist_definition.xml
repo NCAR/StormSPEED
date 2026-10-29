@@ -8963,6 +8963,29 @@ doi:10.5194/gmd-7-2803-2014, 2014.
 Default: 0 (i.e., not used)
 </entry>
 
+<entry id="se_laplace_scaling" type="real" category="se"
+       group="dyn_se_inparm" valid_values="" >
+Sponge-layer (nu_top) Laplacian viscosity. 0 (default) uses the constant-coefficient
+Laplacian, with se_nu_top in m^2/s. A positive value selects the tensor Laplacian
+(E3SM HOMME tensor sponge, PR #8642), analogous to se_hypervis_scaling; se_nu_top
+must then be given in tensor-scaled units, about 12 orders of magnitude smaller.
+E3SM HOMME tests use se_laplace_scaling = 1 with nu_top = 5e-7 to 8e-7. If
+se_nu_top is not set, build-namelist uses 5.0e-7 when se_laplace_scaling > 0; it
+stops with an error if se_nu_top is larger than 1.0e-2 (a value in m^2/s).
+Default: 0.
+</entry>
+
+<entry id="se_tom_sponge_start" type="real" category="se"
+       group="dyn_se_inparm" valid_values="" >
+Pressure (hPa) where the top-of-model sponge layer (se_nu_top) begins. 0 (default)
+keeps HOMME's standard profile, which follows the model-top pressure. A positive
+value scales se_nu_top by 0.15*(se_tom_sponge_start/p)**2, set to 0 where that is
+below 0.15 and capped at 8, so the sponge starts at this pressure. Applies to both
+the constant-coefficient and the tensor (se_laplace_scaling > 0) sponge. E3SM HOMME
+tests use 15 to 30 hPa with the tensor sponge.
+Default: 0.
+</entry>
+
 <entry id="se_hypervis_power" type="real" category="se"
        group="dyn_se_inparm" valid_values="" >
 Scalar viscosity with variable coefficient.

@@ -12,6 +12,76 @@ Newest entries are at the top.  CAM's own history is in doc/ChangeLog.
 
 ===============================================================
 
+Tag name: cam6_4_211_ss.03
+Originator(s): jtruesdal
+Date: Oct 28, 2026
+One-line Summary: HOMME update to E3SM b70b675a7b (split-form theta advection, tensor sponge layer)
+Github PR URL: https://github.com/NCAR/StormSPEED/pull/99
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+- Update the E3SM HOMME dycore (senh/dycore) from 057df66 to E3SM master b70b675a7b,
+  bringing in Mark Taylor's split-form theta advection and the tensor sponge-layer
+  Laplacian (E3SM PR #8642).
+- Expose two new HOMME options:
+  se_laplace_scaling (default 0): 0 keeps the constant-coefficient sponge (se_nu_top in
+    m^2/s); > 0 selects the tensor sponge Laplacian, with se_nu_top in tensor-scaled units.
+  se_tom_sponge_start (hPa, default 0): 0 keeps HOMME's standard sponge profile; > 0 sets
+    the pressure where the top-of-model sponge begins (se_nu_top scaled by
+    0.15*(se_tom_sponge_start/p)**2, zero below 0.15, capped at 8); applies to both sponges.
+
+Describe any changes made to build system: N/A
+
+Describe any changes made to the namelist:
+- New dyn_se_inparm variables se_laplace_scaling and se_tom_sponge_start (defaults 0 for
+  theta-l and preqx; written to atm_in).
+- build-namelist: with se_laplace_scaling > 0, se_nu_top defaults to 5.0e-7 and values
+  larger than 1.0e-2 (m^2/s) stop with an error.
+
+List any changes to the defaults for the boundary datasets: N/A
+
+Describe any substantial timing or memory changes: not measured (throughput tests are
+not part of the gate).
+
+Code reviewed by: self (jtruesdal)
+
+List all files eliminated: N/A
+
+List all files added and what they do: N/A
+
+List all existing files that have been modified, and describe the changes:
+M       .gitmodules
+M       src/dynamics/senh/dycore
+  - senh/dycore 057df66 -> b70b675a7b.
+M       bld/build-namelist
+  - se_laplace_scaling and se_tom_sponge_start; tensor-sponge se_nu_top default and check.
+M       bld/namelist_files/namelist_defaults_senh.xml
+M       bld/namelist_files/namelist_definition.xml
+  - the two new variables.
+M       src/dynamics/senh/cam_mods/namelist_mod.F90
+M       src/dynamics/senh/dyn_comp.F90
+  - read, broadcast and pass the two new variables to HOMME.
+
+If there were any failures reported from running test_driver.sh on any test
+platform, they are listed below with their justification.
+
+derecho/intel/aux_cam_e3sm vs cam6_4_211_ss.02 (stormspeed_2647799a_e3sm_intel): 27/27
+  completed tests BFB; NLCOMP: se_laplace_scaling and se_tom_sponge_start added (all tests).
+  the 6 ne30 tests were in progress when ss.03 was merged; results recorded with the next tag.  Baselines: stormspeed_d3d38547_e3sm_intel.
+
+derecho/gnu/aux_cam_e3sm vs cam6_4_211_ss.02 (stormspeed_2647799a_e3sm_gnu): 16/16 BFB;
+  NLCOMP: the same two new variables.  Baselines: stormspeed_d3d38547_e3sm_gnu.
+
+CAM's other aux_cam tests do not use the HOMME code and were not rerun.
+GitHub CI (CIRRUS runners): not available when merged (runners offline).
+
+CAM tag used for the baseline comparison tests if different than previous
+tag: N/A
+
+Summarize any changes to answers: none with the default settings (BFB); the new
+options change answers only when set.
+
+===============================================================
+
 Tag name: cam6_4_211_ss.02
 Originator(s): jtruesdal
 Date: Oct 28, 2026
