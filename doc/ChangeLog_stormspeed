@@ -14,9 +14,9 @@ Newest entries are at the top.  CAM's own history is in doc/ChangeLog.
 
 Tag name: cam6_4_211_ss.02
 Originator(s): jtruesdal
-Date: <date>
+Date: Oct 28, 2026
 One-line Summary: E3SM-dycore regression tests; hydrostatic restart fix; cam_shmem probe/fallback; tracer_data fix; SHM test
-Github PR URL: <url>
+Github PR URL: https://github.com/NCAR/StormSPEED/pull/109
 
 Purpose of changes (include the issue number and title text for each relevant GitHub issue):
 - Add regression tests for the E3SM HOMME dycores (CAM_TARGET=theta-l and
@@ -66,7 +66,7 @@ Describe any substantial timing or memory changes:
   probe fails, each rank holds private copies of the shared tables (the memory
   behavior before cam_shmem_mod).
 
-Code reviewed by: <reviewers>
+Code reviewed by: self (jtruesdal)
 
 List all files eliminated: N/A
 
@@ -122,17 +122,32 @@ derecho/gnu/aux_cam_e3sm: All PASS (16/16); baselines stormspeed_2647799a_e3sm_g
 derecho SHM tests (intel FHISTC_LTso and QPMOZ, gnu FHISTC_LTso): All PASS; atm logs
   confirm run one used node-shared tables (probe PASSED) and run two private memory.
 
-derecho/intel/aux_cam: <results vs cam6_4_211_ss.00_intel>
+derecho/intel/aux_cam vs cam6_4_211_ss.00_intel: in progress when ss.02 was merged; results recorded with the next tag
 
-derecho/nvhpc/aux_cam: <results vs cam6_4_211_ss.00_nvhpc>
+derecho/nvhpc/aux_cam vs cam6_4_211_ss.00_nvhpc: in progress when ss.02 was merged; results recorded with the next tag
 
-izumi/gnu/aux_cam_e3sm: <results>
+izumi theta-l (not a gate platform): gnu SMS_D and FKESSLER ERS_Ln27/ERP_Ln27 PASS.
+  Known failures: gnu optimized ERS_Ln9 FHISTC_LTso, NaNs in HOMME prim_printstate
+  diagnostics after restart (#110; debug ERS_D passes, restart files clean); intel
+  optimized runs, FoX/CDEPS startup crash (#107); intel debug theta-l_kokkos, Kokkos
+  SIMD floating-point trap (noted under #107).
 
-izumi SHM tests (gnu, nag, intel): <results; probe PASSED/FAILED per compiler>
+izumi SHM tests (gnu x2, nag, intel): 4/4 PASS.  Shared-window probe PASSED with the GNU
+  MVAPICH2, FAILED with the NAG and Intel builds; the fallback gives identical answers (#106).
 
-izumi/gnu/aux_cam: <results>
+izumi/gnu/aux_cam vs cam6_4_211_gnu: answers BFB for all comparable tests; NLCOMP: the
+  expected CTSM and stream_ndep_mapalgo differences; no cam6_4_211 baseline for the
+  StormSPEED-only tests (4 FKESSLER theta-l, 2 SHM; runs pass); TPUTCOMP failures are
+  throughput comparisons only.  Baselines: stormspeed_1649dbd8_gnu.
 
-izumi/nag/aux_cam: <results>
+izumi/nag/aux_cam vs cam6_4_211_nag: all 17 tests run (first full-physics NAG runs on
+  izumi, enabled by the cam_shmem fallback); answers BFB; SHM has no baseline (passes).
+  Baselines: stormspeed_1649dbd8_nag.
+
+ss.00 known failures, update: ERC_D_Ln9 mpasa120 F2000climo and ERP_Ln9 ne30pg3
+  FHISTC_WAma both pass at full size with upstream ctsm5.4.057, in cam6_4_211 and in
+  stormspeed: the CTSM fork causes both (return to upstream CTSM planned, ss.05).
+  ERS_Ln9 f09 FX2000 ltr: under investigation.
 
 CAM tag used for the baseline comparison tests if different than previous
 tag: cam6_4_211_ss.00 (aux_cam); aux_cam_e3sm baselines are new with this tag.
@@ -140,7 +155,8 @@ tag: cam6_4_211_ss.00 (aux_cam); aux_cam_e3sm baselines are new with this tag.
 Summarize any changes to answers:
 - None expected from cam_shmem (SHM: shared and private are BFB) or from the
   restart fix (restart-only).  tracer_data: answers change only where the old
-  carry-forward matched the wrong file: <confirm from aux_cam results>.
+  carry-forward matched the wrong file: none seen (izumi aux_cam gnu/nag BFB with
+  cam6_4_211).
 
 ===============================================================
 
