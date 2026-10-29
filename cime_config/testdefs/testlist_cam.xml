@@ -1829,15 +1829,10 @@
   <test compset="FKESSLER" grid="ne16_g17" name="ERS_Ln27" testmods="cam/outfrq9s_thetal" supported="false">
     <machines>
       <machine name="izumi" compiler="gnu" category="aux_cam"/>
-      <machine name="izumi" compiler="intel" category="aux_cam"/>
-      <machine name="izumi" compiler="nag" category="aux_cam"/>
       <machine name="derecho" compiler="intel" category="aux_cam"/>
-      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
-      <machine name="izumi" compiler="intel" category="aux_cam_e3sm"/>
-      <machine name="izumi" compiler="nag" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
-      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
     </machines>
     <options>
       <option name="wallclock">00:59:00</option>
@@ -1846,15 +1841,10 @@
   <test compset="FKESSLER" grid="ne16_g17" name="ERS_Ln27" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
     <machines>
       <machine name="izumi" compiler="gnu" category="aux_cam"/>
-      <machine name="izumi" compiler="intel" category="aux_cam"/>
-      <machine name="izumi" compiler="nag" category="aux_cam"/>
       <machine name="derecho" compiler="intel" category="aux_cam"/>
-      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
-      <machine name="izumi" compiler="intel" category="aux_cam_e3sm"/>
-      <machine name="izumi" compiler="nag" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
-      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
     </machines>
     <options>
       <option name="wallclock">00:59:00</option>
@@ -1864,15 +1854,10 @@
     <machines>
       <machine name="derecho" compiler="intel" category="stormbfb_prod"/>
       <machine name="izumi" compiler="gnu" category="aux_cam"/>
-      <machine name="izumi" compiler="intel" category="aux_cam"/>
-      <machine name="izumi" compiler="nag" category="aux_cam"/>
       <machine name="derecho" compiler="intel" category="aux_cam"/>
-      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
-      <machine name="izumi" compiler="intel" category="aux_cam_e3sm"/>
-      <machine name="izumi" compiler="nag" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
-      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
     </machines>
     <options>
       <option name="wallclock">00:59:00</option>
@@ -1882,15 +1867,10 @@
     <machines>
       <machine name="derecho" compiler="intel" category="stormbfb_prod"/>
       <machine name="izumi" compiler="gnu" category="aux_cam"/>
-      <machine name="izumi" compiler="intel" category="aux_cam"/>
-      <machine name="izumi" compiler="nag" category="aux_cam"/>
       <machine name="derecho" compiler="intel" category="aux_cam"/>
-      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
-      <machine name="izumi" compiler="intel" category="aux_cam_e3sm"/>
-      <machine name="izumi" compiler="nag" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
-      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
     </machines>
     <options>
       <option name="wallclock">00:59:00</option>
@@ -2844,6 +2824,390 @@
     <options>
       <option name="comment">PORT-CAM7-LT</option>
       <option name="wallclock">00:10:00</option>
+    </options>
+  </test>
+
+
+<!--              @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@                -->
+<!--   E3SM dycores (HOMME theta-l, theta-l_kokkos, preqx) via CAM_TARGET   -->
+<!--   aux_cam_e3sm: tier 1 BFB gate; aux_cam_e3sm_unify: refactor-only;     -->
+<!--   aux_cam_preqx: preqx; aux_cam_e3sm_perf: timing only                  -->
+<!--              @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@                -->
+
+  <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="SMS_D_Ln9" testmods="cam/outfrq9s_thetal" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm_canary"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:20:00</option>
+      <option name="comment">theta-l NH debug/FPE</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="SMS_D_Ln9" testmods="cam/outfrq9s_thetal_hy" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:20:00</option>
+      <option name="comment">theta-l hydrostatic (tstep_type=5) debug/FPE</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="ERS_Ln9" testmods="cam/outfrq9s_thetal" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:20:00</option>
+      <option name="comment">theta-l exact restart (elem restart format)</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="ERS_Ln9" testmods="cam/outfrq9s_thetal_hy" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:20:00</option>
+      <option name="comment">theta-l hydrostatic exact restart</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="ERP_Ln9" testmods="cam/outfrq9s_thetal" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:20:00</option>
+      <option name="comment">theta-l restart + PE/thread layout change</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="PEM_Ln9" testmods="cam/outfrq9s_thetal" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:20:00</option>
+      <option name="comment">theta-l MPI task-count invariance</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="PET_Ln9" testmods="cam/outfrq9s_thetal" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:20:00</option>
+      <option name="comment">theta-l threading invariance</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="ERI_D_Ln18" testmods="cam/outfrq3s_eri_thetal" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:30:00</option>
+      <option name="comment">theta-l initial/hybrid/branch restart paths</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne16pg3_ne16pg3_mt232" name="ERS_Ln9" testmods="cam/outfrq9s_thetal" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:30:00</option>
+      <option name="comment">theta-l ne16 physgrid exact restart</option>
+    </options>
+  </test>
+  <test compset="FKESSLER" grid="ne16_g17" name="SMS_D_Ln9" testmods="cam/outfrq9s_thetal" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:30:00</option>
+      <option name="comment">theta-l analytic IC debug/FPE</option>
+    </options>
+  </test>
+  <test compset="QPC6" grid="ne3_ne3_mg37" name="SMS_D_Ln9" testmods="cam/outfrq9s_thetal" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:20:00</option>
+      <option name="comment">theta-l cam6 aquaplanet GLL debug/FPE</option>
+    </options>
+  </test>
+  <test compset="QPC6" grid="ne3_ne3_mg37" name="ERS_Ln9" testmods="cam/outfrq9s_thetal" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:20:00</option>
+      <option name="comment">theta-l cam6 aquaplanet GLL exact restart</option>
+    </options>
+  </test>
+  <test compset="F2000climo" grid="ne30pg3_ne30pg3_mg17" name="ERS_Ln9" testmods="cam/outfrq9s_thetal" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:59:00</option>
+      <option name="comment">theta-l cam6 ne30 exact restart</option>
+    </options>
+  </test>
+  <test compset="F2000climo" grid="ne30pg3_ne30pg3_mg17" name="ERP_Ln9" testmods="cam/outfrq9s_thetal" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:59:00</option>
+      <option name="comment">theta-l cam6 ne30 restart + layout</option>
+    </options>
+  </test>
+  <test compset="FHISTC_MTso" grid="ne30pg3_ne30pg3_mt232" name="SMS_Ln9" testmods="cam/outfrq9s_thetal" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:59:00</option>
+      <option name="comment">theta-l cam7 MT (GW front/movmtn sources)</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne30pg3_ne30pg3_mt232" name="PFS_Ld5" testmods="cam/outfrq9s_thetal" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm_perf"/>
+    </machines>
+    <options>
+      <option name="wallclock">01:30:00</option>
+      <option name="comment">theta-l throughput tracking (not a BFB gate)</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="ERS_Ln9" testmods="cam/outfrq9s_thetal_rstunstruct" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm_unify"/>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm_unify"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:20:00</option>
+      <option name="comment">theta-l unstructured restart (read_unstruct fix); fails before stormspeed_unify</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="SMS_D_Ln9" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:20:00</option>
+      <option name="comment">theta-l_kokkos NH debug/FPE</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="SMS_D_Ln9" testmods="cam/outfrq9s_thetal_kokkos_hy" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:20:00</option>
+      <option name="comment">theta-l_kokkos hydrostatic (tstep_type=5) debug/FPE</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="ERS_Ln9" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:20:00</option>
+      <option name="comment">theta-l_kokkos exact restart (elem restart format)</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="ERS_Ln9" testmods="cam/outfrq9s_thetal_kokkos_hy" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:20:00</option>
+      <option name="comment">theta-l_kokkos hydrostatic exact restart</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="ERP_Ln9" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:20:00</option>
+      <option name="comment">theta-l_kokkos restart + PE/thread layout change</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="PEM_Ln9" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:20:00</option>
+      <option name="comment">theta-l_kokkos MPI task-count invariance</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="ERI_D_Ln18" testmods="cam/outfrq3s_eri_thetal_kokkos" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:30:00</option>
+      <option name="comment">theta-l_kokkos initial/hybrid/branch restart paths</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne16pg3_ne16pg3_mt232" name="ERS_Ln9" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:30:00</option>
+      <option name="comment">theta-l_kokkos ne16 physgrid exact restart</option>
+    </options>
+  </test>
+  <test compset="FKESSLER" grid="ne16_g17" name="SMS_D_Ln9" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:30:00</option>
+      <option name="comment">theta-l_kokkos analytic IC debug/FPE</option>
+    </options>
+  </test>
+  <test compset="QPC6" grid="ne3_ne3_mg37" name="SMS_D_Ln9" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:20:00</option>
+      <option name="comment">theta-l_kokkos cam6 aquaplanet GLL debug/FPE</option>
+    </options>
+  </test>
+  <test compset="QPC6" grid="ne3_ne3_mg37" name="ERS_Ln9" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:20:00</option>
+      <option name="comment">theta-l_kokkos cam6 aquaplanet GLL exact restart</option>
+    </options>
+  </test>
+  <test compset="F2000climo" grid="ne30pg3_ne30pg3_mg17" name="ERS_Ln9" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:59:00</option>
+      <option name="comment">theta-l_kokkos cam6 ne30 exact restart</option>
+    </options>
+  </test>
+  <test compset="F2000climo" grid="ne30pg3_ne30pg3_mg17" name="ERP_Ln9" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:59:00</option>
+      <option name="comment">theta-l_kokkos cam6 ne30 restart + layout</option>
+    </options>
+  </test>
+  <test compset="FHISTC_MTso" grid="ne30pg3_ne30pg3_mt232" name="SMS_Ln9" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:59:00</option>
+      <option name="comment">theta-l_kokkos cam7 MT (GW front/movmtn sources)</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne30pg3_ne30pg3_mt232" name="PFS_Ld5" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm_perf"/>
+    </machines>
+    <options>
+      <option name="wallclock">01:30:00</option>
+      <option name="comment">theta-l_kokkos throughput tracking (not a BFB gate)</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="ERS_Ln9" testmods="cam/outfrq9s_thetal_kokkos_rstunstruct" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm_unify"/>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm_unify"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:20:00</option>
+      <option name="comment">theta-l_kokkos unstructured restart (read_unstruct fix); fails before stormspeed_unify</option>
+    </options>
+  </test>
+  <test compset="QPC6" grid="ne3_ne3_mg37" name="SMS_D_Ln9" testmods="cam/outfrq9s_thetal_interp" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm_unify"/>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm_unify"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:20:00</option>
+      <option name="comment">theta-l interpolated lat-lon history output on a GLL grid (physgrid not supported)</option>
+    </options>
+  </test>
+  <test compset="FKESSLER" grid="ne16_g17" name="SMS_D_Ln9" testmods="cam/outfrq9s_preqx" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_preqx" />
+      <machine name="izumi" compiler="gnu" category="aux_cam_preqx" />
+    </machines>
+    <options>
+      <option name="wallclock">00:30:00</option>
+      <option name="comment">preqx analytic IC debug/FPE</option>
+    </options>
+  </test>
+  <test compset="FKESSLER" grid="ne16_g17" name="ERS_Ln9" testmods="cam/outfrq9s_preqx" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_preqx" />
+      <machine name="izumi" compiler="gnu" category="aux_cam_preqx" />
+    </machines>
+    <options>
+      <option name="wallclock">00:30:00</option>
+      <option name="comment">preqx exact restart</option>
+    </options>
+  </test>
+
+
+  <!-- cam_shmem: node-shared vs private memory must be BFB (SHM system test) -->
+  <test compset="FHISTC_LTso" grid="ne3pg3_ne3pg3_mt232" name="SHM_D_Ln9" testmods="cam/outfrq9s">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam"/>
+      <machine name="derecho" compiler="gnu" category="aux_cam"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam"/>
+      <machine name="izumi" compiler="nag" category="aux_cam"/>
+      <machine name="izumi" compiler="intel" category="aux_cam"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:30:00</option>
+      <option name="comment">cam_shmem: phys_prop, soil_erod, tracer_data shared vs private BFB</option>
+    </options>
+  </test>
+  <test compset="QPMOZ" grid="f10_f10_mg37" name="SHM_D_Ln3" testmods="cam/outfrq3s_chemproc">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:30:00</option>
+      <option name="comment">cam_shmem: mo_jlong (MOZART photolysis) shared vs private BFB</option>
     </options>
   </test>
 
