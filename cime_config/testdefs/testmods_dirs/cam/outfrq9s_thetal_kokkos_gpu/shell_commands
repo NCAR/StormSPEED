@@ -1,5 +1,7 @@
-# theta-l_kokkos with the HOMME dycore on NVIDIA GPUs: one MPI rank per GPU
-./xmlchange NTASKS=16
+# theta-l_kokkos with the HOMME dycore on NVIDIA GPUs: one MPI rank per GPU.
+# 64 ranks (16 nodes x 4 GPUs, as in Jian Sun's GPU runs): CIME then selects the main
+# queue on derecho (develop, CPU only, is limited to < 64 tasks).
+./xmlchange NTASKS=64
 ./xmlchange NTHRDS=1
 ./xmlchange ROOTPE=0
 ./xmlchange NGPUS_PER_NODE=4
