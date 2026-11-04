@@ -1832,7 +1832,7 @@
       <machine name="derecho" compiler="intel" category="aux_cam"/>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
-      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm_izumi"/>
     </machines>
     <options>
       <option name="wallclock">00:59:00</option>
@@ -1844,7 +1844,7 @@
       <machine name="derecho" compiler="intel" category="aux_cam"/>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
-      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm_izumi"/>
     </machines>
     <options>
       <option name="wallclock">00:59:00</option>
@@ -1857,7 +1857,7 @@
       <machine name="derecho" compiler="intel" category="aux_cam"/>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
-      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm_izumi"/>
     </machines>
     <options>
       <option name="wallclock">00:59:00</option>
@@ -1870,7 +1870,7 @@
       <machine name="derecho" compiler="intel" category="aux_cam"/>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
-      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm_izumi"/>
     </machines>
     <options>
       <option name="wallclock">00:59:00</option>
@@ -2838,7 +2838,7 @@
     <machines>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
-      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm_izumi"/>
       <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm_canary"/>
     </machines>
     <options>
@@ -2850,7 +2850,7 @@
     <machines>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
-      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm_izumi"/>
     </machines>
     <options>
       <option name="wallclock">00:20:00</option>
@@ -2861,7 +2861,7 @@
     <machines>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
-      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm_izumi"/>
     </machines>
     <options>
       <option name="wallclock">00:20:00</option>
@@ -2872,7 +2872,7 @@
     <machines>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
-      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm_izumi"/>
     </machines>
     <options>
       <option name="wallclock">00:20:00</option>
@@ -3003,7 +3003,7 @@
     <machines>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
-      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm_izumi"/>
     </machines>
     <options>
       <option name="wallclock">00:20:00</option>
@@ -3014,7 +3014,7 @@
     <machines>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
-      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm_izumi"/>
     </machines>
     <options>
       <option name="wallclock">00:20:00</option>
@@ -3025,7 +3025,7 @@
     <machines>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
-      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm_izumi"/>
     </machines>
     <options>
       <option name="wallclock">00:20:00</option>
@@ -3036,7 +3036,7 @@
     <machines>
       <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
       <machine name="derecho" compiler="gnu" category="aux_cam_e3sm"/>
-      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm"/>
+      <machine name="izumi" compiler="gnu" category="aux_cam_e3sm_izumi"/>
     </machines>
     <options>
       <option name="wallclock">00:20:00</option>
@@ -3208,6 +3208,65 @@
     <options>
       <option name="wallclock">00:30:00</option>
       <option name="comment">cam_shmem: mo_jlong (MOZART photolysis) shared vs private BFB</option>
+    </options>
+  </test>
+
+
+  <!-- StormSPEED production configuration: ne30pg2 FHISTC_LTso (climate runs; TAMU template) -->
+  <test compset="FHISTC_LTso" grid="ne30pg2_ne30pg2_mt232" name="ERS_Ln9" testmods="cam/outfrq9s_thetal" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:59:00</option>
+      <option name="comment">theta-l production grid (pg2) exact restart</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne30pg2_ne30pg2_mt232" name="ERS_Ln9" testmods="cam/outfrq9s_thetal_kokkos" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:59:00</option>
+      <option name="comment">theta-l_kokkos production grid (pg2) exact restart</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne30pg2_ne30pg2_mt232" name="ERS_Ld62" testmods="cam/outfrq1m_thetal" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm_climate"/>
+    </machines>
+    <options>
+      <option name="wallclock">06:00:00</option>
+      <option name="comment">theta-l climate smoke: 62 days from Jan 1, restart at Feb 1 (month boundary), monthly history compared</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne30pg2_ne30pg2_mt232" name="ERS_Ld62" testmods="cam/outfrq1m_thetal_kokkos" supported="false">
+    <machines>
+      <machine name="derecho" compiler="intel" category="aux_cam_e3sm_climate"/>
+    </machines>
+    <options>
+      <option name="wallclock">06:00:00</option>
+      <option name="comment">theta-l_kokkos climate smoke: 62 days from Jan 1, restart at Feb 1 (month boundary), monthly history compared</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne30pg2_ne30pg2_mt232" name="SMS_Ln9" testmods="cam/outfrq9s_thetal_kokkos_gpu" supported="false">
+    <machines>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm_gpu"/>
+      <machine name="casper" compiler="gnu" category="aux_cam_e3sm_gpu"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:59:00</option>
+      <option name="comment">theta-l_kokkos HOMME on GPUs (casper h100 ~ TAMU VISION h200; derecho a100)</option>
+    </options>
+  </test>
+  <test compset="FHISTC_LTso" grid="ne30pg2_ne30pg2_mt232" name="ERS_Ln9" testmods="cam/outfrq9s_thetal_kokkos_gpu" supported="false">
+    <machines>
+      <machine name="derecho" compiler="gnu" category="aux_cam_e3sm_gpu"/>
+      <machine name="casper" compiler="gnu" category="aux_cam_e3sm_gpu"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:59:00</option>
+      <option name="comment">theta-l_kokkos HOMME on GPUs: exact restart (known failure: not BFB on GPUs, issue #111)</option>
     </options>
   </test>
 
