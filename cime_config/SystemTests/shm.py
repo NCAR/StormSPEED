@@ -12,6 +12,7 @@ from CIME.SystemTests.system_tests_compare_two import SystemTestsCompareTwo
 from CIME.XML.standard_module_setup import *
 from CIME.SystemTests.test_utils.user_nl_utils import append_to_user_nl_files
 from CIME.status import append_testlog
+import os, re, shutil
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,28 @@ class SHM(SystemTestsCompareTwo):
     def _case_one_setup(self):
         comments = "Run one: default cam_shmem settings (node-shared tables if the probe passes)."
         append_testlog(comments, self._orig_caseroot)
+
+    def _case_two_custom_prerun_action(self):
+        # Run two must use exactly run one's CAM configuration (one build, one namelist
+        # variable different).  Case two is not built, so CAM's buildnml would rerun
+        # configure for it at run time; with a user chemistry mechanism the chemistry
+        # preprocessor can silently fail there (nadv 3 instead of 106), giving namelists
+        # without chemistry.  Copy case one's camconf and point usr_src at case two.
+        src = os.path.join(self._orig_caseroot, "Buildconf", "camconf")
+        caseroot2 = self._case2.get_value("CASEROOT")
+        dst = os.path.join(caseroot2, "Buildconf", "camconf")
+        if not os.path.isfile(os.path.join(src, "config_cache.xml")):
+            append_testlog("SHM: no camconf in case one; case two uses its own", self._orig_caseroot)
+            return
+        shutil.copytree(src, dst, dirs_exist_ok=True)
+        cache = os.path.join(dst, "config_cache.xml")
+        usr_src = os.path.join(caseroot2, "SourceMods", "src.cam")
+        text = open(cache).read()
+        new, n = re.subn(r'(<entry id="usr_src" value=")[^"]*(")', r"\g<1>" + usr_src + r"\g<2>", text)
+        if n == 1:
+            open(cache, "w").write(new)
+        append_testlog("SHM: case two uses case one's CAM configuration (camconf copied; usr_src -> %s)" % usr_src,
+                       self._orig_caseroot)
 
     def _case_two_setup(self):
         append_to_user_nl_files(caseroot = self._get_caseroot(),
