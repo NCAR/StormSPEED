@@ -12,6 +12,86 @@ Newest entries are at the top.  CAM's own history is in doc/ChangeLog.
 
 ===============================================================
 
+Tag name: cam6_4_211_ss.04
+Originator(s): jtruesdal
+Date: Nov 4, 2026
+One-line Summary: E3SM-dycore tests: ne30pg2 production configuration, climate smoke, GPU; izumi out of the gate
+Github PR URL: https://github.com/NCAR/StormSPEED/pull/112
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+- Tests for StormSPEED's production configuration, FHISTC_LTso on ne30pg2_ne30pg2_mt232
+  (ne30 climate runs; template for the TAMU high-resolution GPU runs):
+  aux_cam_e3sm (gate), derecho intel: ERS_Ln9 theta-l and theta-l_kokkos (pg2 physgrid).
+  aux_cam_e3sm_climate (on demand), derecho intel: ERS_Ld62 theta-l and theta-l_kokkos:
+    62 days from Jan 1, restart at Feb 1 (month boundary), monthly history compared.
+    (CIME's ERS does not support nmonths, so ERS_Lm2 was replaced.)
+  aux_cam_e3sm_gpu (on demand), derecho gnu (A100) and casper gnu (H100): SMS_Ln9 and
+    ERS_Ln9 theta-l_kokkos with KOKKOS_GPU_OFFLOAD; 64 ranks, one per GPU (16 nodes x 4),
+    as in Jian Sun's GPU runs, so CIME selects the main queue.
+- izumi gnu theta-l tests move from aux_cam_e3sm to aux_cam_e3sm_izumi (izumi was not a
+  gate platform at this tag).
+- SHM test fix: run two now uses run one's CAM configuration (Buildconf/camconf copied,
+  usr_src pointed at case two).  Case two is not built; CAM's buildnml reran configure for
+  it at run time, and with a user chemistry mechanism (outfrq3s_chemproc) the chemistry
+  preprocessor silently failed there (nadv 3 instead of 106), so run two had no chemistry
+  namelists and stopped on fincl fields never registered (DV_HCN, DV_CH3CN).
+
+Describe any changes made to build system: N/A
+Describe any changes made to the namelist: N/A
+List any changes to the defaults for the boundary datasets: N/A
+Describe any substantial timing or memory changes: N/A
+Code reviewed by: self (jtruesdal)
+List all files eliminated: N/A
+
+List all files added and what they do:
+A       cime_config/testdefs/testmods_dirs/cam/outfrq1m_thetal/{include_user_mods,shell_commands}
+A       cime_config/testdefs/testmods_dirs/cam/outfrq1m_thetal_kokkos/{include_user_mods,shell_commands}
+  - monthly-history climate smoke testmods (include CAM's outfrq1m).
+A       cime_config/testdefs/testmods_dirs/cam/outfrq9s_thetal_kokkos_gpu/{include_user_mods,shell_commands}
+  - theta-l_kokkos on NVIDIA GPUs (GPU_TYPE by machine).
+
+List all existing files that have been modified, and describe the changes:
+M       cime_config/testdefs/testlist_cam.xml
+  - the tests above; izumi gnu theta-l entries to aux_cam_e3sm_izumi.
+M       cime_config/SystemTests/shm.py
+  - _case_two_custom_prerun_action: run two uses run one's CAM configuration.
+
+If there were any failures reported from running test_driver.sh on any test
+platform, they are listed below with their justification.
+
+derecho/intel: ERS_Ln9 ne30pg2 FHISTC_LTso theta-l and theta-l_kokkos PASS;
+  ERS_Ld62 ne30pg2 FHISTC_LTso theta-l and theta-l_kokkos PASS (restart at Feb 1 BFB);
+  SHM_D_Ln3 f10 QPMOZ outfrq3s_chemproc with the fixed SHM test: RUN and
+  COMPARE_base_private PASS (node-shared and private memory BFB, with chemistry).
+derecho/gnu GPU (A100, first runs with 16 ranks): SMS_Ln9 theta-l_kokkos PASS.  GPU runs are
+  deterministic (two runs of the same case: identical total energy at every step).
+  ERS_Ln9 theta-l_kokkos GPU FAIL COMPARE_base_rest: known failure, issue #111 (the restart
+  state reaches the GPU exactly, but the first dynamics step after restart differs slightly).
+  The 64-rank testmod and the casper H100 tests have not been run yet.
+
+Results recorded since earlier tags:
+- ss.03: the last 2 ne30 intel gate tests (ERP_Ln9 ne30pg3 F2000climo and SMS_Ln9 ne30pg3
+  FHISTC_MTso, theta-l_kokkos) were rerun: BASELINE PASS.  The ss.03 gate is 33/33 BFB
+  vs stormspeed_2647799a_e3sm_intel (NLCOMP: se_laplace_scaling and se_tom_sponge_start only).
+- ss.02, derecho/intel/aux_cam vs cam6_4_211_ss.00_intel: 57 tests PASS, no answer changes.
+  SHM_D_Ln9 ne3pg3 FHISTC_LTso: no ss.00 baseline (runs pass).  SHM_D_Ln3 f10 QPMOZ: RUN
+  FAIL, caused by the SHM test defect fixed in this tag (run two without chemistry); it
+  passes with the fix (see above).
+  ERS_Ln9 f09 FX2000: intermittent rpointer failure at restart, issue #113.
+  derecho/nvhpc/aux_cam: 1/1 PASS.
+- Correction to the ss.02 entry: the ss.00 failures (ERC_D mpasa120, ERP ne30pg3
+  FHISTC_WAma, ERS f09 FX2000) are intermittent and not caused by the CTSM fork: ERC_D
+  passed first time with the same fork in the ss.02 aux_cam run, and the FX2000 failure
+  also occurs with upstream ctsm5.4.057 (#113).  The return to upstream CTSM (ss.05) stands
+  on its own merits.
+
+CAM tag used for the baseline comparison tests if different than previous
+tag: N/A
+
+Summarize any changes to answers: none (tests only).
+
+===============================================================
+
 Tag name: cam6_4_211_ss.03
 Originator(s): jtruesdal
 Date: Oct 28, 2026
