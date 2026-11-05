@@ -12,6 +12,51 @@ Newest entries are at the top.  CAM's own history is in doc/ChangeLog.
 
 ===============================================================
 
+Tag name: cam6_4_211_ss.05
+Originator(s): jtruesdal
+Date: Nov 5, 2026
+One-line Summary: CTSM: return to upstream ctsm5.4.057 (ctsm5.4.057_nh.01: one ne1024 default added)
+Github PR URL: https://github.com/NCAR/StormSPEED/pull/114
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+- components/clm: replace the development CTSM fork used since ss.00 with jtruesdal/ctsm tag
+  ctsm5.4.057_nh.01 = upstream ESCOMP/CTSM ctsm5.4.057 plus one change: the fsurdat default for
+  ne1024np4.pg2, needed for StormSPEED's ne1024 runs (being proposed upstream).  StormSPEED then
+  carries no untested land code.  (The intermittent ss.00 failures once attributed to the fork
+  are not caused by it; see the ss.04 entry.)
+
+Describe any changes made to build system: N/A
+Describe any changes made to the namelist: N/A (lnd_in differs from ss.02 where upstream CTSM's
+  defaults differ from the fork's; NLCOMP differences only)
+List any changes to the defaults for the boundary datasets: N/A
+Describe any substantial timing or memory changes: N/A
+Code reviewed by: self (jtruesdal)
+List all files eliminated: N/A
+List all files added and what they do: N/A
+
+List all existing files that have been modified, and describe the changes:
+M       .gitmodules
+  - clm: jtruesdal/ctsm, fxtag ctsm5.4.057_nh.01
+M       components/clm
+  - submodule pointer to ctsm5.4.057_nh.01
+
+If there were any failures reported from running test_driver.sh on any test
+platform, they are listed below with their justification.
+
+derecho/intel/aux_cam vs ss.02 (stormspeed_1649dbd8_intel): 58 BASELINE PASS, no answer changes.
+  SHM_D_Ln3 f10 QPMOZ BASELINE FAIL: the SHM test defect fixed in ss.04.
+  ERS_Ln9 f09 FX2000 RUN FAIL: intermittent rpointer failure at restart, issue #113.
+derecho/nvhpc/aux_cam: 1/1 BASELINE PASS.
+izumi/gnu/aux_cam vs cam6_4_211_ss.02_gnu: 31/31 BASELINE PASS.
+izumi/nag/aux_cam: 17/17 BASELINE PASS vs cam6_4_211_ss.02_nag (3 tests rebuilt clean after builds interrupted by an izumi network outage).
+
+CAM tag used for the baseline comparison tests if different than previous
+tag: cam6_4_211_ss.02 (aux_cam baselines)
+
+Summarize any changes to answers: none.
+
+===============================================================
+
 Tag name: cam6_4_211_ss.04
 Originator(s): jtruesdal
 Date: Nov 4, 2026
