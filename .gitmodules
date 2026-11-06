@@ -215,11 +215,11 @@ fxDONOTUSEurl = https://github.com/NCAR/CUPiD.git
 
 [submodule "senh/dycore"]
 path = src/dynamics/senh/dycore
-url = https://github.com/E3SM-Project/E3SM.git
+url = https://github.com/jtruesdal/E3SM.git
 fxrequired = AlwaysRequired
 fxsparse = ../.e3sm_sparse_checkout
-	fxtag = b70b675a7b
-fxDONOTUSEurl = https://github.com/E3SM-Project/E3SM.git
+	fxtag = stormspeed_homme.01
+fxDONOTUSEurl = https://github.com/jtruesdal/E3SM.git
 
 [submodule "tuv-x"]
 path = libraries/tuv-x
