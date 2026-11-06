@@ -12,6 +12,82 @@ Newest entries are at the top.  CAM's own history is in doc/ChangeLog.
 
 ===============================================================
 
+Tag name: cam6_4_211_ss.06
+Originator(s): jtruesdal
+Date: Nov 6, 2026
+One-line Summary: NAG/portability: HOMME fixes via jtruesdal/E3SM stormspeed_homme.01, SENH fixes, ccs_config nh.05
+Github PR URL: https://github.com/NCAR/StormSPEED/pull/115
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+- Build and run StormSPEED's E3SM dycores with NAG Fortran 7.0 (CAM's strictest compiler), and fix
+  two real bugs NAG found.  All changes are answer-neutral.
+- HOMME: src/dynamics/senh/dycore now points at jtruesdal/E3SM tag stormspeed_homme.01 = E3SM
+  b70b675a7b plus one commit (8 files, 20 lines), to be proposed upstream to E3SM:
+  Bugs:
+    prim_driver_base: TARGET on MetaVertex.  sgi_init_grid keeps a pointer to it (gm%mv), which
+      dangled after return (NAG runtime check, in sgi_finalize).
+    compose_test_mod: GPTLget_memusage takes C int*; its arguments were integer(8).
+  Portability:
+    sort_mod (#102 "HOMME share/sort_mod.F90: array declared before its bounds") and
+      theta-l/share/prim_state_mod: array bounds declared before the arrays; sort_mod also drops an
+      unused c_int import and gives cmp_ints bind(c, name='').
+    kinds, parallel_mod, metis_mod: portable kinds instead of literal kind numbers.
+    global_norms_mod: real literal instead of an integer literal with a real kind.
+    parallel_mod, prim_state_mod: flush statement instead of the nonstandard flush subroutine.
+  Carried as a fork commit rather than whole-file overrides in senh/cam_mods, which would silently
+  replace newer HOMME files at the next update.  Note: theta-l_kokkos/share is a symlink to
+  theta-l/share, so both targets use these files.
+- SENH: cam_mods/namelist_mod_cam.F90 had no implicit none, so SFCURVE, nnodes and nmpi_per_node
+  were implicitly typed locals: METIS/Zoltan partitioning (se_partmethod 0-3) got an undefined
+  partition method and never set dimensions_mod's nnodes/nmpi_per_node.  Imported, implicit none
+  added.  The default (SFCURVE) is unaffected.  restart_dynamics.F90: write_elem and
+  write_unstruct use their own loop index instead of the host's.
+- ccs_config: ccs_config_cesm1.0.91_nh.05 = nh.04 + -std=c++17 for NAG's C++ compiler (g++ 9.3
+  without a -std flag; Kokkos 4 requires C++17).
+
+Describe any changes made to build system: ccs_config nh.05 (NAG C++ flag)
+Describe any changes made to the namelist: N/A
+List any changes to the defaults for the boundary datasets: N/A
+Describe any substantial timing or memory changes: N/A
+Code reviewed by: self (jtruesdal)
+List all files eliminated: N/A
+List all files added and what they do: N/A
+
+List all existing files that have been modified, and describe the changes:
+M       .gitmodules
+  - ccs_config: fxtag ccs_config_cesm1.0.91_nh.05
+  - senh/dycore: url jtruesdal/E3SM, fxtag stormspeed_homme.01
+M       ccs_config, src/dynamics/senh/dycore (submodule pointers)
+M       src/dynamics/senh/cam_mods/namelist_mod_cam.F90
+M       src/dynamics/senh/restart_dynamics.F90
+
+If there were any failures reported from running test_driver.sh on any test
+platform, they are listed below with their justification.
+
+derecho/intel/aux_cam_e3sm vs cam6_4_211_ss.04_e3sm_intel: 35/35 BASELINE PASS.
+derecho/gnu/aux_cam_e3sm vs cam6_4_211_ss.04_e3sm_gnu: 16/16 BASELINE PASS.
+  NLCOMP differs in the land configurations only: lnd_in's for_testing_options group, written by
+  upstream CTSM (ss.05) but not by the CTSM fork used for the ss.04 baselines.
+  Baselines generated: stormspeed_70f8354b_e3sm_intel, stormspeed_70f8354b_e3sm_gnu.
+izumi (run with the same fixes as senh/cam_mods overrides, identical code):
+  nag: SMS_D_Ln9 ne3pg3 FHISTC_LTso theta-l PASS (NAG -C=all runtime checks).
+    theta-l_kokkos builds.  Its debug run stops at init on IEEE invalid: HOMME's ElementsState.cpp
+    fills pack padding with quiet NaNs and compares with <, which NAG's -ieee=stop traps
+    process-wide (not a bug).  The non-debug SMS_Ln9 run fails; to be investigated in ss.07.
+  intel: SMS_D_Ln9 ne3pg3 FHISTC_LTso theta-l PASS.
+  gnu, aux_cam_e3sm_izumi: FKESSLER ERP/ERS (4) and SMS_D FHISTC_LTso (4) RUN PASS (NLCOMP vs
+    ss.02 from the HOMME namelist additions in ss.03; SMS_D have no ss.02 baseline);
+    ERS_Ln9 FHISTC_LTso theta-l, theta-l_hy, theta-l_kokkos, theta-l_kokkos_hy FAIL: issue #110
+    (optimized GNU 12.4 restarts), which therefore also affects theta-l_kokkos.
+  The izumi gnu/nag/intel theta-l tests join the aux_cam_e3sm gate in ss.07.
+
+CAM tag used for the baseline comparison tests if different than previous
+tag: N/A
+
+Summarize any changes to answers: none.
+
+===============================================================
+
 Tag name: cam6_4_211_ss.05
 Originator(s): jtruesdal
 Date: Nov 5, 2026

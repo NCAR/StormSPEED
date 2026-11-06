@@ -139,7 +139,7 @@ fxDONOTUSEurl = https://github.com/ESCOMP/mizuRoute
 [submodule "ccs_config"]
 path = ccs_config
 url = https://github.com/jtruesdal/ccs_config_cesm.git
-	fxtag = ccs_config_cesm1.0.91_nh.04
+	fxtag = ccs_config_cesm1.0.91_nh.05
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/jtruesdal/ccs_config_cesm.git
 
@@ -215,11 +215,11 @@ fxDONOTUSEurl = https://github.com/NCAR/CUPiD.git
 
 [submodule "senh/dycore"]
 path = src/dynamics/senh/dycore
-url = https://github.com/E3SM-Project/E3SM.git
+url = https://github.com/jtruesdal/E3SM.git
 fxrequired = AlwaysRequired
 fxsparse = ../.e3sm_sparse_checkout
-	fxtag = b70b675a7b
-fxDONOTUSEurl = https://github.com/E3SM-Project/E3SM.git
+	fxtag = stormspeed_homme.01
+fxDONOTUSEurl = https://github.com/jtruesdal/E3SM.git
 
 [submodule "tuv-x"]
 path = libraries/tuv-x

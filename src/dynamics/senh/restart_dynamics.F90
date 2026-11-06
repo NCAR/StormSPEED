@@ -300,7 +300,7 @@ contains
 subroutine write_elem()
 
    ! local variables
-   integer              :: i, ie, j, k
+   integer              :: i, ie, j, k, m
    integer              :: ierr
    integer(i8), pointer :: ldof(:)
 
@@ -480,7 +480,7 @@ end subroutine write_elem
 subroutine write_unstruct()
 
    ! local variables
-   integer          :: i, ie, ii, j, k
+   integer          :: i, ie, ii, j, k, m
    integer          :: ierr
 
    integer :: array_lens_3d(3), array_lens_2d(2)
