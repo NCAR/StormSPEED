@@ -12,6 +12,76 @@ Newest entries are at the top.  CAM's own history is in doc/ChangeLog.
 
 ===============================================================
 
+Tag name: cam6_4_219_ss.07
+Originator(s): jtruesdal
+Date: Nov 7, 2026
+One-line Summary: Update to CAM cam6_4_219; izumi gnu/nag/intel theta-l tests join the gate
+Github PR URL: https://github.com/NCAR/StormSPEED/pull/216
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+- Merge ESCOMP/CAM cam6_4_212 through cam6_4_219 into stormspeed (see CAM's doc/ChangeLog for those tags).
+  Conflicts only where StormSPEED points at its fork of ccs_config; StormSPEED's src/dynamics/senh needed no
+  changes (CAM-SE's changes in these tags are internal to CAM-SE: a CSLAM diagnostic and its sponge layer).
+- ccs_config: ccs_config_cesm1.0.93_nh.06 (upstream ccs_config_cesm1.0.93 merged into the fork's ccs_config_nh;
+  StormSPEED's changes unchanged).  atmos_phys0_34_001 and the removal of the separate clubb submodule come from CAM.
+- Izumi is a gate platform again (aux_cam_e3sm): gnu FKESSLER ERS/ERP and SMS_D ne3pg3 FHISTC_LTso theta-l, _hy,
+  _kokkos, _kokkos_hy; nag SMS_D ne3pg3 FHISTC_LTso theta-l (NAG runtime checks); intel SMS_D ne3pg3 FHISTC_LTso
+  theta-l (debug; optimized izumi intel: #107).  The optimized ERS_Ln9 FHISTC_LTso tests stay in
+  aux_cam_e3sm_izumi (#110).
+
+Describe any changes made to build system: ccs_config nh.06 (upstream 1.0.93)
+Describe any changes made to the namelist: from CAM (clubb_do_icesuper and clubb_do_liqsupersat removed, cam6_4_216)
+List any changes to the defaults for the boundary datasets: from CAM
+Describe any substantial timing or memory changes: N/A
+Code reviewed by: self (jtruesdal)
+List all files eliminated: from CAM (e.g. the clubb submodule)
+List all files added and what they do: from CAM
+
+List all existing files that have been modified, and describe the changes:
+M       .gitmodules, ccs_config, src/atmos_phys (submodule pointers; clubb removed)
+M       cime_config/testdefs/testlist_cam.xml
+  - izumi gnu/nag/intel theta-l tests in aux_cam_e3sm
+  - plus all files changed by CAM between cam6_4_211 and cam6_4_219
+
+If there were any failures reported from running test_driver.sh on any test
+platform, they are listed below with their justification.
+
+aux_cam vs cam6_4_219 (CAM's own baselines): answers identical to CAM wherever CAM has a baseline.
+  NLCOMP everywhere the N-deposition stream is used: extra stream_ndep_mapalgo (StormSPEED's memory-reduction
+  change, from the ESCOMP/CAM PR #1643 line, not yet in CAM).
+  derecho/intel (62 tests): no CAM baseline (expected): FKESSLER theta-l ERP_Ln27/ERS_Ln27 (4), SHM (2).
+    ERC_D_Ln9.ne3_ne3_mg37.QPC7.derecho_intel.cam-outfrq9s_rttov MODEL_BUILD FAIL: CAM hard-codes
+    /glade/campaign/cesm/community/amwg/rttov/RTTOV (cime_config/buildlib, testmod outfrq9s_rttov), which the
+    reorganization of /glade/campaign/cesm/community removed; affects CAM too.
+    ERS_Ln9 f09 FX2000 (#113, intermittent) passed.
+  derecho/nvhpc: 1/1 BASELINE PASS.
+  izumi/gnu vs cam6_4_219_gnu: BASELINE PASS wherever a baseline exists; FKESSLER theta-l (4) and SHM (2): no
+    CAM baseline.
+  izumi/nag vs the cam6_4_219 pre-tag NAG baselines (/scratch/cluster/cacraig/aux_cam_nag_20261103160711/baselines):
+    17/17 BASELINE PASS except SHM (no CAM baseline; COMPARE_base_private PASS).  Four builds first hit NAG
+    "Internal error" crashes while many tests built at once on one node (create_test --no-batch); clean,
+    sequential rebuilds passed.  ERC_D ne3pg3 FHISTC_LTso nochem twice ended with "tm_poll(obit_event) failed
+    with TM error 17002" (mpiexec/Torque) after the model had finished; it passed when CIME submitted the
+    case, and a control (the same test from plain cam6_4_219 and from this branch, each run the same way
+    inside a generic batch job) passed for both: an intermittent launcher failure, not StormSPEED code.
+
+aux_cam_e3sm (gate) vs cam6_4_211_ss.06 (stormspeed_70f8354b_e3sm_intel/_gnu): every RUN and every
+  restart/PE-layout/threading comparison PASS (derecho intel 35, gnu 16).
+  Answer changes, all from CAM: FHISTC_LTso, FHISTC_MTso and F2000climo (322-333 fields differ) from
+  cam6_4_219 (PUMAS bug fixes) and cam6_4_213 (F compsets).  QPC6: BFB.  FKESSLER: BFB (only DGLC's new
+  history file has no ss.06 baseline).  NLCOMP: clubb_do_icesuper, clubb_do_liqsupersat removed (cam6_4_216).
+  izumi (first gate run): gnu 8/8, nag 1/1, intel 1/1 PASS.
+  Baselines generated: stormspeed_3cb84acb_e3sm_intel, _gnu (derecho); stormspeed_3cb84acb_e3sm_gnu, _nag,
+  _intel (izumi).
+
+CAM tag used for the baseline comparison tests if different than previous
+tag: cam6_4_219 (aux_cam)
+
+Summarize any changes to answers: changed only where CAM changed them (cam6_4_213, cam6_4_219); StormSPEED's
+own code changes in this tag are answer-neutral.
+
+===============================================================
+
 Tag name: cam6_4_211_ss.06
 Originator(s): jtruesdal
 Date: Nov 6, 2026
