@@ -16,7 +16,7 @@ Tag name: cam6_4_219_ss.07
 Originator(s): jtruesdal
 Date: Nov 7, 2026
 One-line Summary: Update to CAM cam6_4_219; izumi gnu/nag/intel theta-l tests join the gate
-Github PR URL: https://github.com/NCAR/StormSPEED/pull/216
+Github PR URL: https://github.com/NCAR/StormSPEED/pull/116
 
 Purpose of changes (include the issue number and title text for each relevant GitHub issue):
 - Merge ESCOMP/CAM cam6_4_212 through cam6_4_219 into stormspeed (see CAM's doc/ChangeLog for those tags).
