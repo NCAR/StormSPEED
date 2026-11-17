@@ -13,7 +13,9 @@ module namelist_mod_cam
             cubed_sphere_map,  &
             remapfreq            ! number of steps per remapping call
    use parallel_mod_cam,    only : parallel_t, abortmp
-   use dimensions_mod_cam,  only : set_mesh_dimensions, npart, ne
+   use dimensions_mod_cam,  only : set_mesh_dimensions, npart, ne, nnodes, nmpi_per_node
+   use params_mod,          only : SFCURVE
+   implicit none
    public :: homme_set_defaults
    public :: homme_postprocess_namelist
 

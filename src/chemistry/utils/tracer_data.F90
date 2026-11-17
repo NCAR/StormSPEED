@@ -27,7 +27,11 @@ module tracer_data
                                pio_inq_vardimid, pio_inq_dimlen, pio_closefile, &
                                pio_inquire_variable
   use cam_shmem_mod,    only : cam_shmem_alloc_r8_3d, cam_shmem_fence, &
-                               cam_shmem_free, cam_shmem_is_leader, cam_shmem_npes_per_node
+                               cam_shmem_free, cam_shmem_is_leader, cam_shmem_npes_per_node, &
+                               cam_shmem_leader_comm
+#ifdef SPMD
+  use mpishorthand,     only : mpir8
+#endif
 
   implicit none
 
@@ -86,7 +90,6 @@ module tracer_data
      integer :: interp_recs
      real(r8), pointer, dimension(:) :: curr_data_times => null()
      real(r8), pointer, dimension(:) :: next_data_times => null()
-     logical :: remove_trc_file = .false.  ! delete file when finished with it
      real(r8) :: offset_time
      integer :: cyc_ndx_beg
      integer :: cyc_ndx_end
@@ -141,6 +144,7 @@ module tracer_data
      ! it can be copied forward instead of re-read from disk.
      integer :: loaded_recno(2) = -1  ! file record numbers resident in input(1:2)
      integer :: loaded_fh(2)    = -1  ! PIO file handle (curr vs next) owning each
+     character(len=shr_kind_cl) :: loaded_fname(2) = ' '  ! file name owning each (handles can be reused)
      ! Per-node MPI shared-memory buffer holding ONE global source field
      ! (nlon x nlat x nlev) in flight during a read.  The node leader reads the
      ! field once (serial netCDF) and every rank on the node interpolates from
@@ -177,7 +181,7 @@ contains
 !--------------------------------------------------------------------------
 !--------------------------------------------------------------------------
   subroutine trcdata_init( specifier, filename, filelist, datapath, flds, file, &
-                           rmv_file, data_cycle_yr, data_fixed_ymd, data_fixed_tod, data_type )
+                           data_cycle_yr, data_fixed_ymd, data_fixed_tod, data_type )
 
     use mo_constants,    only : d2r
     use dyn_grid,        only : get_dyn_grid_parm, get_horiz_grid_d
@@ -194,7 +198,6 @@ contains
     character(len=*),    intent(in)    :: datapath
     type(trfld), dimension(:), pointer :: flds
     type(trfile),        intent(inout) :: file
-    logical,             intent(in)    :: rmv_file
     integer,             intent(in)    :: data_cycle_yr
     integer,             intent(in)    :: data_fixed_ymd
     integer,             intent(in)    :: data_fixed_tod
@@ -232,7 +235,6 @@ contains
 
     if (mxnflds < 1) return
 
-    file%remove_trc_file = rmv_file
     file%pathname = trim(datapath)
     file%filenames_list = trim(filelist)
 
@@ -1320,6 +1322,7 @@ contains
     type(file_desc_t) :: fids(4)
     logical :: times_found
     logical :: carry   ! .true. when input(1) can be carried from the resident input(2)
+    character(len=shr_kind_cl) :: fids_fname(4)  ! file name behind each fids(i)
 
     integer :: cur_yr, cur_mon, cur_day, cur_sec, yr1, yr2, mon, date, sec
     real(r8) :: series1_time, series2_time
@@ -1407,8 +1410,16 @@ contains
     ! input(2)/ps_in(2).  Carry it forward in memory instead of re-reading it
     ! from disk (this halves the per-update forcing I/O, time-axis broadcast and
     ! interpolation work).  Only the 2-record path is eligible.
+    do i = 1, file%interp_recs
+       if (fids(i)%fh == file%curr_fileid%fh) then
+          fids_fname(i) = file%curr_filename
+       else
+          fids_fname(i) = file%next_filename
+       end if
+    end do
     carry = ( file%interp_recs == 2 .and. file%initialized .and. &
-              recnos(1) == file%loaded_recno(2) .and. fids(1)%fh == file%loaded_fh(2) )
+              recnos(1) == file%loaded_recno(2) .and. fids(1)%fh == file%loaded_fh(2) .and. &
+              trim(fids_fname(1)) == trim(file%loaded_fname(2)) )
 
     do i=1,file%interp_recs
 
@@ -1503,9 +1514,11 @@ contains
     if ( file%interp_recs == 2 ) then
        file%loaded_recno(1:2) = recnos(1:2)
        file%loaded_fh(1:2)    = (/ fids(1)%fh, fids(2)%fh /)
+       file%loaded_fname(1:2) = fids_fname(1:2)
     else
        file%loaded_recno(:) = -1
        file%loaded_fh(:)    = -1
+       file%loaded_fname(:) = ' '
     end if
 
   end subroutine read_next_trcdata
@@ -1567,7 +1580,7 @@ contains
         end if
 
         call cam_shmem_fence(file%win_shr_src)
-        if (cam_shmem_is_leader()) then
+        if (masterproc) then
            call getfil( srcpath, locfn, 0 )
            iret = nf90_open( trim(locfn), nf90_nowrite, nfid )
            if (iret /= nf90_noerr) call endrun('read_2d_trc: nf90_open failed: '//trim(locfn))
@@ -1589,6 +1602,11 @@ contains
            end if
            deallocate(wrk2d)
         end if
+#ifdef SPMD
+        if (cam_shmem_is_leader()) then
+           call mpibcast( file%shr_src(:,:,1), file%nlon*file%nlat, mpir8, 0, cam_shmem_leader_comm() )
+        end if
+#endif
         call cam_shmem_fence(file%win_shr_src)
         wrk2d_in => file%shr_src(:,:,1)
 
@@ -1879,7 +1897,7 @@ contains
        end if
 
        call cam_shmem_fence(file%win_shr_src)              ! open the window epoch
-       if (cam_shmem_is_leader()) then
+       if (masterproc) then
           call getfil( srcpath, locfn, 0 )
           iret = nf90_open( trim(locfn), nf90_nowrite, nfid )
           if (iret /= nf90_noerr) call endrun('read_3d_trc: nf90_open failed: '//trim(locfn))
@@ -1902,6 +1920,11 @@ contains
           end if
           deallocate(wrk3d)
        end if
+#ifdef SPMD
+       if (cam_shmem_is_leader()) then
+          call mpibcast( file%shr_src, file%nlon*file%nlat*file%nlev, mpir8, 0, cam_shmem_leader_comm() )
+       end if
+#endif
        call cam_shmem_fence(file%win_shr_src)              ! publish to all ranks on node
        wrk3d_in => file%shr_src
 
@@ -2960,9 +2983,6 @@ contains
     !   This routine advances to the next file
     !------------------------------------------------------------------------------
 
-    use shr_sys_mod, only: shr_sys_system
-    use ioFileMod, only: getfil
-
     implicit none
 
     type(trfile), intent(inout) :: file
@@ -2970,26 +2990,12 @@ contains
     !-----------------------------------------------------------------------
     !   local variables
     !-----------------------------------------------------------------------
-    character(len=shr_kind_cl) :: ctmp
-    character(len=shr_kind_cl) :: loc_fname
-    integer            :: istat, astat
+    integer            :: astat
 
     !-----------------------------------------------------------------------
     !   close current file ...
     !-----------------------------------------------------------------------
     call pio_closefile( file%curr_fileid )
-
-    !-----------------------------------------------------------------------
-    !   remove if requested
-    !-----------------------------------------------------------------------
-    if( file%remove_trc_file ) then
-       call getfil( file%curr_filename, loc_fname, 0 )
-       write(iulog,*) 'advance_file: removing file = ',trim(loc_fname)
-       ctmp = 'rm -f ' // trim(loc_fname)
-       write(iulog,*) 'advance_file: fsystem issuing command - '
-       write(iulog,*) trim(ctmp)
-       call shr_sys_system( ctmp, istat )
-    end if
 
     !-----------------------------------------------------------------------
     !   Advance the filename and file id

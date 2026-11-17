@@ -28,8 +28,8 @@
 
 [submodule "atmos_phys"]
 	path = src/atmos_phys
-	url = https://github.com/ESCOMP/atmospheric_physics
-	fxtag = atmos_phys0_31_000
+        url = https://github.com/ESCOMP/atmospheric_physics
+        fxtag = atmos_phys0_34_001
         fxrequired = AlwaysRequired
         fxDONOTUSEurl = https://github.com/ESCOMP/atmospheric_physics
 
@@ -99,14 +99,6 @@
         fxtag = v2.2.1
         fxDONOTUSEurl = https://github.com/CFMIP/COSPv2.0
 
-[submodule "clubb"]
-	path = src/physics/clubb
-	url = https://github.com/larson-group/clubb_release
-        fxrequired = AlwaysRequired
-        fxsparse = ../.clubb_sparse_checkout
-        fxtag = clubb_4ncar_20260109_ddf5110
-        fxDONOTUSEurl = https://github.com/larson-group/clubb_release
-
 [submodule "ext_co2_cooling"]
 	path = src/physics/ext_co2_cooling
 	url = https://github.com/fedef17/CO2_cool_fort.git
@@ -139,7 +131,7 @@ fxDONOTUSEurl = https://github.com/ESCOMP/mizuRoute
 [submodule "ccs_config"]
 path = ccs_config
 url = https://github.com/jtruesdal/ccs_config_cesm.git
-	fxtag = ccs_config_cesm1.0.91_nh.02
+	fxtag = ccs_config_cesm1.0.93_nh.06
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/jtruesdal/ccs_config_cesm.git
 
@@ -188,7 +180,7 @@ fxDONOTUSEurl = https://github.com/ESCOMP/CESM_CICE
 [submodule "clm"]
 path = components/clm
 url = https://github.com/jtruesdal/ctsm.git
-fxtag = ctsm5.4.057_nh_kluzekdobbins_03
+fxtag = ctsm5.4.057_nh.01
 fxrequired = ToplevelRequired
 fxDONOTUSEurl = https://github.com/jtruesdal/ctsm.git
 
@@ -215,11 +207,11 @@ fxDONOTUSEurl = https://github.com/NCAR/CUPiD.git
 
 [submodule "se/homme"]
 path = src/dynamics/se/homme
-url = https://github.com/E3SM-Project/E3SM.git
+url = https://github.com/jtruesdal/E3SM.git
 fxrequired = AlwaysRequired
 fxsparse = ../.e3sm_sparse_checkout
-	fxtag = b70b675a7b
-fxDONOTUSEurl = https://github.com/E3SM-Project/E3SM.git
+	fxtag = stormspeed_homme.01
+fxDONOTUSEurl = https://github.com/jtruesdal/E3SM.git
 
 [submodule "tuv-x"]
 path = libraries/tuv-x

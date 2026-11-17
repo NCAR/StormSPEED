@@ -22,6 +22,7 @@ contains
 subroutine read_namelist(nlfilename, single_column, scmlat, scmlon)
 
    use cam_initfiles,       only: cam_initfiles_readnl
+   use cam_shmem_mod,       only: cam_shmem_readnl
    use constituents,        only: cnst_readnl
 
    use phys_grid,           only: phys_grid_readnl
@@ -50,6 +51,7 @@ subroutine read_namelist(nlfilename, single_column, scmlat, scmlon)
    use cldfrc2m,            only: cldfrc2m_readnl
    use rk_stratiform_cam,   only: rk_stratiform_cam_readnl
    use zm_conv_intr,        only: zm_conv_readnl
+   use mcsp_cam,            only: mcsp_cam_readnl
    use hk_conv,             only: hkconv_readnl
    use uwshcu,              only: uwshcu_readnl
    use pkg_cld_sediment,    only: cld_sediment_readnl
@@ -130,6 +132,7 @@ subroutine read_namelist(nlfilename, single_column, scmlat, scmlon)
    ! all processes receive the values.
 
    call spmd_utils_readnl(nlfilename)
+   call cam_shmem_readnl(nlfilename)
    call phys_grid_readnl(nlfilename)
    call air_composition_readnl(nlfilename)
    call physconst_readnl(nlfilename)
@@ -153,6 +156,7 @@ subroutine read_namelist(nlfilename, single_column, scmlat, scmlon)
    call cldfrc_readnl(nlfilename)
    call cldfrc2m_readnl(nlfilename)
    call zm_conv_readnl(nlfilename)
+   call mcsp_cam_readnl(nlfilename)
    call rk_stratiform_cam_readnl(nlfilename)
    call hkconv_readnl(nlfilename)
    call uwshcu_readnl(nlfilename)

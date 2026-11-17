@@ -1,0 +1,645 @@
+StormSPEED ChangeLog
+====================
+
+StormSPEED tags are named <CAM base tag>_ss.<NN>, e.g. cam6_4_211_ss.01:
+  - <CAM base tag> is the ESCOMP CAM tag the stormspeed branch is synced to.
+  - ss.<NN> increases by one for each PR merged into stormspeed and restarts at
+    .01 when stormspeed is synced to a newer CAM tag.
+Regression baselines are named after the tag and compiler, e.g.
+cam6_4_211_ss.02_intel, and each PR is compared against the baselines of the
+previous StormSPEED tag (or of the CAM base tag for ss.01).
+Newest entries are at the top.  CAM's own history is in doc/ChangeLog.
+
+===============================================================
+
+Tag name: cam6_4_219_ss.07
+Originator(s): jtruesdal
+Date: Nov 7, 2026
+One-line Summary: Update to CAM cam6_4_219; izumi gnu/nag/intel theta-l tests join the gate
+Github PR URL: https://github.com/NCAR/StormSPEED/pull/116
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+- Merge ESCOMP/CAM cam6_4_212 through cam6_4_219 into stormspeed (see CAM's doc/ChangeLog for those tags).
+  Conflicts only where StormSPEED points at its fork of ccs_config; StormSPEED's src/dynamics/senh needed no
+  changes (CAM-SE's changes in these tags are internal to CAM-SE: a CSLAM diagnostic and its sponge layer).
+- ccs_config: ccs_config_cesm1.0.93_nh.06 (upstream ccs_config_cesm1.0.93 merged into the fork's ccs_config_nh;
+  StormSPEED's changes unchanged).  atmos_phys0_34_001 and the removal of the separate clubb submodule come from CAM.
+- Izumi is a gate platform again (aux_cam_e3sm): gnu FKESSLER ERS/ERP and SMS_D ne3pg3 FHISTC_LTso theta-l, _hy,
+  _kokkos, _kokkos_hy; nag SMS_D ne3pg3 FHISTC_LTso theta-l (NAG runtime checks); intel SMS_D ne3pg3 FHISTC_LTso
+  theta-l (debug; optimized izumi intel: #107).  The optimized ERS_Ln9 FHISTC_LTso tests stay in
+  aux_cam_e3sm_izumi (#110).
+
+Describe any changes made to build system: ccs_config nh.06 (upstream 1.0.93)
+Describe any changes made to the namelist: from CAM (clubb_do_icesuper and clubb_do_liqsupersat removed, cam6_4_216)
+List any changes to the defaults for the boundary datasets: from CAM
+Describe any substantial timing or memory changes: N/A
+Code reviewed by: self (jtruesdal)
+List all files eliminated: from CAM (e.g. the clubb submodule)
+List all files added and what they do: from CAM
+
+List all existing files that have been modified, and describe the changes:
+M       .gitmodules, ccs_config, src/atmos_phys (submodule pointers; clubb removed)
+M       cime_config/testdefs/testlist_cam.xml
+  - izumi gnu/nag/intel theta-l tests in aux_cam_e3sm
+  - plus all files changed by CAM between cam6_4_211 and cam6_4_219
+
+If there were any failures reported from running test_driver.sh on any test
+platform, they are listed below with their justification.
+
+aux_cam vs cam6_4_219 (CAM's own baselines): answers identical to CAM wherever CAM has a baseline.
+  NLCOMP everywhere the N-deposition stream is used: extra stream_ndep_mapalgo (StormSPEED's memory-reduction
+  change, from the ESCOMP/CAM PR #1643 line, not yet in CAM).
+  derecho/intel (62 tests): no CAM baseline (expected): FKESSLER theta-l ERP_Ln27/ERS_Ln27 (4), SHM (2).
+    ERC_D_Ln9.ne3_ne3_mg37.QPC7.derecho_intel.cam-outfrq9s_rttov MODEL_BUILD FAIL: CAM hard-codes
+    /glade/campaign/cesm/community/amwg/rttov/RTTOV (cime_config/buildlib, testmod outfrq9s_rttov), which the
+    reorganization of /glade/campaign/cesm/community removed; affects CAM too.
+    ERS_Ln9 f09 FX2000 (#113, intermittent) passed.
+  derecho/nvhpc: 1/1 BASELINE PASS.
+  izumi/gnu vs cam6_4_219_gnu: BASELINE PASS wherever a baseline exists; FKESSLER theta-l (4) and SHM (2): no
+    CAM baseline.
+  izumi/nag vs the cam6_4_219 pre-tag NAG baselines (/scratch/cluster/cacraig/aux_cam_nag_20261103160711/baselines):
+    17/17 BASELINE PASS except SHM (no CAM baseline; COMPARE_base_private PASS).  Four builds first hit NAG
+    "Internal error" crashes while many tests built at once on one node (create_test --no-batch); clean,
+    sequential rebuilds passed.  ERC_D ne3pg3 FHISTC_LTso nochem twice ended with "tm_poll(obit_event) failed
+    with TM error 17002" (mpiexec/Torque) after the model had finished; it passed when CIME submitted the
+    case, and a control (the same test from plain cam6_4_219 and from this branch, each run the same way
+    inside a generic batch job) passed for both: an intermittent launcher failure, not StormSPEED code.
+
+aux_cam_e3sm (gate) vs cam6_4_211_ss.06 (stormspeed_70f8354b_e3sm_intel/_gnu): every RUN and every
+  restart/PE-layout/threading comparison PASS (derecho intel 35, gnu 16).
+  Answer changes, all from CAM: FHISTC_LTso, FHISTC_MTso and F2000climo (322-333 fields differ) from
+  cam6_4_219 (PUMAS bug fixes) and cam6_4_213 (F compsets).  QPC6: BFB.  FKESSLER: BFB (only DGLC's new
+  history file has no ss.06 baseline).  NLCOMP: clubb_do_icesuper, clubb_do_liqsupersat removed (cam6_4_216).
+  izumi (first gate run): gnu 8/8, nag 1/1, intel 1/1 PASS.
+  Baselines generated: stormspeed_3cb84acb_e3sm_intel, _gnu (derecho); stormspeed_3cb84acb_e3sm_gnu, _nag,
+  _intel (izumi).
+
+CAM tag used for the baseline comparison tests if different than previous
+tag: cam6_4_219 (aux_cam)
+
+Summarize any changes to answers: changed only where CAM changed them (cam6_4_213, cam6_4_219); StormSPEED's
+own code changes in this tag are answer-neutral.
+
+===============================================================
+
+Tag name: cam6_4_211_ss.06
+Originator(s): jtruesdal
+Date: Nov 6, 2026
+One-line Summary: NAG/portability: HOMME fixes via jtruesdal/E3SM stormspeed_homme.01, SENH fixes, ccs_config nh.05
+Github PR URL: https://github.com/NCAR/StormSPEED/pull/115
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+- Build and run StormSPEED's E3SM dycores with NAG Fortran 7.0 (CAM's strictest compiler), and fix
+  two real bugs NAG found.  All changes are answer-neutral.
+- HOMME: src/dynamics/senh/dycore now points at jtruesdal/E3SM tag stormspeed_homme.01 = E3SM
+  b70b675a7b plus one commit (8 files, 20 lines), to be proposed upstream to E3SM:
+  Bugs:
+    prim_driver_base: TARGET on MetaVertex.  sgi_init_grid keeps a pointer to it (gm%mv), which
+      dangled after return (NAG runtime check, in sgi_finalize).
+    compose_test_mod: GPTLget_memusage takes C int*; its arguments were integer(8).
+  Portability:
+    sort_mod (#102 "HOMME share/sort_mod.F90: array declared before its bounds") and
+      theta-l/share/prim_state_mod: array bounds declared before the arrays; sort_mod also drops an
+      unused c_int import and gives cmp_ints bind(c, name='').
+    kinds, parallel_mod, metis_mod: portable kinds instead of literal kind numbers.
+    global_norms_mod: real literal instead of an integer literal with a real kind.
+    parallel_mod, prim_state_mod: flush statement instead of the nonstandard flush subroutine.
+  Carried as a fork commit rather than whole-file overrides in senh/cam_mods, which would silently
+  replace newer HOMME files at the next update.  Note: theta-l_kokkos/share is a symlink to
+  theta-l/share, so both targets use these files.
+- SENH: cam_mods/namelist_mod_cam.F90 had no implicit none, so SFCURVE, nnodes and nmpi_per_node
+  were implicitly typed locals: METIS/Zoltan partitioning (se_partmethod 0-3) got an undefined
+  partition method and never set dimensions_mod's nnodes/nmpi_per_node.  Imported, implicit none
+  added.  The default (SFCURVE) is unaffected.  restart_dynamics.F90: write_elem and
+  write_unstruct use their own loop index instead of the host's.
+- ccs_config: ccs_config_cesm1.0.91_nh.05 = nh.04 + -std=c++17 for NAG's C++ compiler (g++ 9.3
+  without a -std flag; Kokkos 4 requires C++17).
+
+Describe any changes made to build system: ccs_config nh.05 (NAG C++ flag)
+Describe any changes made to the namelist: N/A
+List any changes to the defaults for the boundary datasets: N/A
+Describe any substantial timing or memory changes: N/A
+Code reviewed by: self (jtruesdal)
+List all files eliminated: N/A
+List all files added and what they do: N/A
+
+List all existing files that have been modified, and describe the changes:
+M       .gitmodules
+  - ccs_config: fxtag ccs_config_cesm1.0.91_nh.05
+  - senh/dycore: url jtruesdal/E3SM, fxtag stormspeed_homme.01
+M       ccs_config, src/dynamics/senh/dycore (submodule pointers)
+M       src/dynamics/senh/cam_mods/namelist_mod_cam.F90
+M       src/dynamics/senh/restart_dynamics.F90
+
+If there were any failures reported from running test_driver.sh on any test
+platform, they are listed below with their justification.
+
+derecho/intel/aux_cam_e3sm vs cam6_4_211_ss.04_e3sm_intel: 35/35 BASELINE PASS.
+derecho/gnu/aux_cam_e3sm vs cam6_4_211_ss.04_e3sm_gnu: 16/16 BASELINE PASS.
+  NLCOMP differs in the land configurations only: lnd_in's for_testing_options group, written by
+  upstream CTSM (ss.05) but not by the CTSM fork used for the ss.04 baselines.
+  Baselines generated: stormspeed_70f8354b_e3sm_intel, stormspeed_70f8354b_e3sm_gnu.
+izumi (run with the same fixes as senh/cam_mods overrides, identical code):
+  nag: SMS_D_Ln9 ne3pg3 FHISTC_LTso theta-l PASS (NAG -C=all runtime checks).
+    theta-l_kokkos builds.  Its debug run stops at init on IEEE invalid: HOMME's ElementsState.cpp
+    fills pack padding with quiet NaNs and compares with <, which NAG's -ieee=stop traps
+    process-wide (not a bug).  The non-debug SMS_Ln9 run fails; to be investigated in ss.07.
+  intel: SMS_D_Ln9 ne3pg3 FHISTC_LTso theta-l PASS.
+  gnu, aux_cam_e3sm_izumi: FKESSLER ERP/ERS (4) and SMS_D FHISTC_LTso (4) RUN PASS (NLCOMP vs
+    ss.02 from the HOMME namelist additions in ss.03; SMS_D have no ss.02 baseline);
+    ERS_Ln9 FHISTC_LTso theta-l, theta-l_hy, theta-l_kokkos, theta-l_kokkos_hy FAIL: issue #110
+    (optimized GNU 12.4 restarts), which therefore also affects theta-l_kokkos.
+  The izumi gnu/nag/intel theta-l tests join the aux_cam_e3sm gate in ss.07.
+
+CAM tag used for the baseline comparison tests if different than previous
+tag: N/A
+
+Summarize any changes to answers: none.
+
+===============================================================
+
+Tag name: cam6_4_211_ss.05
+Originator(s): jtruesdal
+Date: Nov 5, 2026
+One-line Summary: CTSM: return to upstream ctsm5.4.057 (ctsm5.4.057_nh.01: one ne1024 default added)
+Github PR URL: https://github.com/NCAR/StormSPEED/pull/114
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+- components/clm: replace the development CTSM fork used since ss.00 with jtruesdal/ctsm tag
+  ctsm5.4.057_nh.01 = upstream ESCOMP/CTSM ctsm5.4.057 plus one change: the fsurdat default for
+  ne1024np4.pg2, needed for StormSPEED's ne1024 runs (being proposed upstream).  StormSPEED then
+  carries no untested land code.  (The intermittent ss.00 failures once attributed to the fork
+  are not caused by it; see the ss.04 entry.)
+
+Describe any changes made to build system: N/A
+Describe any changes made to the namelist: N/A (lnd_in differs from ss.02 where upstream CTSM's
+  defaults differ from the fork's; NLCOMP differences only)
+List any changes to the defaults for the boundary datasets: N/A
+Describe any substantial timing or memory changes: N/A
+Code reviewed by: self (jtruesdal)
+List all files eliminated: N/A
+List all files added and what they do: N/A
+
+List all existing files that have been modified, and describe the changes:
+M       .gitmodules
+  - clm: jtruesdal/ctsm, fxtag ctsm5.4.057_nh.01
+M       components/clm
+  - submodule pointer to ctsm5.4.057_nh.01
+
+If there were any failures reported from running test_driver.sh on any test
+platform, they are listed below with their justification.
+
+derecho/intel/aux_cam vs ss.02 (stormspeed_1649dbd8_intel): 58 BASELINE PASS, no answer changes.
+  SHM_D_Ln3 f10 QPMOZ BASELINE FAIL: the SHM test defect fixed in ss.04.
+  ERS_Ln9 f09 FX2000 RUN FAIL: intermittent rpointer failure at restart, issue #113.
+derecho/nvhpc/aux_cam: 1/1 BASELINE PASS.
+izumi/gnu/aux_cam vs cam6_4_211_ss.02_gnu: 31/31 BASELINE PASS.
+izumi/nag/aux_cam: 17/17 BASELINE PASS vs cam6_4_211_ss.02_nag (3 tests rebuilt clean after builds interrupted by an izumi network outage).
+
+CAM tag used for the baseline comparison tests if different than previous
+tag: cam6_4_211_ss.02 (aux_cam baselines)
+
+Summarize any changes to answers: none.
+
+===============================================================
+
+Tag name: cam6_4_211_ss.04
+Originator(s): jtruesdal
+Date: Nov 4, 2026
+One-line Summary: E3SM-dycore tests: ne30pg2 production configuration, climate smoke, GPU; izumi out of the gate
+Github PR URL: https://github.com/NCAR/StormSPEED/pull/112
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+- Tests for StormSPEED's production configuration, FHISTC_LTso on ne30pg2_ne30pg2_mt232
+  (ne30 climate runs; template for the TAMU high-resolution GPU runs):
+  aux_cam_e3sm (gate), derecho intel: ERS_Ln9 theta-l and theta-l_kokkos (pg2 physgrid).
+  aux_cam_e3sm_climate (on demand), derecho intel: ERS_Ld62 theta-l and theta-l_kokkos:
+    62 days from Jan 1, restart at Feb 1 (month boundary), monthly history compared.
+    (CIME's ERS does not support nmonths, so ERS_Lm2 was replaced.)
+  aux_cam_e3sm_gpu (on demand), derecho gnu (A100) and casper gnu (H100): SMS_Ln9 and
+    ERS_Ln9 theta-l_kokkos with KOKKOS_GPU_OFFLOAD; 64 ranks, one per GPU (16 nodes x 4),
+    as in Jian Sun's GPU runs, so CIME selects the main queue.
+- izumi gnu theta-l tests move from aux_cam_e3sm to aux_cam_e3sm_izumi (izumi was not a
+  gate platform at this tag).
+- SHM test fix: run two now uses run one's CAM configuration (Buildconf/camconf copied,
+  usr_src pointed at case two).  Case two is not built; CAM's buildnml reran configure for
+  it at run time, and with a user chemistry mechanism (outfrq3s_chemproc) the chemistry
+  preprocessor silently failed there (nadv 3 instead of 106), so run two had no chemistry
+  namelists and stopped on fincl fields never registered (DV_HCN, DV_CH3CN).
+
+Describe any changes made to build system: N/A
+Describe any changes made to the namelist: N/A
+List any changes to the defaults for the boundary datasets: N/A
+Describe any substantial timing or memory changes: N/A
+Code reviewed by: self (jtruesdal)
+List all files eliminated: N/A
+
+List all files added and what they do:
+A       cime_config/testdefs/testmods_dirs/cam/outfrq1m_thetal/{include_user_mods,shell_commands}
+A       cime_config/testdefs/testmods_dirs/cam/outfrq1m_thetal_kokkos/{include_user_mods,shell_commands}
+  - monthly-history climate smoke testmods (include CAM's outfrq1m).
+A       cime_config/testdefs/testmods_dirs/cam/outfrq9s_thetal_kokkos_gpu/{include_user_mods,shell_commands}
+  - theta-l_kokkos on NVIDIA GPUs (GPU_TYPE by machine).
+
+List all existing files that have been modified, and describe the changes:
+M       cime_config/testdefs/testlist_cam.xml
+  - the tests above; izumi gnu theta-l entries to aux_cam_e3sm_izumi.
+M       cime_config/SystemTests/shm.py
+  - _case_two_custom_prerun_action: run two uses run one's CAM configuration.
+
+If there were any failures reported from running test_driver.sh on any test
+platform, they are listed below with their justification.
+
+derecho/intel: ERS_Ln9 ne30pg2 FHISTC_LTso theta-l and theta-l_kokkos PASS;
+  ERS_Ld62 ne30pg2 FHISTC_LTso theta-l and theta-l_kokkos PASS (restart at Feb 1 BFB);
+  SHM_D_Ln3 f10 QPMOZ outfrq3s_chemproc with the fixed SHM test: RUN and
+  COMPARE_base_private PASS (node-shared and private memory BFB, with chemistry).
+derecho/gnu GPU (A100, first runs with 16 ranks): SMS_Ln9 theta-l_kokkos PASS.  GPU runs are
+  deterministic (two runs of the same case: identical total energy at every step).
+  ERS_Ln9 theta-l_kokkos GPU FAIL COMPARE_base_rest: known failure, issue #111 (the restart
+  state reaches the GPU exactly, but the first dynamics step after restart differs slightly).
+  The 64-rank testmod and the casper H100 tests have not been run yet.
+
+Results recorded since earlier tags:
+- ss.03: the last 2 ne30 intel gate tests (ERP_Ln9 ne30pg3 F2000climo and SMS_Ln9 ne30pg3
+  FHISTC_MTso, theta-l_kokkos) were rerun: BASELINE PASS.  The ss.03 gate is 33/33 BFB
+  vs stormspeed_2647799a_e3sm_intel (NLCOMP: se_laplace_scaling and se_tom_sponge_start only).
+- ss.02, derecho/intel/aux_cam vs cam6_4_211_ss.00_intel: 57 tests PASS, no answer changes.
+  SHM_D_Ln9 ne3pg3 FHISTC_LTso: no ss.00 baseline (runs pass).  SHM_D_Ln3 f10 QPMOZ: RUN
+  FAIL, caused by the SHM test defect fixed in this tag (run two without chemistry); it
+  passes with the fix (see above).
+  ERS_Ln9 f09 FX2000: intermittent rpointer failure at restart, issue #113.
+  derecho/nvhpc/aux_cam: 1/1 PASS.
+- Correction to the ss.02 entry: the ss.00 failures (ERC_D mpasa120, ERP ne30pg3
+  FHISTC_WAma, ERS f09 FX2000) are intermittent and not caused by the CTSM fork: ERC_D
+  passed first time with the same fork in the ss.02 aux_cam run, and the FX2000 failure
+  also occurs with upstream ctsm5.4.057 (#113).  The return to upstream CTSM (ss.05) stands
+  on its own merits.
+
+CAM tag used for the baseline comparison tests if different than previous
+tag: N/A
+
+Summarize any changes to answers: none (tests only).
+
+===============================================================
+
+Tag name: cam6_4_211_ss.03
+Originator(s): jtruesdal
+Date: Oct 28, 2026
+One-line Summary: HOMME update to E3SM b70b675a7b (split-form theta advection, tensor sponge layer)
+Github PR URL: https://github.com/NCAR/StormSPEED/pull/99
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+- Update the E3SM HOMME dycore (senh/dycore) from 057df66 to E3SM master b70b675a7b,
+  bringing in Mark Taylor's split-form theta advection and the tensor sponge-layer
+  Laplacian (E3SM PR #8642).
+- Expose two new HOMME options:
+  se_laplace_scaling (default 0): 0 keeps the constant-coefficient sponge (se_nu_top in
+    m^2/s); > 0 selects the tensor sponge Laplacian, with se_nu_top in tensor-scaled units.
+  se_tom_sponge_start (hPa, default 0): 0 keeps HOMME's standard sponge profile; > 0 sets
+    the pressure where the top-of-model sponge begins (se_nu_top scaled by
+    0.15*(se_tom_sponge_start/p)**2, zero below 0.15, capped at 8); applies to both sponges.
+
+Describe any changes made to build system: N/A
+
+Describe any changes made to the namelist:
+- New dyn_se_inparm variables se_laplace_scaling and se_tom_sponge_start (defaults 0 for
+  theta-l and preqx; written to atm_in).
+- build-namelist: with se_laplace_scaling > 0, se_nu_top defaults to 5.0e-7 and values
+  larger than 1.0e-2 (m^2/s) stop with an error.
+
+List any changes to the defaults for the boundary datasets: N/A
+
+Describe any substantial timing or memory changes: not measured (throughput tests are
+not part of the gate).
+
+Code reviewed by: self (jtruesdal)
+
+List all files eliminated: N/A
+
+List all files added and what they do: N/A
+
+List all existing files that have been modified, and describe the changes:
+M       .gitmodules
+M       src/dynamics/senh/dycore
+  - senh/dycore 057df66 -> b70b675a7b.
+M       bld/build-namelist
+  - se_laplace_scaling and se_tom_sponge_start; tensor-sponge se_nu_top default and check.
+M       bld/namelist_files/namelist_defaults_senh.xml
+M       bld/namelist_files/namelist_definition.xml
+  - the two new variables.
+M       src/dynamics/senh/cam_mods/namelist_mod.F90
+M       src/dynamics/senh/dyn_comp.F90
+  - read, broadcast and pass the two new variables to HOMME.
+
+If there were any failures reported from running test_driver.sh on any test
+platform, they are listed below with their justification.
+
+derecho/intel/aux_cam_e3sm vs cam6_4_211_ss.02 (stormspeed_2647799a_e3sm_intel): 27/27
+  completed tests BFB; NLCOMP: se_laplace_scaling and se_tom_sponge_start added (all tests).
+  the 6 ne30 tests were in progress when ss.03 was merged; results recorded with the next tag.  Baselines: stormspeed_d3d38547_e3sm_intel.
+
+derecho/gnu/aux_cam_e3sm vs cam6_4_211_ss.02 (stormspeed_2647799a_e3sm_gnu): 16/16 BFB;
+  NLCOMP: the same two new variables.  Baselines: stormspeed_d3d38547_e3sm_gnu.
+
+CAM's other aux_cam tests do not use the HOMME code and were not rerun.
+GitHub CI (CIRRUS runners): not available when merged (runners offline).
+
+CAM tag used for the baseline comparison tests if different than previous
+tag: N/A
+
+Summarize any changes to answers: none with the default settings (BFB); the new
+options change answers only when set.
+
+===============================================================
+
+Tag name: cam6_4_211_ss.02
+Originator(s): jtruesdal
+Date: Oct 28, 2026
+One-line Summary: E3SM-dycore regression tests; hydrostatic restart fix; cam_shmem probe/fallback; tracer_data fix; SHM test
+Github PR URL: https://github.com/NCAR/StormSPEED/pull/109
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+- Add regression tests for the E3SM HOMME dycores (CAM_TARGET=theta-l and
+  theta-l_kokkos): debug runs with FPE traps (SMS_D), exact restart (ERS),
+  PE-layout/thread/task-count reproducibility (ERP, PET, PEM), initial/hybrid/branch
+  starts (ERI_D), nonhydrostatic and hydrostatic, physgrid ne3pg3, GLL ne3 (QPC6),
+  analytic IC (FKESSLER ne16), ne16pg3 and ne30.  New categories:
+    aux_cam_e3sm         gate: derecho intel (33 tests), derecho gnu (16), izumi gnu (12)
+    aux_cam_e3sm_canary  derecho nvhpc theta-l smoke test (see #100, #101)
+    aux_cam_e3sm_unify   tests for the planned src/dynamics/se unification
+    aux_cam_e3sm_perf    PFS throughput (ne30)
+    aux_cam_preqx        preqx (does not build yet, #104)
+- Fix: theta-l hydrostatic restarts aborted ("cannot find W"): the restart reader
+  always read W and PHINH, which hydrostatic runs do not write.  Skip them when
+  theta_hydrostatic_mode and zero w_i/phinh_i, as E3SM does.
+- Fix (#106): on izumi (Intel and NAG MVAPICH2) MPI_Win_shared_query returns size 0
+  and no address to all non-leader ranks inside CESM, so cam_shmem_mod's node-shared
+  tables (soil_erod, phys_prop, mo_jlong, tracer_data) were null on 23 of 24 ranks
+  ("Reference to disassociated pointer" in soil_erod_mod).  init_comms now probes a
+  small window collectively and, if any rank cannot see it, gives every rank private
+  copies; answers are unchanged.  The atm log reports the probe result and the mode.
+- New namelist switch cam_shmem_nl/cam_shmem_force_private (default .false.) forces
+  private memory; used by the new SHM system test.
+- tracer_data: from ESCOMP/CAM PR #1643 (commit 0b0bd236): the carry-forward of a
+  time record also requires the same file name (PIO handles can be reused across
+  files), and the node-shared source field is read on masterproc only and broadcast
+  to the node leaders.
+- New system test SHM (SystemTestsCompareTwo, one build): default cam_shmem settings
+  vs cam_shmem_force_private = .true.; history must be BFB.
+- Platforms removed from theta-l testing until their blockers are fixed:
+  derecho nvhpc (#100 HOMME C++ does not build with nvc++; #101 not reproducible
+  across MPI decompositions), izumi nag (#102 E3SM sort_mod.F90 declaration order),
+  izumi intel (#103: stack overflow in large automatic arrays; fixed in ss.01 by
+  -heap-arrays 64, to be re-added once verified).
+
+Describe any changes made to build system: N/A
+
+Describe any changes made to the namelist:
+- New group cam_shmem_nl with cam_shmem_force_private (logical, default .false.).
+  Defined in namelist_definition.xml only; not written to atm_in by default, so
+  existing namelists are unchanged.
+
+List any changes to the defaults for the boundary datasets: N/A
+
+Describe any substantial timing or memory changes:
+- None where shared windows work (one 64-byte probe window at init).  Where the
+  probe fails, each rank holds private copies of the shared tables (the memory
+  behavior before cam_shmem_mod).
+
+Code reviewed by: self (jtruesdal)
+
+List all files eliminated: N/A
+
+List all files added and what they do:
+A       cime_config/SystemTests/shm.py
+  - SHM system test: node-shared vs private cam_shmem memory must be BFB.
+A       cime_config/testdefs/testmods_dirs/cam/outfrq9s_thetal_hy/
+A       cime_config/testdefs/testmods_dirs/cam/outfrq9s_thetal_kokkos_hy/
+  - hydrostatic theta-l / theta-l_kokkos (se_theta_hydrostatic_mode, se_tstep_type=5)
+A       cime_config/testdefs/testmods_dirs/cam/outfrq3s_eri_thetal/
+A       cime_config/testdefs/testmods_dirs/cam/outfrq3s_eri_thetal_kokkos/
+  - ERI tests (CAM's outfrq3s_eri settings) for theta-l / theta-l_kokkos
+A       cime_config/testdefs/testmods_dirs/cam/outfrq9s_thetal_rstunstruct/
+A       cime_config/testdefs/testmods_dirs/cam/outfrq9s_thetal_kokkos_rstunstruct/
+  - unstructured-format restart (for the planned se unification)
+A       cime_config/testdefs/testmods_dirs/cam/outfrq9s_thetal_interp/
+  - interpolated history output on the GLL grid (for the planned se unification)
+A       cime_config/testdefs/testmods_dirs/cam/outfrq9s_preqx/
+  - preqx target
+
+List all existing files that have been modified, and describe the changes:
+M       src/dynamics/senh/restart_dynamics.F90
+  - hydrostatic restart: do not read W/PHINH (read_restart_dynamics, read_elem,
+    read_unstruct); zero w_i/phinh_i instead.
+M       src/utils/cam_shmem_mod.F90
+  - shared-window probe in init_comms; per-rank private fallback; atm log report;
+    cam_shmem_readnl (cam_shmem_force_private).
+M       src/control/runtime_opts.F90
+  - call cam_shmem_readnl.
+M       src/control/cam_comp.F90
+  - call cam_shmem_init after read_namelist (so cam_shmem_force_private is known).
+M       src/chemistry/utils/tracer_data.F90
+  - carry-forward matches file name; masterproc reads the shared source field
+    (from ESCOMP/CAM PR #1643).
+M       bld/namelist_files/namelist_definition.xml
+  - cam_shmem_force_private.
+M       cime_config/config_tests.xml
+  - SHM test definition.
+M       cime_config/testdefs/testlist_cam.xml
+  - E3SM-dycore tests and categories (above); SHM tests in aux_cam:
+      SHM_D_Ln9.ne3pg3_ne3pg3_mt232.FHISTC_LTso (derecho intel/gnu; izumi gnu/nag/intel)
+      SHM_D_Ln3.f10_f10_mg37.QPMOZ (derecho intel; izumi gnu)
+    The pre-existing FKESSLER ERS_Ln27/ERP_Ln27 theta-l tests keep aux_cam on
+    derecho intel and izumi gnu only.
+
+If there were any failures reported from running test_driver.sh on any test
+platform, they are listed below with their justification.
+
+derecho/intel/aux_cam_e3sm: All PASS (33/33); baselines stormspeed_2647799a_e3sm_intel
+
+derecho/gnu/aux_cam_e3sm: All PASS (16/16); baselines stormspeed_2647799a_e3sm_gnu
+
+derecho SHM tests (intel FHISTC_LTso and QPMOZ, gnu FHISTC_LTso): All PASS; atm logs
+  confirm run one used node-shared tables (probe PASSED) and run two private memory.
+
+derecho/intel/aux_cam vs cam6_4_211_ss.00_intel: in progress when ss.02 was merged; results recorded with the next tag
+
+derecho/nvhpc/aux_cam vs cam6_4_211_ss.00_nvhpc: in progress when ss.02 was merged; results recorded with the next tag
+
+izumi theta-l (not a gate platform): gnu SMS_D and FKESSLER ERS_Ln27/ERP_Ln27 PASS.
+  Known failures: gnu optimized ERS_Ln9 FHISTC_LTso, NaNs in HOMME prim_printstate
+  diagnostics after restart (#110; debug ERS_D passes, restart files clean); intel
+  optimized runs, FoX/CDEPS startup crash (#107); intel debug theta-l_kokkos, Kokkos
+  SIMD floating-point trap (noted under #107).
+
+izumi SHM tests (gnu x2, nag, intel): 4/4 PASS.  Shared-window probe PASSED with the GNU
+  MVAPICH2, FAILED with the NAG and Intel builds; the fallback gives identical answers (#106).
+
+izumi/gnu/aux_cam vs cam6_4_211_gnu: answers BFB for all comparable tests; NLCOMP: the
+  expected CTSM and stream_ndep_mapalgo differences; no cam6_4_211 baseline for the
+  StormSPEED-only tests (4 FKESSLER theta-l, 2 SHM; runs pass); TPUTCOMP failures are
+  throughput comparisons only.  Baselines: stormspeed_1649dbd8_gnu.
+
+izumi/nag/aux_cam vs cam6_4_211_nag: all 17 tests run (first full-physics NAG runs on
+  izumi, enabled by the cam_shmem fallback); answers BFB; SHM has no baseline (passes).
+  Baselines: stormspeed_1649dbd8_nag.
+
+ss.00 known failures, update: ERC_D_Ln9 mpasa120 F2000climo and ERP_Ln9 ne30pg3
+  FHISTC_WAma both pass at full size with upstream ctsm5.4.057, in cam6_4_211 and in
+  stormspeed: the CTSM fork causes both (return to upstream CTSM planned, ss.05).
+  ERS_Ln9 f09 FX2000 ltr: under investigation.
+
+CAM tag used for the baseline comparison tests if different than previous
+tag: cam6_4_211_ss.00 (aux_cam); aux_cam_e3sm baselines are new with this tag.
+
+Summarize any changes to answers:
+- None expected from cam_shmem (SHM: shared and private are BFB) or from the
+  restart fix (restart-only).  tracer_data: answers change only where the old
+  carry-forward matched the wrong file: none seen (izumi aux_cam gnu/nag BFB with
+  cam6_4_211).
+
+===============================================================
+
+Tag name: cam6_4_211_ss.01
+Originator(s): jtruesdal
+Date: Oct 28, 2026
+One-line Summary: ccs_config fixes for Izumi: GNU BOZ flag, C++ compiler for NAG, Intel heap arrays
+Github PR URL: https://github.com/NCAR/StormSPEED/pull/108
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+- Izumi GNU builds failed on BOZ literals (e.g. src/control/cam_history.F90:
+  gen_hash_key_offset = z'000053db'): the forked machines/izumi/gnu_izumi.cmake had
+  dropped the upstream unconditional
+  string(APPEND FFLAGS " -fallow-argument-mismatch -fallow-invalid-boz ").
+- Izumi NAG builds of theta-l / theta-l_kokkos failed ("ERROR:  is not in PATH?"):
+  CAM's buildlib builds Kokkos for both targets and nag.cmake defined no C++
+  compiler.  Use GNU C++ (MPICXX mpicxx, SCXX g++) alongside NAG Fortran, as is
+  already done for C.  (NAG theta-l then stops at E3SM's sort_mod.F90, #102.)
+- #103: Izumi Intel (20.0.1) runs segfaulted in routines with large automatic
+  arrays (e.g. RRTMG rrtmg_sw_spcvmc.f90 line 300; earlier seen in COMPOSE) because
+  they were placed on the stack.  Add -heap-arrays 64 for Izumi Intel.
+
+Describe any changes made to build system:
+- ccs_config updated to ccs_config_cesm1.0.91_nh.04 (jtruesdal/ccs_config_cesm).
+
+Describe any changes made to the namelist: N/A
+
+List any changes to the defaults for the boundary datasets: N/A
+
+Describe any substantial timing or memory changes: N/A
+
+Code reviewed by: self (jtruesdal)
+
+List all files eliminated: N/A
+
+List all files added and what they do:
+A       doc/ChangeLog_stormspeed
+  - StormSPEED tag history (this file).
+
+List all existing files that have been modified, and describe the changes:
+M       .gitmodules
+M       ccs_config
+  - ccs_config_cesm1.0.91_nh.02 -> ccs_config_cesm1.0.91_nh.04:
+    machines/cmake_macros/nag.cmake: set(MPICXX "mpicxx"), set(SCXX "g++")
+    machines/izumi/gnu_izumi.cmake: restore
+      string(APPEND FFLAGS " -fallow-argument-mismatch -fallow-invalid-boz ")
+    machines/izumi/intel_izumi.cmake: string(APPEND FFLAGS " -heap-arrays 64")
+
+If there were any failures reported from running test_driver.sh on any test
+platform, they are listed below with their justification.
+
+derecho/intel/aux_cam, derecho/nvhpc/aux_cam: not affected (only izumi machine
+  files and the NAG compiler macros change); see ss.00 for the derecho status.
+
+izumi/intel (nh.04): SMS_D_Ln9.ne3_ne3_mg37.QPC6 and SMS_D_Ln9.ne3pg3_ne3pg3_mt232.FHISTC_LTso
+  theta-l PASS (previously segfaults in RRTMG from stack overflow, #103).
+  ERS_Ln9.ne3pg3_ne3pg3_mt232.FHISTC_LTso theta-l (optimized build) segfaults in the FoX
+  XML parser during CDEPS stream initialization (#107; not dycore-related).  izumi intel
+  is not a gate platform.
+
+izumi/gnu: the BOZ build failure is fixed: SMS_D_Ln9.ne3pg3_ne3pg3_mt232.FHISTC_LTso
+  .izumi_gnu.cam-outfrq9s_thetal and SMS_D_Ln3.ne3pg3_ne3pg3_mt232.FHIST_C4
+  .izumi_gnu.cam-outfrq3s_pc7 PASS (previously MODEL_BUILD FAIL).
+  izumi/gnu/aux_cam: see ss.02 (full physics on izumi also needs the cam_shmem fallback, #106).
+
+izumi/nag: the missing C++ compiler is fixed; NAG theta-l builds then stop at
+  E3SM's sort_mod.F90 (#102), so NAG is removed from theta-l testing in ss.02.
+
+CAM tag used for the baseline comparison tests if different than previous
+tag: cam6_4_211
+
+Summarize any changes to answers: none (machine configuration only; heap vs stack
+storage does not change results).
+
+===============================================================
+
+Tag name: cam6_4_211_ss.00
+Date: Oct 27, 2026
+One-line Summary: Starting point for StormSPEED tags (stormspeed at a222d67)
+
+stormspeed branch at a222d67 (Merge pull request #98 from NCAR/senh_pr4_threads),
+based on CAM cam6_4_211.  This tag predates this file; it is recorded here as the
+reference point for later StormSPEED tags.
+
+E3SM HOMME dycores: CAM_TARGET=theta-l, theta-l_kokkos, preqx in src/dynamics/senh
+(externals senh/dycore = E3SM 057df66, libraries/kokkos = E3SM-Project/kokkos 6a19eb9).
+
+CAM changes beyond cam6_4_211 outside the dycore (not on the CAM trunk at this tag):
+- Memory reduction for high-resolution initialization (precursor of ESCOMP/CAM
+  PR #1643): cam_shmem_mod (MPI-3 node-shared read-only tables) used by phys_prop,
+  soil_erod, mo_jlong and tracer_data; tables freed after init (physprop_final,
+  photo_final/jlong_final); initial file closed after init; new namelist
+  stream_ndep_mapalgo (N-deposition stream mapping).
+- ne1024 restart fix (#71): 64-bit history/restart map sizes (cam_grid_support,
+  cam_map_utils).
+- CLUBB-MF (#73) for high-resolution convection; aircraft_emit latitude weighting
+  only for the FV (LR) dycore.
+- SENH hooks in physics: SENH treated like FV/FV3/MPAS/SE where needed (cam_budget,
+  geopotential, moist mixing ratio in cam/cam7/simple physpkg); physics_dme_adjust
+  skipped for SENH (moist mass adjusted in HOMME, #92).
+- Portability: no 16-byte reals with NVHPC (physconst NO_R16); Fortran conformance.
+- Build/infrastructure: senh and Kokkos support (configure, build-namelist,
+  buildlib, buildcpp, config_pes, namelist_defaults_senh.xml); GitHub CI workflows
+  and dockerfiles.
+
+Forked externals (vs cam6_4_211):
+- ccs_config_cesm1.0.91_nh.02: ne1024/ne1024pg2/ne16pg2/ne16pg3/MIDWEST grids;
+  Kokkos SERIAL on derecho; izumi Kokkos/NAG 7.0 settings; Intel C/C++ icc/icpc.
+- cmeps1.1.71_nh.01: ATM_NCPL 864 for the ne1024 grids.
+- ctsm5.4.057_nh_kluzekdobbins_03: ne1024np4.pg2 fsurdat default; self-test,
+  bypass and memory-diagnostic code (testing only); for_testing_run_ncdiopio_tests
+  moved to a new namelist group.
+
+Status at this tag:
+derecho/intel/aux_cam and derecho/nvhpc/aux_cam vs cam6_4_211: answers BFB for all
+  45 comparable tests (intel 44, nvhpc 1).  Baselines: stormspeed_6015d58f_intel and
+  stormspeed_6015d58f_nvhpc (= cam6_4_211_ss.00_intel / _nvhpc).
+  Expected namelist differences (NLCOMP), no answer changes:
+  - lnd_in: for_testing_run_ncdiopio_tests in a new group (CTSM fork; 43 tests);
+  - atm_in: new stream_ndep_mapalgo (21 tests).
+  Theta-l tests in aux_cam have no cam6_4_211 baseline (StormSPEED only).
+  Known failures (all PASS in cam6_4_211 testing):
+  - ERC_D_Ln9.mpasa120_mpasa120.F2000climo.derecho_intel.cam-outfrq9s_mpasa120
+      RUN: floating invalid in CTSM initInterp (set_mindist, initInterpMindist.F90:270)
+  - ERP_Ln9.ne30pg3_ne30pg3_mg17.FHISTC_WAma.derecho_intel.cam-outfrq9s
+      RUN: CTSM initInterp set_mindist: Cannot find any input points matching output point
+  - ERS_Ln9.f09_f09_mg17.FX2000.derecho_intel.cam-outfrq9s_ltr
+      RUN: esm_time_clockInit: rpointer file rpointer.cpl.<date> not found
+  Cause: ERC_D mpasa120 fails with the CTSM fork and passes with upstream ctsm5.4.057, both
+  in cam6_4_211 and in stormspeed (full-size experiments); return to upstream CTSM is
+  planned for ss.05.  The two WACCM failures: under investigation.
+izumi: no full-physics configuration runs at this tag.
+  - gnu: nothing builds (BOZ literals; fixed in ss.01).
+  - intel: simple physics runs (FKESSLER theta-l and theta-l_kokkos SMS_D, ERS_Ln27,
+    ERP_Ln27 PASS); full physics fails: MPI-3 shared windows unusable with this
+    MVAPICH2 (null node-shared tables, #106, fixed in ss.02) and segfaults from
+    large automatic arrays on the stack (#103, fixed in ss.01).
+  - nag: theta-l has no C++ compiler (fixed in ss.01; then E3SM sort_mod.F90, #102);
+    full physics fails as for intel (#106).  The only passing aux_cam test is the
+    single-task ERC_D_Ln9_P1x1.ne3pg3_ne3pg3_mt232.FADIAB.
+  Baselines: stormspeed_6015d58f_nag and stormspeed_6015d58f_gnu hold namelists only,
+  except NAG's ERC_D_Ln9_P1x1 FADIAB; there is no usable izumi baseline set for ss.00.
+  The first izumi baselines come with ss.02.
+
+===============================================================
