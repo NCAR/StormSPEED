@@ -7,7 +7,6 @@ module se_backend_mod
    use phys_cols_mod,          only: phys_cols_t
    use ppgrid,                 only: begchunk, endchunk
    use physics_types,          only: physics_state, physics_tend
-   use physics_buffer,         only: physics_buffer_desc
    use camsrfexch,             only: cam_out_t
    use pio,                    only: file_desc_t
    use physics_column_type,    only: physics_column_t
@@ -127,16 +126,15 @@ contains
       end if
    end subroutine backend_sync_to_host
 
-   subroutine backend_d_p_coupling(this, phys_state, phys_tend, pbuf2d)
+   subroutine backend_d_p_coupling(this, phys_state, phys_tend)
       use dp_coupling_impl, only: impl_dp => d_p_coupling
       use dyn_comp_impl,    only: impl_exp_t => dyn_export_t
       class(se_backend_t),               intent(inout) :: this
       type(physics_state),               intent(inout) :: phys_state(begchunk:endchunk)
       type(physics_tend),                intent(inout) :: phys_tend(begchunk:endchunk)
-      type(physics_buffer_desc), pointer               :: pbuf2d(:,:)
       type(impl_exp_t) :: exp
       exp%elem => this%elem; exp%phys => this%phys
-      call impl_dp(phys_state, phys_tend, pbuf2d, exp)
+      call impl_dp(phys_state, phys_tend, exp)
    end subroutine backend_d_p_coupling
 
    subroutine backend_p_d_coupling(this, phys_state, phys_tend)
@@ -162,20 +160,19 @@ contains
       call impl_sinit(imp, exp)
    end subroutine backend_stepon_init
 
-   subroutine backend_stepon_run1(this, dtime_out, phys_state, phys_tend, pbuf2d, dyn_out)
+   subroutine backend_stepon_run1(this, dtime_out, phys_state, phys_tend, dyn_out)
       use stepon_impl,   only: impl_srun1 => stepon_run1
       use dyn_comp_impl, only: impl_imp_t => dyn_import_t, impl_exp_t => dyn_export_t
       class(se_backend_t),               intent(inout) :: this
       real(r8),                          intent(out)   :: dtime_out
       type(physics_state),               intent(inout) :: phys_state(begchunk:endchunk)
       type(physics_tend),                intent(inout) :: phys_tend(begchunk:endchunk)
-      type(physics_buffer_desc), pointer               :: pbuf2d(:,:)
       class(se_backend_t),               intent(inout) :: dyn_out
       type(impl_imp_t) :: imp
       type(impl_exp_t) :: exp
       imp%elem => this%elem; imp%phys => this%phys
       exp%elem => dyn_out%elem; exp%phys => dyn_out%phys
-      call impl_srun1(dtime_out, phys_state, phys_tend, pbuf2d, imp, exp)
+      call impl_srun1(dtime_out, phys_state, phys_tend, imp, exp)
    end subroutine backend_stepon_run1
 
    subroutine backend_stepon_run2(this, phys_state, phys_tend, dyn_out)

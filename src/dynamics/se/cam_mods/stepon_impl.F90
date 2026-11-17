@@ -194,13 +194,12 @@ end subroutine stepon_init
 !
 ! !INTERFACE:
 subroutine stepon_run1( dtime_out, phys_state, phys_tend,               &
-                        pbuf2d, dyn_in, dyn_out )
+                        dyn_in, dyn_out )
 
   use dp_coupling_impl, only: d_p_coupling
   use time_mod,    only: tstep      ! dynamics timestep
   use time_manager, only: is_last_step, is_first_step
   use control_mod_cam, only: ftype
-  use physics_buffer, only : physics_buffer_desc
   use hycoef,      only: hyam, hybm
   use se_iop_intr_mod, only: iop_setfield, iop_setinitial
   use mpishorthand
@@ -214,7 +213,6 @@ subroutine stepon_run1( dtime_out, phys_state, phys_tend,               &
    type(physics_tend), intent(inout) :: phys_tend(begchunk:endchunk)
    type (dyn_import_t), intent(inout) :: dyn_in  ! Dynamics import container
    type (dyn_export_t), intent(inout) :: dyn_out ! Dynamics export container
-   type (physics_buffer_desc), pointer :: pbuf2d(:,:)
    type (element_t), pointer :: elem(:)
    integer :: c
    class(aerosol_state), pointer :: aero_state_obj
@@ -267,7 +265,7 @@ subroutine stepon_run1( dtime_out, phys_state, phys_tend,               &
 
    call t_barrierf('sync_d_p_coupling', mpicom)
    call t_startf('d_p_coupling')
-   call d_p_coupling (phys_state, phys_tend,  pbuf2d, dyn_out )
+   call d_p_coupling(phys_state, phys_tend, dyn_out)
    call t_stopf('d_p_coupling')
 
    !----------------------------------------------------------

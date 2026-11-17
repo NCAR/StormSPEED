@@ -100,10 +100,9 @@ end subroutine stepon_init
 !=========================================================================================
 
 subroutine stepon_run1( dtime_out, phys_state, phys_tend,               &
-                        pbuf2d, dyn_in, dyn_out )
+                        dyn_in, dyn_out )
 
    use dp_coupling_impl,    only: d_p_coupling
-   use physics_buffer, only: physics_buffer_desc
 
    use se_dyn_time_mod,only: tstep                    ! dynamics timestep
 
@@ -112,7 +111,6 @@ subroutine stepon_run1( dtime_out, phys_state, phys_tend,               &
    type(physics_tend),   intent(inout) :: phys_tend(begchunk:endchunk)
    type (dyn_import_t),  intent(inout) :: dyn_in  ! Dynamics import container
    type (dyn_export_t),  intent(inout) :: dyn_out ! Dynamics export container
-   type (physics_buffer_desc), pointer :: pbuf2d(:,:)
    !----------------------------------------------------------------------------
 
    integer :: c
@@ -157,7 +155,7 @@ subroutine stepon_run1( dtime_out, phys_state, phys_tend,               &
    call t_barrierf('sync_d_p_coupling', mpicom)
    call t_startf('d_p_coupling')
    ! Move data into phys_state structure.
-   call d_p_coupling(phys_state, phys_tend,  pbuf2d, dyn_out )
+   call d_p_coupling(phys_state, phys_tend, dyn_out)
    call t_stopf('d_p_coupling')
 
    !----------------------------------------------------------

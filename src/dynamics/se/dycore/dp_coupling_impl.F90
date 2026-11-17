@@ -16,7 +16,6 @@ use dyn_comp_impl,       only: dyn_export_t, dyn_import_t
 use physics_types,  only: physics_state, physics_tend, physics_cnst_limit
 use phys_grid,      only: get_ncols_p
 use phys_grid,      only: get_dyn_col_p, columns_on_task, get_chunk_info_p, phys_columns_on_task
-use physics_buffer, only: physics_buffer_desc, pbuf_get_chunk, pbuf_get_field
 
 use dp_mapping,     only: nphys_pts
 
@@ -43,14 +42,13 @@ real (kind=r8), allocatable :: q_prev(:,:,:,:) ! Previous Q for computing tenden
 CONTAINS
 !=========================================================================================
 
-subroutine d_p_coupling(phys_state, phys_tend,  pbuf2d, dyn_out)
+subroutine d_p_coupling(phys_state, phys_tend, dyn_out)
 
    ! Convert the dynamics output state into the physics input state.
    ! Note that all pressures and tracer mixing ratios coming from the dycore are based on
    ! dry air mass.
 
    use gravity_waves_sources_impl,  only: gws_src_fnct,gws_src_vort
-   use dyn_comp_impl,               only: frontgf_idx, frontga_idx, vort4gw_idx
    use phys_control,           only: use_gw_front, use_gw_front_igw,  use_gw_movmtn_pbl
    use hycoef,                 only: hyai, ps0
    use fvm_mapping,            only: dyn2phys_vector, dyn2phys_all_vars
@@ -61,7 +59,6 @@ subroutine d_p_coupling(phys_state, phys_tend,  pbuf2d, dyn_out)
    use phys_cols_mod,          only: phys_cols_t
    ! arguments
    type(dyn_export_t),  intent(inout)                               :: dyn_out             ! dynamics export
-   type(physics_buffer_desc), pointer                               :: pbuf2d(:,:)
    type(physics_state), intent(inout), dimension(begchunk:endchunk) :: phys_state
    type(physics_tend ), intent(inout), dimension(begchunk:endchunk) :: phys_tend
 
@@ -83,18 +80,11 @@ subroutine d_p_coupling(phys_state, phys_tend,  pbuf2d, dyn_out)
    ! Frontogenesis
    real (kind=r8),  allocatable :: frontgf(:,:,:)      ! temp arrays to hold frontogenesis
    real (kind=r8),  allocatable :: frontga(:,:,:)      ! function (frontgf) and angle (frontga)
-   real (kind=r8),  allocatable :: frontgf_phys(:,:,:)
-   real (kind=r8),  allocatable :: frontga_phys(:,:,:)
 
    ! Vorticity
    real (kind=r8),  allocatable :: vort4gw(:,:,:)      ! temp arrays to hold vorticity
-   real (kind=r8),  allocatable :: vort4gw_phys(:,:,:)
 
 
-                                                        ! Pointers to pbuf
-   real (kind=r8),  pointer     :: pbuf_frontgf(:,:)
-   real (kind=r8),  pointer     :: pbuf_frontga(:,:)
-   real (kind=r8),  pointer     :: pbuf_vort4gw(:,:)
    type(phys_cols_t), pointer   :: cols
 
    integer                      :: ncols, ierr
@@ -105,7 +95,6 @@ subroutine d_p_coupling(phys_state, phys_tend,  pbuf2d, dyn_out)
    real (kind=r8)               :: inv_dp3d(np,np,nlev)
    integer                      :: tl_f, tl_qdp_np0, tl_qdp_np1
 
-   type(physics_buffer_desc), pointer :: pbuf_chnk(:)
    !----------------------------------------------------------------------------
 
    if (.not. local_dp_map) then
@@ -116,10 +105,6 @@ subroutine d_p_coupling(phys_state, phys_tend,  pbuf2d, dyn_out)
    tl_f = TimeLevel%n0
    call TimeLevel_Qdp(TimeLevel, qsplit, tl_qdp_np0,tl_qdp_np1)
 
-   nullify(pbuf_chnk)
-   nullify(pbuf_frontgf)
-   nullify(pbuf_frontga)
-   nullify(pbuf_vort4gw)
 
 
 
@@ -241,14 +226,6 @@ subroutine d_p_coupling(phys_state, phys_tend,  pbuf2d, dyn_out)
    q_prev = 0.0_R8
 
    call t_startf('dpcopy')
-   if (use_gw_front .or. use_gw_front_igw) then
-      allocate(frontgf_phys(pcols, pver, begchunk:endchunk))
-      allocate(frontga_phys(pcols, pver, begchunk:endchunk))
-   end if
-   if (use_gw_movmtn_pbl) then
-      allocate(vort4gw_phys(pcols, pver, begchunk:endchunk))
-   end if
-
    ! Fill the backend's physics-column arrays (host independent); the copy
    ! into CAM's chunked physics state below reads only from them.
    cols => dyn_out%phys
@@ -291,14 +268,6 @@ subroutine d_p_coupling(phys_state, phys_tend,  pbuf2d, dyn_out)
          phys_state(lchnk)%u(icol, ilyr)     = cols%u(col_ind, ilyr)
          phys_state(lchnk)%v(icol, ilyr)     = cols%v(col_ind, ilyr)
          phys_state(lchnk)%omega(icol, ilyr) = cols%omega(col_ind, ilyr)
-
-         if (use_gw_front .or. use_gw_front_igw) then
-            frontgf_phys(icol, ilyr, lchnk) = cols%frontgf(col_ind, ilyr)
-            frontga_phys(icol, ilyr, lchnk) = cols%frontga(col_ind, ilyr)
-         end if
-         if (use_gw_movmtn_pbl) then
-            vort4gw_phys(icol, ilyr, lchnk) = cols%vort4gw(col_ind, ilyr)
-         end if
       end do
 
       do m = 1, pcnst
@@ -307,37 +276,6 @@ subroutine d_p_coupling(phys_state, phys_tend,  pbuf2d, dyn_out)
          end do
       end do
    end do
-   if (use_gw_front .or. use_gw_front_igw) then
-      !$omp parallel do num_threads(max_num_threads) private (lchnk, ncols, icol, ilyr, pbuf_chnk, pbuf_frontgf, pbuf_frontga)
-      do lchnk = begchunk, endchunk
-         ncols = get_ncols_p(lchnk)
-         pbuf_chnk => pbuf_get_chunk(pbuf2d, lchnk)
-         call pbuf_get_field(pbuf_chnk, frontgf_idx, pbuf_frontgf)
-         call pbuf_get_field(pbuf_chnk, frontga_idx, pbuf_frontga)
-         do icol = 1, ncols
-            do ilyr = 1, pver
-               pbuf_frontgf(icol, ilyr) = frontgf_phys(icol, ilyr, lchnk)
-               pbuf_frontga(icol, ilyr) = frontga_phys(icol, ilyr, lchnk)
-            end do
-         end do
-      end do
-      deallocate(frontgf_phys)
-      deallocate(frontga_phys)
-   end if
-   if (use_gw_movmtn_pbl) then
-      !$omp parallel do num_threads(max_num_threads) private (lchnk, ncols, icol, ilyr, pbuf_chnk, pbuf_vort4gw)
-      do lchnk = begchunk, endchunk
-         ncols = get_ncols_p(lchnk)
-         pbuf_chnk => pbuf_get_chunk(pbuf2d, lchnk)
-         call pbuf_get_field(pbuf_chnk, vort4gw_idx, pbuf_vort4gw)
-         do icol = 1, ncols
-            do ilyr = 1, pver
-               pbuf_vort4gw(icol, ilyr) = vort4gw_phys(icol, ilyr, lchnk)
-            end do
-         end do
-      end do
-      deallocate(vort4gw_phys)
-   end if
 
    call t_stopf('dpcopy')
 
@@ -361,7 +299,7 @@ subroutine d_p_coupling(phys_state, phys_tend,  pbuf2d, dyn_out)
    ! ps, pdel, and q in phys_state are all dry at this point.  After return from derived_phys_dry
    ! ps and pdel include water vapor only, and the 'wet' constituents have been converted to wet mmr.
    call t_startf('derived_phys')
-   call derived_phys_dry(phys_state, phys_tend, pbuf2d)
+   call derived_phys_dry(phys_state, phys_tend)
    call t_stopf('derived_phys')
 
   !$omp parallel do num_threads(max_num_threads) private (lchnk, ncols, ilyr, icol)
@@ -617,7 +555,7 @@ end subroutine p_d_coupling
 
 !=========================================================================================
 
-subroutine derived_phys_dry(phys_state, phys_tend, pbuf2d)
+subroutine derived_phys_dry(phys_state, phys_tend)
 
    ! The ps, pdel, and q components of phys_state are all dry on input.
    ! On output the psdry and pdeldry components are initialized; ps and pdel are
@@ -635,7 +573,6 @@ subroutine derived_phys_dry(phys_state, phys_tend, pbuf2d)
    use phys_control,    only: waccmx_is
    use geopotential,    only: geopotential_t
    use static_energy,   only: update_dry_static_energy_run
-   use check_energy,    only: check_energy_timestep_init
    use hycoef,          only: hyai, ps0
    use shr_vmath_mod,   only: shr_vmath_log
    use qneg_module,     only: qneg3
@@ -644,7 +581,6 @@ subroutine derived_phys_dry(phys_state, phys_tend, pbuf2d)
    ! arguments
    type(physics_state), intent(inout), dimension(begchunk:endchunk) :: phys_state
    type(physics_tend ), intent(inout), dimension(begchunk:endchunk) :: phys_tend
-   type(physics_buffer_desc), pointer :: pbuf2d(:,:)
 
    ! local variables
    integer :: lchnk
@@ -653,7 +589,6 @@ subroutine derived_phys_dry(phys_state, phys_tend, pbuf2d)
    real(r8) :: factor_array(pcols,nlev)
 
    integer :: m, i, k, ncol, m_cnst
-   type(physics_buffer_desc), pointer :: pbuf_chnk(:)
 
    !Needed for "update_dry_static_energy" CCPP scheme
    integer :: errflg
@@ -662,7 +597,7 @@ subroutine derived_phys_dry(phys_state, phys_tend, pbuf2d)
 
    ! Evaluate derived quantities
 
-   !!$omp parallel do num_threads(horz_num_threads) private (lchnk, ncol, k, i, m , zvirv, pbuf_chnk, factor_array)
+   !!$omp parallel do num_threads(horz_num_threads) private (lchnk, ncol, k, i, m , zvirv, factor_array)
    do lchnk = begchunk,endchunk
 
       ncol = get_ncols_p(lchnk)
@@ -794,9 +729,7 @@ subroutine derived_phys_dry(phys_state, phys_tend, pbuf2d)
                                         phys_state(lchnk)%phis(1:ncol),               &
                                         phys_state(lchnk)%s(1:ncol,:),                &
                                         cpairv(1:ncol,:,lchnk), errflg, errmsg)
-      ! Compute energy and water integrals of input state
-      pbuf_chnk => pbuf_get_chunk(pbuf2d, lchnk)
-      call check_energy_timestep_init(phys_state(lchnk), phys_tend(lchnk), pbuf_chnk)
+      ! Energy and water integrals of the input state: CAM side (d_p_coupling_cam_finish)
 
 
    end do  ! lchnk
