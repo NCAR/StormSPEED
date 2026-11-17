@@ -96,7 +96,7 @@ contains
       this%fvm     => imp%fvm
       dyn_out%elem => exp%elem
       dyn_out%fvm  => exp%fvm
-      allocate(this%phys)
+      if (.not. associated(this%phys)) allocate(this%phys)
       dyn_out%phys => this%phys
    end subroutine backend_init_model
 
@@ -253,6 +253,9 @@ contains
       call impl_rrest(File, imp, exp)
       this%elem    => imp%elem; this%fvm    => imp%fvm
       dyn_out%elem => exp%elem; dyn_out%fvm => exp%fvm
+      ! A restarted run initializes here instead of in init_model
+      if (.not. associated(this%phys)) allocate(this%phys)
+      dyn_out%phys => this%phys
    end subroutine backend_read_restart
 
 end module se_backend_mod

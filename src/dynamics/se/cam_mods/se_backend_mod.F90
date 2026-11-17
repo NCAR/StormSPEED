@@ -95,7 +95,7 @@ contains
       call impl_init(imp, exp)
       this%elem    => imp%elem
       dyn_out%elem => exp%elem
-      allocate(this%phys)
+      if (.not. associated(this%phys)) allocate(this%phys)
       dyn_out%phys => this%phys
    end subroutine backend_init_model
 
@@ -252,6 +252,9 @@ contains
       this%elem    => imp%elem
       dyn_out%elem => exp%elem
       call this%sync_to_device()
+      ! A restarted run initializes here instead of in init_model
+      if (.not. associated(this%phys)) allocate(this%phys)
+      dyn_out%phys => this%phys
    end subroutine backend_read_restart
 
 end module se_backend_mod
