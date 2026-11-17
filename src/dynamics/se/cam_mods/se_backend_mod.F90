@@ -4,6 +4,7 @@ module se_backend_mod
    !   'preqx', 'theta-l', and 'theta-l_kokkos'
    !----------------------------------------------------------------------------
    use shr_kind_mod,           only: r8 => shr_kind_r8
+   use phys_cols_mod,          only: phys_cols_t
    use ppgrid,                 only: begchunk, endchunk
    use physics_types,          only: physics_state, physics_tend
    use physics_buffer,         only: physics_buffer_desc
@@ -46,6 +47,8 @@ module se_backend_mod
       type(element_t),  pointer :: elem(:) => null()
       type(fvm_struct), pointer :: fvm(:)  => null()
       logical                   :: gpu_resident     = .false.
+      ! Physics-column arrays, shared by dyn_in and dyn_out
+      type(phys_cols_t), pointer :: phys => null()
    contains
       procedure, nopass :: readnl         => backend_readnl
       procedure, nopass :: register_pbuf  => backend_register_pbuf
@@ -92,13 +95,15 @@ contains
       call impl_init(imp, exp)
       this%elem    => imp%elem
       dyn_out%elem => exp%elem
+      allocate(this%phys)
+      dyn_out%phys => this%phys
    end subroutine backend_init_model
 
    subroutine backend_run_subcycle(this)
       use dyn_comp_impl, only: impl_run => dyn_run, impl_exp_t => dyn_export_t
       class(se_backend_t), intent(inout) :: this
       type(impl_exp_t) :: exp
-      exp%elem => this%elem
+      exp%elem => this%elem; exp%phys => this%phys
       call impl_run(exp)
       if (this%gpu_resident) host_state_dirty = .true.
    end subroutine backend_run_subcycle
@@ -130,7 +135,7 @@ contains
       type(physics_tend),                intent(inout) :: phys_tend(begchunk:endchunk)
       type(physics_buffer_desc), pointer               :: pbuf2d(:,:)
       type(impl_exp_t) :: exp
-      exp%elem => this%elem
+      exp%elem => this%elem; exp%phys => this%phys
       call impl_dp(phys_state, phys_tend, pbuf2d, exp)
    end subroutine backend_d_p_coupling
 
@@ -141,7 +146,7 @@ contains
       type(physics_state), intent(inout) :: phys_state(begchunk:endchunk)
       type(physics_tend),  intent(inout) :: phys_tend(begchunk:endchunk)
       type(impl_imp_t) :: imp
-      imp%elem => this%elem
+      imp%elem => this%elem; imp%phys => this%phys
       call impl_pd(phys_state, phys_tend, imp)
    end subroutine backend_p_d_coupling
 
@@ -152,8 +157,8 @@ contains
       class(se_backend_t), intent(inout) :: dyn_out
       type(impl_imp_t) :: imp
       type(impl_exp_t) :: exp
-      imp%elem => this%elem
-      exp%elem => dyn_out%elem
+      imp%elem => this%elem; imp%phys => this%phys
+      exp%elem => dyn_out%elem; exp%phys => dyn_out%phys
       call impl_sinit(imp, exp)
    end subroutine backend_stepon_init
 
@@ -168,8 +173,8 @@ contains
       class(se_backend_t),               intent(inout) :: dyn_out
       type(impl_imp_t) :: imp
       type(impl_exp_t) :: exp
-      imp%elem => this%elem
-      exp%elem => dyn_out%elem
+      imp%elem => this%elem; imp%phys => this%phys
+      exp%elem => dyn_out%elem; exp%phys => dyn_out%phys
       call impl_srun1(dtime_out, phys_state, phys_tend, pbuf2d, imp, exp)
    end subroutine backend_stepon_run1
 
@@ -182,8 +187,8 @@ contains
       class(se_backend_t), intent(inout) :: dyn_out
       type(impl_imp_t) :: imp
       type(impl_exp_t) :: exp
-      imp%elem => this%elem
-      exp%elem => dyn_out%elem
+      imp%elem => this%elem; imp%phys => this%phys
+      exp%elem => dyn_out%elem; exp%phys => dyn_out%phys
       call impl_srun2(phys_state, phys_tend, imp, exp)
    end subroutine backend_stepon_run2
 
@@ -197,8 +202,8 @@ contains
       class(se_backend_t), intent(inout) :: dyn_out
       type(impl_imp_t) :: imp
       type(impl_exp_t) :: exp
-      imp%elem => this%elem
-      exp%elem => dyn_out%elem
+      imp%elem => this%elem; imp%phys => this%phys
+      exp%elem => dyn_out%elem; exp%phys => dyn_out%phys
       call impl_srun3(dtime, cam_out, phys_state, imp, exp)
    end subroutine backend_stepon_run3
 
@@ -209,8 +214,8 @@ contains
       class(se_backend_t), intent(inout) :: dyn_out
       type(impl_imp_t) :: imp
       type(impl_exp_t) :: exp
-      imp%elem => this%elem
-      exp%elem => dyn_out%elem
+      imp%elem => this%elem; imp%phys => this%phys
+      exp%elem => dyn_out%elem; exp%phys => dyn_out%phys
       call impl_sfinal(imp, exp)
    end subroutine backend_stepon_final
 
@@ -220,7 +225,7 @@ contains
       class(se_backend_t), intent(in)    :: this
       type(file_desc_t),   intent(inout) :: File
       type(impl_exp_t) :: exp
-      exp%elem => this%elem
+      exp%elem => this%elem; exp%phys => this%phys
       call impl_irest(File, exp)
    end subroutine backend_init_restart
 
@@ -231,7 +236,7 @@ contains
       type(file_desc_t),   intent(inout) :: File
       type(impl_exp_t) :: exp
       call this%sync_to_host()
-      exp%elem => this%elem
+      exp%elem => this%elem; exp%phys => this%phys
       call impl_wrest(File, exp)
    end subroutine backend_write_restart
 

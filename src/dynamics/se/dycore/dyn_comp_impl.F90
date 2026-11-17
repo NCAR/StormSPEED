@@ -3,6 +3,7 @@ module dyn_comp_impl
 ! CAM interfaces to the SE Dynamical Core
 
 use shr_kind_mod,           only: r8=>shr_kind_r8, shr_kind_cl
+use phys_cols_mod,         only: phys_cols_t
 use physconst,              only: pi
 use spmd_utils,             only: iam, masterproc
 use constituents,           only: pcnst, cnst_get_ind, cnst_name, cnst_longname, &
@@ -67,11 +68,13 @@ public ::          &
 type dyn_import_t
   type (element_t),  pointer :: elem(:) => null()
   type (fvm_struct), pointer :: fvm(:) => null()
+  type (phys_cols_t), pointer :: phys => null()
 end type dyn_import_t
 
 type dyn_export_t
   type (element_t),  pointer :: elem(:) => null()
   type (fvm_struct), pointer :: fvm(:) => null()
+  type (phys_cols_t), pointer :: phys => null()
 end type dyn_export_t
 
 ! Namelist

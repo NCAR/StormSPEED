@@ -4,6 +4,7 @@ module se_backend_mod
    ! (Dry-pressure vertical coordinate, CSLAM FVM tracer transport & physgrid)
    !----------------------------------------------------------------------------
    use shr_kind_mod,           only: r8 => shr_kind_r8
+   use phys_cols_mod,          only: phys_cols_t
    use ppgrid,                 only: begchunk, endchunk
    use physics_types,          only: physics_state, physics_tend
    use physics_buffer,         only: physics_buffer_desc
@@ -45,6 +46,8 @@ module se_backend_mod
       type(element_t),  pointer :: elem(:) => null()
       type(fvm_struct), pointer :: fvm(:)  => null()
       logical                   :: gpu_resident     = .false.
+      ! Physics-column arrays, shared by dyn_in and dyn_out
+      type(phys_cols_t), pointer :: phys => null()
    contains
       procedure, nopass :: readnl         => backend_readnl
       procedure, nopass :: register_pbuf  => backend_register_pbuf
@@ -93,13 +96,15 @@ contains
       this%fvm     => imp%fvm
       dyn_out%elem => exp%elem
       dyn_out%fvm  => exp%fvm
+      allocate(this%phys)
+      dyn_out%phys => this%phys
    end subroutine backend_init_model
 
    subroutine backend_run_subcycle(this)
       use dyn_comp_impl, only: impl_run => dyn_run, impl_exp_t => dyn_export_t
       class(se_backend_t), intent(inout) :: this
       type(impl_exp_t) :: exp
-      exp%elem => this%elem
+      exp%elem => this%elem; exp%phys => this%phys
       exp%fvm  => this%fvm
       call impl_run(exp)
    end subroutine backend_run_subcycle
@@ -127,7 +132,7 @@ contains
       type(physics_tend),                intent(inout) :: phys_tend(begchunk:endchunk)
       type(physics_buffer_desc), pointer               :: pbuf2d(:,:)
       type(impl_exp_t) :: exp
-      exp%elem => this%elem
+      exp%elem => this%elem; exp%phys => this%phys
       exp%fvm  => this%fvm
       call impl_dp(phys_state, phys_tend, pbuf2d, exp)
    end subroutine backend_d_p_coupling
@@ -143,7 +148,7 @@ contains
       integer          :: tl_f, tl_fQdp
       tl_f = TimeLevel%n0
       call TimeLevel_Qdp(TimeLevel, qsplit, tl_fQdp)
-      imp%elem => this%elem
+      imp%elem => this%elem; imp%phys => this%phys
       imp%fvm  => this%fvm
       call impl_pd(phys_state, phys_tend, imp, tl_f, tl_fQdp)
    end subroutine backend_p_d_coupling
@@ -155,8 +160,8 @@ contains
       class(se_backend_t), intent(inout) :: dyn_out
       type(impl_imp_t) :: imp
       type(impl_exp_t) :: exp
-      imp%elem => this%elem; imp%fvm => this%fvm
-      exp%elem => dyn_out%elem; exp%fvm => dyn_out%fvm
+      imp%elem => this%elem; imp%fvm => this%fvm; imp%phys => this%phys
+      exp%elem => dyn_out%elem; exp%fvm => dyn_out%fvm; exp%phys => dyn_out%phys
       call impl_sinit(imp, exp)
    end subroutine backend_stepon_init
 
@@ -171,8 +176,8 @@ contains
       class(se_backend_t),               intent(inout) :: dyn_out
       type(impl_imp_t) :: imp
       type(impl_exp_t) :: exp
-      imp%elem => this%elem; imp%fvm => this%fvm
-      exp%elem => dyn_out%elem; exp%fvm => dyn_out%fvm
+      imp%elem => this%elem; imp%fvm => this%fvm; imp%phys => this%phys
+      exp%elem => dyn_out%elem; exp%fvm => dyn_out%fvm; exp%phys => dyn_out%phys
       call impl_srun1(dtime_out, phys_state, phys_tend, pbuf2d, imp, exp)
    end subroutine backend_stepon_run1
 
@@ -185,8 +190,8 @@ contains
       class(se_backend_t), intent(inout) :: dyn_out
       type(impl_imp_t) :: imp
       type(impl_exp_t) :: exp
-      imp%elem => this%elem; imp%fvm => this%fvm
-      exp%elem => dyn_out%elem; exp%fvm => dyn_out%fvm
+      imp%elem => this%elem; imp%fvm => this%fvm; imp%phys => this%phys
+      exp%elem => dyn_out%elem; exp%fvm => dyn_out%fvm; exp%phys => dyn_out%phys
       call impl_srun2(phys_state, phys_tend, imp, exp)
    end subroutine backend_stepon_run2
 
@@ -200,8 +205,8 @@ contains
       class(se_backend_t), intent(inout) :: dyn_out
       type(impl_imp_t) :: imp
       type(impl_exp_t) :: exp
-      imp%elem => this%elem; imp%fvm => this%fvm
-      exp%elem => dyn_out%elem; exp%fvm => dyn_out%fvm
+      imp%elem => this%elem; imp%fvm => this%fvm; imp%phys => this%phys
+      exp%elem => dyn_out%elem; exp%fvm => dyn_out%fvm; exp%phys => dyn_out%phys
       call impl_srun3(dtime, cam_out, phys_state, imp, exp)
    end subroutine backend_stepon_run3
 
@@ -212,8 +217,8 @@ contains
       class(se_backend_t), intent(inout) :: dyn_out
       type(impl_imp_t) :: imp
       type(impl_exp_t) :: exp
-      imp%elem => this%elem; imp%fvm => this%fvm
-      exp%elem => dyn_out%elem; exp%fvm => dyn_out%fvm
+      imp%elem => this%elem; imp%fvm => this%fvm; imp%phys => this%phys
+      exp%elem => dyn_out%elem; exp%fvm => dyn_out%fvm; exp%phys => dyn_out%phys
       call impl_sfinal(imp, exp)
    end subroutine backend_stepon_final
 
@@ -223,7 +228,7 @@ contains
       class(se_backend_t), intent(in)    :: this
       type(file_desc_t),   intent(inout) :: File
       type(impl_exp_t) :: exp
-      exp%elem => this%elem; exp%fvm => this%fvm
+      exp%elem => this%elem; exp%fvm => this%fvm; exp%phys => this%phys
       call impl_irest(File, exp)
    end subroutine backend_init_restart
 
@@ -233,7 +238,7 @@ contains
       class(se_backend_t), intent(in)    :: this
       type(file_desc_t),   intent(inout) :: File
       type(impl_exp_t) :: exp
-      exp%elem => this%elem; exp%fvm => this%fvm
+      exp%elem => this%elem; exp%fvm => this%fvm; exp%phys => this%phys
       call impl_wrest(File, exp)
    end subroutine backend_write_restart
 

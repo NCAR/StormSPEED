@@ -33,6 +33,7 @@ use pio,                     only: file_desc_t, io_desc_t, pio_double, PIO_BCAST
                                    var_desc_t, PIO_inq_varid, pio_inq_dimid, pio_inq_dimlen, &
                                    pio_seterrorhandling
 use shr_kind_mod,            only: r8 => shr_kind_r8, shr_kind_cl
+use phys_cols_mod,         only: phys_cols_t
 use shr_const_mod,           only: SHR_CONST_PI
 use shr_sys_mod,             only: shr_sys_flush
 use spmd_utils,              only: iam, npes_cam => npes, masterproc
@@ -58,10 +59,12 @@ public ::          &
 
 type dyn_import_t
    type (element_t), pointer :: elem(:) => null()
+   type (phys_cols_t), pointer :: phys => null()
 end type dyn_import_t
 
 type dyn_export_t
    type (element_t), pointer :: elem(:) => null()
+   type (phys_cols_t), pointer :: phys => null()
 end type dyn_export_t
 
 character(*), parameter, public :: VERSION     = "$Id$"

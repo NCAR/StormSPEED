@@ -58,6 +58,7 @@ subroutine d_p_coupling(phys_state, phys_tend,  pbuf2d, dyn_out)
    use control_mod,            only: qsplit
    use test_fvm_mapping_impl,       only: test_mapping_overwrite_dyn_state, test_mapping_output_phys_state
    use prim_advance_mod,       only: tot_energy_dyn
+   use phys_cols_mod,          only: phys_cols_t
    ! arguments
    type(dyn_export_t),  intent(inout)                               :: dyn_out             ! dynamics export
    type(physics_buffer_desc), pointer                               :: pbuf2d(:,:)
@@ -94,6 +95,7 @@ subroutine d_p_coupling(phys_state, phys_tend,  pbuf2d, dyn_out)
    real (kind=r8),  pointer     :: pbuf_frontgf(:,:)
    real (kind=r8),  pointer     :: pbuf_frontga(:,:)
    real (kind=r8),  pointer     :: pbuf_vort4gw(:,:)
+   type(phys_cols_t), pointer   :: cols
 
    integer                      :: ncols, ierr
    integer                      :: col_ind, blk_ind(1), m
@@ -246,31 +248,62 @@ subroutine d_p_coupling(phys_state, phys_tend,  pbuf2d, dyn_out)
    if (use_gw_movmtn_pbl) then
       allocate(vort4gw_phys(pcols, pver, begchunk:endchunk))
    end if
+
+   ! Fill the backend's physics-column arrays (host independent); the copy
+   ! into CAM's chunked physics state below reads only from them.
+   cols => dyn_out%phys
+   if (.not. associated(cols)) call endrun('d_p_coupling: dyn_out%phys not associated')
+   call cols%alloc(phys_columns_on_task, pver, pcnst, &
+        use_gw_front .or. use_gw_front_igw, use_gw_movmtn_pbl)
+   !$omp parallel do num_threads(max_num_threads) private (col_ind, ie, blk_ind, ilyr, m)
+   do col_ind = 1, phys_columns_on_task
+      call get_dyn_col_p(col_ind, ie, blk_ind)
+      cols%ps(col_ind)   = ps_tmp(blk_ind(1), ie)
+      cols%phis(col_ind) = phis_tmp(blk_ind(1), ie)
+      do ilyr = 1, pver
+         cols%pdel(col_ind, ilyr)  = dp3d_tmp(blk_ind(1), ilyr, ie)
+         cols%t(col_ind, ilyr)     = T_tmp(blk_ind(1), ilyr, ie)
+         cols%u(col_ind, ilyr)     = uv_tmp(blk_ind(1), 1, ilyr, ie)
+         cols%v(col_ind, ilyr)     = uv_tmp(blk_ind(1), 2, ilyr, ie)
+         cols%omega(col_ind, ilyr) = omega_tmp(blk_ind(1), ilyr, ie)
+         if (cols%has_front) then
+            cols%frontgf(col_ind, ilyr) = frontgf(blk_ind(1), ilyr, ie)
+            cols%frontga(col_ind, ilyr) = frontga(blk_ind(1), ilyr, ie)
+         end if
+         if (cols%has_vort) cols%vort4gw(col_ind, ilyr) = vort4gw(blk_ind(1), ilyr, ie)
+      end do
+      do m = 1, pcnst
+         do ilyr = 1, pver
+            cols%q(col_ind, ilyr, m) = Q_tmp(blk_ind(1), ilyr, m, ie)
+         end do
+      end do
+   end do
+
    !$omp parallel do num_threads(max_num_threads) private (col_ind, lchnk, icol, ie, blk_ind, ilyr, m)
    do col_ind = 1, phys_columns_on_task
       call get_dyn_col_p(col_ind, ie, blk_ind)
       call get_chunk_info_p(col_ind, lchnk, icol)
-      phys_state(lchnk)%ps(icol)   = ps_tmp(blk_ind(1), ie)
-      phys_state(lchnk)%phis(icol) = phis_tmp(blk_ind(1), ie)
+      phys_state(lchnk)%ps(icol)   = cols%ps(col_ind)
+      phys_state(lchnk)%phis(icol) = cols%phis(col_ind)
       do ilyr = 1, pver
-         phys_state(lchnk)%pdel(icol, ilyr)  = dp3d_tmp(blk_ind(1), ilyr, ie)
-         phys_state(lchnk)%t(icol, ilyr)     = T_tmp(blk_ind(1), ilyr, ie)
-         phys_state(lchnk)%u(icol, ilyr)     = uv_tmp(blk_ind(1), 1, ilyr, ie)
-         phys_state(lchnk)%v(icol, ilyr)     = uv_tmp(blk_ind(1), 2, ilyr, ie)
-         phys_state(lchnk)%omega(icol, ilyr) = omega_tmp(blk_ind(1), ilyr, ie)
+         phys_state(lchnk)%pdel(icol, ilyr)  = cols%pdel(col_ind, ilyr)
+         phys_state(lchnk)%t(icol, ilyr)     = cols%t(col_ind, ilyr)
+         phys_state(lchnk)%u(icol, ilyr)     = cols%u(col_ind, ilyr)
+         phys_state(lchnk)%v(icol, ilyr)     = cols%v(col_ind, ilyr)
+         phys_state(lchnk)%omega(icol, ilyr) = cols%omega(col_ind, ilyr)
 
          if (use_gw_front .or. use_gw_front_igw) then
-            frontgf_phys(icol, ilyr, lchnk) = frontgf(blk_ind(1), ilyr, ie)
-            frontga_phys(icol, ilyr, lchnk) = frontga(blk_ind(1), ilyr, ie)
+            frontgf_phys(icol, ilyr, lchnk) = cols%frontgf(col_ind, ilyr)
+            frontga_phys(icol, ilyr, lchnk) = cols%frontga(col_ind, ilyr)
          end if
          if (use_gw_movmtn_pbl) then
-            vort4gw_phys(icol, ilyr, lchnk) = vort4gw(blk_ind(1), ilyr, ie)
+            vort4gw_phys(icol, ilyr, lchnk) = cols%vort4gw(col_ind, ilyr)
          end if
       end do
 
       do m = 1, pcnst
          do ilyr = 1, pver
-            phys_state(lchnk)%q(icol, ilyr,m) = Q_tmp(blk_ind(1), ilyr,m, ie)
+            phys_state(lchnk)%q(icol, ilyr,m) = cols%q(col_ind, ilyr, m)
          end do
       end do
    end do
