@@ -1,9 +1,9 @@
 module dyn_comp
    !----------------------------------------------------------------------------
    ! Unified CAM-SE Dynamical Core Component Interface
-   ! Supports: 'cam', 'preqx', 'theta-l', and 'theta-l_kokkos' via se_backend_t
+   ! Supports: 'cam', 'preqx', 'theta-l', and 'theta-l_kokkos' via se_dynamics_t
    !----------------------------------------------------------------------------
-   use se_backend_mod, only: se_backend_t, elem_state_t
+   use se_backend_mod, only: se_dynamics_t, elem_state_t
    use dyn_comp_impl,  only: frontgf_idx, frontga_idx, vort4gw_idx, write_restart_unstruct
 
    implicit none
@@ -14,10 +14,10 @@ module dyn_comp
    public :: dyn_readnl, dyn_register, dyn_init, dyn_run, dyn_final
    public :: frontgf_idx, frontga_idx, vort4gw_idx, write_restart_unstruct
 
-   type, extends(se_backend_t) :: dyn_import_t
+   type, extends(se_dynamics_t) :: dyn_import_t
    end type dyn_import_t
 
-   type, extends(se_backend_t) :: dyn_export_t
+   type, extends(se_dynamics_t) :: dyn_export_t
    end type dyn_export_t
 
 contains
@@ -41,7 +41,7 @@ contains
 
    subroutine dyn_run(dyn_state)
       type(dyn_export_t), intent(inout) :: dyn_state
-      call dyn_state%run_subcycle()
+      call dyn_state%run()
    end subroutine dyn_run
 
    subroutine dyn_final(DYN_STATE, RESTART_FILE)

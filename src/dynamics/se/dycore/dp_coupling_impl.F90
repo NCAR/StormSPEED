@@ -36,7 +36,7 @@ private
 save
 
 public :: d_p_coupling, p_d_coupling
-public :: debug_overwrite_tendencies   ! -Ddebug_coupling only, via se_backend_t%debug_phys_tend
+public :: debug_overwrite_tendencies   ! -Ddebug_coupling only, via se_dynamics_t%debug_phys_tend
 
 real (kind=r8), allocatable :: q_prev(:,:,:,:) ! Previous Q for computing tendencies
 
@@ -274,7 +274,7 @@ subroutine d_p_coupling(dyn_out)
       end do
    end do
    ! The debug_coupling output (test_mapping_output_phys_state) now runs on
-   ! CAM's side after the copy, through se_backend_t%debug_phys_state.
+   ! CAM's side after the copy, through se_dynamics_t%debug_phys_state.
 
    ! Deallocate the temporary arrays
    deallocate(ps_tmp)

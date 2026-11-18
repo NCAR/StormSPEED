@@ -5,6 +5,7 @@ module se_backend_mod
    !----------------------------------------------------------------------------
    use shr_kind_mod,           only: r8 => shr_kind_r8
    use phys_cols_mod,          only: phys_cols_t
+   use atm_dynamics_mod,       only: atm_dynamics_t
    use ppgrid,                 only: begchunk, endchunk
    use physics_types,          only: physics_state, physics_tend
    use pio,                    only: file_desc_t
@@ -40,26 +41,26 @@ module se_backend_mod
    public :: TimeLevel_t, TimeLevel_Qdp, tstep, nsplit
    public :: element_t, elem_state_t, fvm_struct, hvcoord_t
 
-   type, public :: se_backend_t
+   ! The SE dynamics process (CAM-SE or an E3SM HOMME dycore, chosen at build time)
+   type, public, extends(atm_dynamics_t) :: se_dynamics_t
       type(element_t),  pointer :: elem(:) => null()
       type(fvm_struct), pointer :: fvm(:)  => null()
       logical                   :: gpu_resident     = .false.
-      ! Physics-column arrays, shared by dyn_in and dyn_out
-      type(phys_cols_t), pointer :: phys => null()
+      ! phys (the physics-column arrays) is inherited from atm_dynamics_t
    contains
       procedure, nopass :: readnl         => backend_readnl
       procedure, nopass :: register_pbuf  => backend_register_pbuf
       procedure         :: init_model     => backend_init_model
-      procedure         :: run_subcycle   => backend_run_subcycle
+      procedure         :: run            => backend_run_subcycle
       procedure, nopass :: finalize       => backend_finalize
 
       procedure         :: sync_to_device => backend_sync_to_device
       procedure         :: sync_to_host   => backend_sync_to_host
 
-      procedure         :: d_p_coupling   => backend_d_p_coupling
+      procedure         :: dyn_to_phys    => backend_d_p_coupling
       procedure         :: debug_phys_state => backend_debug_phys_state
       procedure         :: debug_phys_tend  => backend_debug_phys_tend
-      procedure         :: p_d_coupling   => backend_p_d_coupling
+      procedure         :: phys_to_dyn    => backend_p_d_coupling
 
       procedure         :: stepon_init    => backend_stepon_init
       procedure         :: stepon_run1    => backend_stepon_run1
@@ -70,7 +71,7 @@ module se_backend_mod
       procedure         :: init_restart   => backend_init_restart
       procedure         :: write_restart  => backend_write_restart
       procedure         :: read_restart   => backend_read_restart
-   end type se_backend_t
+   end type se_dynamics_t
 
 contains
 
@@ -87,8 +88,8 @@ contains
 
    subroutine backend_init_model(this, dyn_out)
       use dyn_comp_impl, only: impl_init => dyn_init, impl_imp_t => dyn_import_t, impl_exp_t => dyn_export_t
-      class(se_backend_t), intent(inout) :: this
-      class(se_backend_t), intent(inout) :: dyn_out
+      class(se_dynamics_t), intent(inout) :: this
+      class(se_dynamics_t), intent(inout) :: dyn_out
       type(impl_imp_t) :: imp
       type(impl_exp_t) :: exp
       call impl_init(imp, exp)
@@ -102,7 +103,7 @@ contains
 
    subroutine backend_run_subcycle(this)
       use dyn_comp_impl, only: impl_run => dyn_run, impl_exp_t => dyn_export_t
-      class(se_backend_t), intent(inout) :: this
+      class(se_dynamics_t), intent(inout) :: this
       type(impl_exp_t) :: exp
       exp%elem => this%elem; exp%phys => this%phys
       exp%fvm  => this%fvm
@@ -117,17 +118,17 @@ contains
    end subroutine backend_finalize
 
    subroutine backend_sync_to_device(this)
-      class(se_backend_t), intent(inout) :: this
+      class(se_dynamics_t), intent(inout) :: this
    end subroutine backend_sync_to_device
 
    subroutine backend_sync_to_host(this)
-      class(se_backend_t), intent(in)    :: this
+      class(se_dynamics_t), intent(in)    :: this
    end subroutine backend_sync_to_host
 
    subroutine backend_d_p_coupling(this)
       use dp_coupling_impl, only: impl_dp => d_p_coupling
       use dyn_comp_impl,    only: impl_exp_t => dyn_export_t
-      class(se_backend_t),               intent(inout) :: this
+      class(se_dynamics_t),               intent(inout) :: this
       type(impl_exp_t) :: exp
       exp%elem => this%elem; exp%phys => this%phys
       exp%fvm  => this%fvm
@@ -138,7 +139,7 @@ contains
       ! Debug-only (compiled with -Ddebug_coupling): CAM-SE's coupling test
       ! output, run on CAM's side right after the physics_state copy.
       use test_fvm_mapping_impl, only: test_mapping_output_phys_state
-      class(se_backend_t), intent(inout) :: this
+      class(se_dynamics_t), intent(inout) :: this
       type(physics_state), intent(inout) :: phys_state(begchunk:endchunk)
       call test_mapping_output_phys_state(phys_state, this%fvm)
    end subroutine backend_debug_phys_state
@@ -147,7 +148,7 @@ contains
       ! Debug-only (-Ddebug_coupling): CAM-SE's coupling test, which overwrites
       ! the physics tendencies before CAM's side fills the return arrays.
       use dp_coupling_impl, only: debug_overwrite_tendencies
-      class(se_backend_t), intent(inout) :: this
+      class(se_dynamics_t), intent(inout) :: this
       type(physics_state), intent(inout) :: phys_state(begchunk:endchunk)
       type(physics_tend),  intent(inout) :: phys_tend(begchunk:endchunk)
       call debug_overwrite_tendencies(phys_state, phys_tend, this%fvm)
@@ -157,7 +158,7 @@ contains
       use dp_coupling_impl, only: impl_pd => p_d_coupling
       use dyn_comp_impl,    only: impl_imp_t => dyn_import_t
       use dyn_grid_impl,    only: TimeLevel
-      class(se_backend_t), intent(inout) :: this
+      class(se_dynamics_t), intent(inout) :: this
       type(impl_imp_t) :: imp
       integer          :: tl_f, tl_fQdp
       tl_f = TimeLevel%n0
@@ -170,8 +171,8 @@ contains
    subroutine backend_stepon_init(this, dyn_out)
       use stepon_impl,   only: impl_sinit => stepon_init
       use dyn_comp_impl, only: impl_imp_t => dyn_import_t, impl_exp_t => dyn_export_t
-      class(se_backend_t), intent(inout) :: this
-      class(se_backend_t), intent(inout) :: dyn_out
+      class(se_dynamics_t), intent(inout) :: this
+      class(se_dynamics_t), intent(inout) :: dyn_out
       type(impl_imp_t) :: imp
       type(impl_exp_t) :: exp
       imp%elem => this%elem; imp%fvm => this%fvm; imp%phys => this%phys
@@ -182,9 +183,9 @@ contains
    subroutine backend_stepon_run1(this, dtime_out, dyn_out)
       use stepon_impl,   only: impl_srun1 => stepon_run1
       use dyn_comp_impl, only: impl_imp_t => dyn_import_t, impl_exp_t => dyn_export_t
-      class(se_backend_t),               intent(inout) :: this
+      class(se_dynamics_t),               intent(inout) :: this
       real(r8),                          intent(out)   :: dtime_out
-      class(se_backend_t),               intent(inout) :: dyn_out
+      class(se_dynamics_t),               intent(inout) :: dyn_out
       type(impl_imp_t) :: imp
       type(impl_exp_t) :: exp
       imp%elem => this%elem; imp%fvm => this%fvm; imp%phys => this%phys
@@ -195,8 +196,8 @@ contains
    subroutine backend_stepon_run2(this, dyn_out)
       use stepon_impl,   only: impl_srun2 => stepon_run2
       use dyn_comp_impl, only: impl_imp_t => dyn_import_t, impl_exp_t => dyn_export_t
-      class(se_backend_t), intent(inout) :: this
-      class(se_backend_t), intent(inout) :: dyn_out
+      class(se_dynamics_t), intent(inout) :: this
+      class(se_dynamics_t), intent(inout) :: dyn_out
       type(impl_imp_t) :: imp
       type(impl_exp_t) :: exp
       imp%elem => this%elem; imp%fvm => this%fvm; imp%phys => this%phys
@@ -207,9 +208,9 @@ contains
    subroutine backend_stepon_run3(this, dtime, dyn_out)
       use stepon_impl,   only: impl_srun3 => stepon_run3
       use dyn_comp_impl, only: impl_imp_t => dyn_import_t, impl_exp_t => dyn_export_t
-      class(se_backend_t), intent(inout) :: this
+      class(se_dynamics_t), intent(inout) :: this
       real(r8),            intent(in)    :: dtime
-      class(se_backend_t), intent(inout) :: dyn_out
+      class(se_dynamics_t), intent(inout) :: dyn_out
       type(impl_imp_t) :: imp
       type(impl_exp_t) :: exp
       imp%elem => this%elem; imp%fvm => this%fvm; imp%phys => this%phys
@@ -220,8 +221,8 @@ contains
    subroutine backend_stepon_final(this, dyn_out)
       use stepon_impl,   only: impl_sfinal => stepon_final
       use dyn_comp_impl, only: impl_imp_t => dyn_import_t, impl_exp_t => dyn_export_t
-      class(se_backend_t), intent(inout) :: this
-      class(se_backend_t), intent(inout) :: dyn_out
+      class(se_dynamics_t), intent(inout) :: this
+      class(se_dynamics_t), intent(inout) :: dyn_out
       type(impl_imp_t) :: imp
       type(impl_exp_t) :: exp
       imp%elem => this%elem; imp%fvm => this%fvm; imp%phys => this%phys
@@ -232,7 +233,7 @@ contains
    subroutine backend_init_restart(this, File)
       use restart_dynamics_impl, only: impl_irest => init_restart_dynamics
       use dyn_comp_impl,         only: impl_exp_t => dyn_export_t
-      class(se_backend_t), intent(in)    :: this
+      class(se_dynamics_t), intent(in)    :: this
       type(file_desc_t),   intent(inout) :: File
       type(impl_exp_t) :: exp
       exp%elem => this%elem; exp%fvm => this%fvm; exp%phys => this%phys
@@ -242,7 +243,7 @@ contains
    subroutine backend_write_restart(this, File)
       use restart_dynamics_impl, only: impl_wrest => write_restart_dynamics
       use dyn_comp_impl,         only: impl_exp_t => dyn_export_t
-      class(se_backend_t), intent(in)    :: this
+      class(se_dynamics_t), intent(in)    :: this
       type(file_desc_t),   intent(inout) :: File
       type(impl_exp_t) :: exp
       exp%elem => this%elem; exp%fvm => this%fvm; exp%phys => this%phys
@@ -252,9 +253,9 @@ contains
    subroutine backend_read_restart(this, File, dyn_out)
       use restart_dynamics_impl, only: impl_rrest => read_restart_dynamics
       use dyn_comp_impl,         only: impl_imp_t => dyn_import_t, impl_exp_t => dyn_export_t
-      class(se_backend_t), intent(inout) :: this
+      class(se_dynamics_t), intent(inout) :: this
       type(file_desc_t),   intent(inout) :: File
-      class(se_backend_t), intent(inout) :: dyn_out
+      class(se_dynamics_t), intent(inout) :: dyn_out
       type(impl_imp_t) :: imp
       type(impl_exp_t) :: exp
       call impl_rrest(File, imp, exp)

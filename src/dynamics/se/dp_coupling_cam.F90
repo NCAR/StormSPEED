@@ -3,7 +3,7 @@ module dp_coupling_cam
    ! CAM's side of dynamics-to-physics coupling for the SE dycores.
    !
    ! The backend (se/dycore or se/cam_mods) fills its physics-column arrays
-   ! (se_backend_t%phys, a phys_cols_t) and returns.  This module copies them
+   ! (se_dynamics_t%phys, a phys_cols_t) and returns.  This module copies them
    ! into CAM's chunked physics_state and computes CAM's derived quantities.
    ! Which derivation applies is decided by what the columns hold
    ! (phys%vcoord), not by which backend was compiled:
@@ -22,7 +22,7 @@ module dp_coupling_cam
    use cam_abortutils,  only: endrun
    use cam_logfile,     only: iulog
    use phys_cols_mod,   only: phys_cols_t
-   use se_backend_mod,  only: se_backend_t
+   use se_backend_mod,  only: se_dynamics_t
 
    implicit none
    private
@@ -39,7 +39,7 @@ contains
       use dyn_tests_utils, only: vc_dry_pressure, vc_moist_pressure
       type(physics_state), intent(inout) :: phys_state(begchunk:endchunk)
       type(physics_tend ), intent(inout) :: phys_tend(begchunk:endchunk)
-      class(se_backend_t), intent(inout) :: dyn_out
+      class(se_dynamics_t), intent(inout) :: dyn_out
 
       type(phys_cols_t), pointer :: cols
       integer :: col_ind, lchnk, icol, ilyr, m, ncols
@@ -146,7 +146,7 @@ contains
       use dyn_tests_utils, only: vc_dry_pressure
       type(physics_state), intent(inout) :: phys_state(begchunk:endchunk)
       type(physics_tend ), intent(inout) :: phys_tend(begchunk:endchunk)
-      class(se_backend_t), intent(inout) :: dyn_in
+      class(se_dynamics_t), intent(inout) :: dyn_in
 
       type(phys_cols_t), pointer :: cols
       integer  :: col_ind, lchnk, icol, ilyr, m, ncols

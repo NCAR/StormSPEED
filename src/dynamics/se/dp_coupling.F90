@@ -26,7 +26,7 @@ contains
       type(physics_buffer_desc), pointer                               :: pbuf2d(:,:)
       type(dyn_export_t),  intent(inout)                               :: dyn_out
 
-      call dyn_out%d_p_coupling()
+      call dyn_out%dyn_to_phys()
       call phys_state_from_backend(phys_state, phys_tend, dyn_out)
       call d_p_coupling_cam_finish(phys_state, phys_tend, pbuf2d, dyn_out%phys)
    end subroutine d_p_coupling
@@ -37,7 +37,7 @@ contains
       type(dyn_import_t),  intent(inout)                               :: dyn_in
 
       call phys_tend_to_backend(phys_state, phys_tend, dyn_in)
-      call dyn_in%p_d_coupling()
+      call dyn_in%phys_to_dyn()
    end subroutine p_d_coupling
 
    subroutine d_p_coupling_cam_finish(phys_state, phys_tend, pbuf2d, cols)

@@ -1,6 +1,7 @@
 module phys_cols_mod
    !----------------------------------------------------------------------------
-   ! Physics-column arrays owned by the SE dycore backend (se_backend_t%phys).
+   ! Physics-column arrays exchanged between a dynamics process
+   ! (atm_dynamics_t%phys, see atm_dynamics_mod) and its host model.
    !
    ! The backend fills these from the dynamics state on the physics grid; each
    ! host model (CAM, CAM-SIMA) copies them into its own physics state.  The
