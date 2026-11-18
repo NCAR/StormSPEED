@@ -3289,15 +3289,6 @@
       <option name="comment">theta-l_kokkos HOMME on GPUs: exact restart (known failure: not BFB on GPUs, issue #111)</option>
     </options>
   </test>
-  <test compset="FHISTC_LTso" grid="ne30pg2_ne30pg2_mt232" name="SMS_Ln9" testmods="cam/outfrq9s_thetal_kokkos_gpu" supported="false">
-    <machines>
-      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm_gpu_nvhpc"/>
-    </machines>
-    <options>
-      <option name="wallclock">00:59:00</option>
-      <option name="comment">NVHPC GPU build path: theta-l_kokkos HOMME on GPUs, HOMME C++/Kokkos by nvcc with NVHPC's g++ host; physics on CPU</option>
-    </options>
-  </test>
   <test compset="FHISTC_LTso" grid="ne30pg2_ne30pg2_mt232" name="SMS_Ln9" testmods="cam/outfrq9s_thetal_kokkos_gpu_acc" supported="false">
     <machines>
       <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm_gpu_nvhpc"/>
