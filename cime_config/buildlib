@@ -85,9 +85,25 @@ def _nvhpc_gpu_host_cxx(case, kokkos_options):
     """
     if case.get_value("COMPILER") != "nvhpc" or "Kokkos_ENABLE_CUDA" not in kokkos_options:
         return None
-    nvfortran = shutil.which("nvfortran")
-    expect(nvfortran is not None, "nvfortran not in PATH for the NVHPC GPU build")
-    localrc = os.path.join(os.path.dirname(nvfortran), "localrc")
+    # The nvfortran first in PATH may be a wrapper (e.g. NCAR's ncarcompilers), so
+    # look for the real compiler directory: the one with NVHPC's localrc next to it.
+    candidates = []
+    for d in os.environ.get("PATH", "").split(os.pathsep):
+        if os.path.isfile(os.path.join(d, "nvfortran")):
+            candidates.append(d)
+            candidates.append(os.path.dirname(os.path.realpath(os.path.join(d, "nvfortran"))))
+    for var in ("NVHPC_ROOT", "NCAR_ROOT_NVHPC", "NVHPC"):
+        root = os.environ.get(var)
+        if root:
+            candidates += sorted(glob(os.path.join(root, "*", "*", "compilers", "bin")))
+            candidates += sorted(glob(os.path.join(root, "compilers", "bin")))
+    localrc = None
+    for d in candidates:
+        if os.path.isfile(os.path.join(d, "localrc")):
+            localrc = os.path.join(d, "localrc")
+            break
+    expect(localrc is not None,
+           "NVHPC GPU build: no localrc found next to any nvfortran in PATH or under NVHPC_ROOT/NCAR_ROOT_NVHPC")
     gccdir = None
     with open(localrc) as fh:
         for line in fh:
