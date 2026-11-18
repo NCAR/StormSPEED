@@ -58,6 +58,7 @@ module se_backend_mod
       procedure         :: sync_to_host   => backend_sync_to_host
 
       procedure         :: d_p_coupling   => backend_d_p_coupling
+      procedure         :: debug_phys_state => backend_debug_phys_state
       procedure         :: p_d_coupling   => backend_p_d_coupling
 
       procedure         :: stepon_init    => backend_stepon_init
@@ -123,17 +124,24 @@ contains
       class(se_backend_t), intent(in)    :: this
    end subroutine backend_sync_to_host
 
-   subroutine backend_d_p_coupling(this, phys_state, phys_tend)
+   subroutine backend_d_p_coupling(this)
       use dp_coupling_impl, only: impl_dp => d_p_coupling
       use dyn_comp_impl,    only: impl_exp_t => dyn_export_t
       class(se_backend_t),               intent(inout) :: this
-      type(physics_state),               intent(inout) :: phys_state(begchunk:endchunk)
-      type(physics_tend),                intent(inout) :: phys_tend(begchunk:endchunk)
       type(impl_exp_t) :: exp
       exp%elem => this%elem; exp%phys => this%phys
       exp%fvm  => this%fvm
-      call impl_dp(phys_state, phys_tend, exp)
+      call impl_dp(exp)
    end subroutine backend_d_p_coupling
+
+   subroutine backend_debug_phys_state(this, phys_state)
+      ! Debug-only (compiled with -Ddebug_coupling): CAM-SE's coupling test
+      ! output, run on CAM's side right after the physics_state copy.
+      use test_fvm_mapping_impl, only: test_mapping_output_phys_state
+      class(se_backend_t), intent(inout) :: this
+      type(physics_state), intent(inout) :: phys_state(begchunk:endchunk)
+      call test_mapping_output_phys_state(phys_state, this%fvm)
+   end subroutine backend_debug_phys_state
 
    subroutine backend_p_d_coupling(this, phys_state, phys_tend)
       use dp_coupling_impl, only: impl_pd => p_d_coupling
@@ -163,19 +171,17 @@ contains
       call impl_sinit(imp, exp)
    end subroutine backend_stepon_init
 
-   subroutine backend_stepon_run1(this, dtime_out, phys_state, phys_tend, dyn_out)
+   subroutine backend_stepon_run1(this, dtime_out, dyn_out)
       use stepon_impl,   only: impl_srun1 => stepon_run1
       use dyn_comp_impl, only: impl_imp_t => dyn_import_t, impl_exp_t => dyn_export_t
       class(se_backend_t),               intent(inout) :: this
       real(r8),                          intent(out)   :: dtime_out
-      type(physics_state),               intent(inout) :: phys_state(begchunk:endchunk)
-      type(physics_tend),                intent(inout) :: phys_tend(begchunk:endchunk)
       class(se_backend_t),               intent(inout) :: dyn_out
       type(impl_imp_t) :: imp
       type(impl_exp_t) :: exp
       imp%elem => this%elem; imp%fvm => this%fvm; imp%phys => this%phys
       exp%elem => dyn_out%elem; exp%fvm => dyn_out%fvm; exp%phys => dyn_out%phys
-      call impl_srun1(dtime_out, phys_state, phys_tend, imp, exp)
+      call impl_srun1(dtime_out, imp, exp)
    end subroutine backend_stepon_run1
 
    subroutine backend_stepon_run2(this, phys_state, phys_tend, dyn_out)

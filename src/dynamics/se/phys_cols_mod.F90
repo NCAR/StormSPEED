@@ -25,6 +25,7 @@ module phys_cols_mod
       ! What the backend's columns contain (set by the backend each d_p_coupling)
       integer :: vcoord = -1                  ! vertical coordinate of ps/pdel (dyn_tests_utils vc_*)
       logical, allocatable :: q_is_wet(:)     ! (ncnst) .true. if q(:,:,m) is a wet mixing ratio
+      logical :: omega_over_p = .false.       ! .true. if omega holds omega/p (preqx)
 
       ! Dynamics -> physics
       real(r8), allocatable :: ps(:)          ! surface pressure (Pa)

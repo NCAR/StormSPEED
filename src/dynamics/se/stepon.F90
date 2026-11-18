@@ -9,6 +9,7 @@ module stepon
    use camsrfexch,     only: cam_out_t
    use dyn_comp,       only: dyn_import_t, dyn_export_t
    use dp_coupling,    only: d_p_coupling_cam_finish
+   use dp_coupling_cam, only: phys_state_from_backend, aerosol_state_from_phys
 
    implicit none
    private
@@ -31,7 +32,9 @@ contains
       type(physics_buffer_desc), pointer       :: pbuf2d(:,:)
       type(dyn_import_t),        intent(inout) :: dyn_in
       type(dyn_export_t),        intent(inout) :: dyn_out
-      call dyn_in%stepon_run1(dtime_out, phys_state, phys_tend, dyn_out)
+      call dyn_in%stepon_run1(dtime_out, dyn_out)
+      call phys_state_from_backend(phys_state, phys_tend, dyn_out)
+      call aerosol_state_from_phys(phys_state)
       call d_p_coupling_cam_finish(phys_state, phys_tend, pbuf2d, dyn_out%phys)
    end subroutine stepon_run1
 

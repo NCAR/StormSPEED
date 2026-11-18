@@ -9,6 +9,7 @@ module dp_coupling
    use physics_buffer, only: physics_buffer_desc
    use dyn_comp,       only: dyn_export_t, dyn_import_t
    use phys_cols_mod,  only: phys_cols_t
+   use dp_coupling_cam, only: phys_state_from_backend
 
    implicit none
    private
@@ -25,7 +26,8 @@ contains
       type(physics_buffer_desc), pointer                               :: pbuf2d(:,:)
       type(dyn_export_t),  intent(inout)                               :: dyn_out
 
-      call dyn_out%d_p_coupling(phys_state, phys_tend)
+      call dyn_out%d_p_coupling()
+      call phys_state_from_backend(phys_state, phys_tend, dyn_out)
       call d_p_coupling_cam_finish(phys_state, phys_tend, pbuf2d, dyn_out%phys)
    end subroutine d_p_coupling
 

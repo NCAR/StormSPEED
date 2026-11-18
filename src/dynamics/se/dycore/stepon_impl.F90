@@ -99,16 +99,13 @@ end subroutine stepon_init
 
 !=========================================================================================
 
-subroutine stepon_run1( dtime_out, phys_state, phys_tend,               &
-                        dyn_in, dyn_out )
+subroutine stepon_run1( dtime_out, dyn_in, dyn_out )
 
    use dp_coupling_impl,    only: d_p_coupling
 
    use se_dyn_time_mod,only: tstep                    ! dynamics timestep
 
    real(r8),             intent(out)   :: dtime_out   ! Time-step
-   type(physics_state),  intent(inout) :: phys_state(begchunk:endchunk)
-   type(physics_tend),   intent(inout) :: phys_tend(begchunk:endchunk)
    type (dyn_import_t),  intent(inout) :: dyn_in  ! Dynamics import container
    type (dyn_export_t),  intent(inout) :: dyn_out ! Dynamics export container
    !----------------------------------------------------------------------------
@@ -155,22 +152,10 @@ subroutine stepon_run1( dtime_out, phys_state, phys_tend,               &
    call t_barrierf('sync_d_p_coupling', mpicom)
    call t_startf('d_p_coupling')
    ! Move data into phys_state structure.
-   call d_p_coupling(phys_state, phys_tend, dyn_out)
+   call d_p_coupling(dyn_out)
    call t_stopf('d_p_coupling')
 
-   !----------------------------------------------------------
-   ! update aerosol state object from CAM physics state constituents
-   !----------------------------------------------------------
-   if (aerosols_transported) then
-
-      do c = begchunk,endchunk
-         aero_state_obj => aerosol_state_object(c)
-         ! pass number mass or number mixing ratios of aerosol constituents
-         ! to aerosol state object
-         call aero_state_obj%set_transported(phys_state(c)%q)
-      end do
-
-   end if
+   ! The aerosol state update (from phys_state%q) is done on CAM's side.
 
 end subroutine stepon_run1
 

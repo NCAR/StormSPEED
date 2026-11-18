@@ -34,7 +34,7 @@ CONTAINS
 !===============================================================================
 
 !===============================================================================
-  subroutine d_p_coupling(phys_state, phys_tend, dyn_out)
+  subroutine d_p_coupling(dyn_out)
     use gllfvremap_mod,        only: gfr_dyn_to_fv_phys
     use gravity_waves_sources_impl, only: gws_src_fnct, gws_src_vort
     use phys_control,           only: use_gw_front, use_gw_front_igw,  use_gw_movmtn_pbl
@@ -47,10 +47,6 @@ CONTAINS
 ! !INPUT PARAMETERS:
 !
     type(dyn_export_t), intent(inout) :: dyn_out    ! dynamics export
-! !OUTPUT PARAMETERS:
-
-    type(physics_state), intent(inout), dimension(begchunk:endchunk) :: phys_state
-    type(physics_tend ), intent(inout), dimension(begchunk:endchunk) :: phys_tend
 
 
 ! LOCAL VARIABLES
@@ -179,6 +175,11 @@ CONTAINS
          use_gw_front .or. use_gw_front_igw, use_gw_movmtn_pbl)
     cols%vcoord      = vc_moist_pressure
     cols%q_is_wet(:) = .true.    ! HOMME carries wet mixing ratios
+#ifdef MODEL_THETA_L
+    cols%omega_over_p = .false.  ! theta-l: omega
+#else
+    cols%omega_over_p = .true.   ! preqx: omega_p is omega/p
+#endif
     !$omp parallel do num_threads(max_num_threads) private (col_ind, ie, blk_ind, ilyr, m)
     do col_ind = 1, phys_columns_on_task
        call get_dyn_col_p(col_ind, ie, blk_ind)
@@ -201,50 +202,6 @@ CONTAINS
           end do
        end do
     end do
-
-    ! Copy into CAM's chunked physics state (CAM's physics buffer and energy
-    ! check are done by the caller, d_p_coupling_cam_finish)
-    !$omp parallel do num_threads(max_num_threads) private (col_ind, lchnk, &
-    !$omp icol, ie, blk_ind, ilyr, m) schedule(dynamic)
-    do col_ind = 1, phys_columns_on_task
-       call get_dyn_col_p(col_ind, ie, blk_ind)
-       call get_chunk_info_p(col_ind, lchnk, icol)
-
-       phys_state(lchnk)%ps(icol)=cols%ps(col_ind)
-       phys_state(lchnk)%phis(icol)=cols%phis(col_ind)
-       do ilyr=1,pver
-          phys_state(lchnk)%t(icol,ilyr)=cols%t(col_ind,ilyr)
-          phys_state(lchnk)%u(icol,ilyr)=cols%u(col_ind,ilyr)
-          phys_state(lchnk)%v(icol,ilyr)=cols%v(col_ind,ilyr)
-          phys_state(lchnk)%omega(icol,ilyr)=cols%omega(col_ind,ilyr)
-       end do ! ilyr
-
-       do m=1,pcnst
-          do ilyr=1,pver
-             phys_state(lchnk)%q(icol,ilyr,m)=cols%q(col_ind,ilyr,m)
-          end do ! ilyr
-       end do ! m
-    end do ! icol
-
-    call t_startf('derived_phys')
-    call derived_phys(phys_state,phys_tend)
-    call t_stopf('derived_phys')
-
-!for theta there is no need to multiply omega_p by p
-#ifndef MODEL_THETA_L
-!$omp parallel do private (lchnk, ncols, ilyr, icol)
-    do lchnk=begchunk,endchunk
-       ncols=get_ncols_p(lchnk)
-       do ilyr=1,pver
-          do icol=1,ncols
-!!$          if (.not.single_column) then
-            phys_state(lchnk)%omega(icol,ilyr) = phys_state(lchnk)%omega(icol,ilyr) &
-                                                *phys_state(lchnk)%pmid(icol,ilyr)
-!!$          end if
-        end do ! icol
-      end do ! ilyr
-    end do ! lchnk
-#endif
 
   end subroutine d_p_coupling
   !=================================================================================================
@@ -439,158 +396,5 @@ CONTAINS
   end subroutine p_d_coupling
   !=================================================================================================
   !=================================================================================================
-  subroutine derived_phys(phys_state, phys_tend)
-    use constituents,  only: qmin
-    use physconst,     only: gravit, zvir, cappa
-    use spmd_utils,    only: masterproc
-    use ppgrid,        only: pver
-    use geopotential,  only: geopotential_t
-    use static_energy, only: update_dry_static_energy_run
-    use physics_types, only: set_state_pdry, set_wet_to_dry
-    use hycoef,   only : hyam, hybm, hyai, hybi, ps0
-    use shr_vmath_mod, only: shr_vmath_log
-    use gmean_mod,     only: gmean
-    use shr_kind_mod,  only: shr_kind_cx
-
-
-    implicit none
-    type(physics_state), intent(inout), dimension(begchunk:endchunk) :: phys_state
-    type(physics_tend ), intent(inout), dimension(begchunk:endchunk) :: phys_tend
-
-    integer :: lchnk
-    real(r8) :: qbot                 ! bottom level q before change
-    real(r8) :: qbotm1               ! bottom-1 level q before change
-    real(r8) :: dqreq                ! q change at pver-1 required to remove q<qmin at pver
-    real(r8) :: qmavl                ! available q at level pver-1
-
-    real(r8) :: ke(pcols,begchunk:endchunk)
-    real(r8) :: se(pcols,begchunk:endchunk)
-    real(r8) :: ke_glob(1),se_glob(1)
-    real(r8) :: zvirv(pcols,pver)    ! Local zvir array pointer
-
-    integer :: m, i, k, ncol
-
-    ! Needed for "update_dry_static_energy" CCPP scheme
-    integer :: errflg
-    character(len=shr_kind_cx) :: errmsg
-
-
-!
-! Evaluate derived quantities
-!
-!$omp parallel do private (lchnk, ncol, k, i, zvirv, errflg, errmsg)
-    do lchnk = begchunk,endchunk
-       ncol = get_ncols_p(lchnk)
-       do k=1,nlev
-          do i=1,ncol
-             phys_state(lchnk)%pint(i,k)=hyai(k)*ps0+hybi(k)*phys_state(lchnk)%ps(i)
-             phys_state(lchnk)%pmid(i,k)=hyam(k)*ps0+hybm(k)*phys_state(lchnk)%ps(i)
-          end do
-        call shr_vmath_log(phys_state(lchnk)%pint(1:ncol,k), &
-                           phys_state(lchnk)%lnpint(1:ncol,k),ncol)
-        call shr_vmath_log(phys_state(lchnk)%pmid(1:ncol,k), &
-                           phys_state(lchnk)%lnpmid(1:ncol,k),ncol)
-       end do
-       do i=1,ncol
-          phys_state(lchnk)%pint(i,pverp)=hyai(pverp)*ps0+hybi(pverp)*phys_state(lchnk)%ps(i)
-       end do
-      call shr_vmath_log(phys_state(lchnk)%pint(1:ncol,pverp), &
-                         phys_state(lchnk)%lnpint(1:ncol,pverp),ncol)
-
-       do k=1,nlev
-          do i=1,ncol
-          phys_state(lchnk)%pdel (i,k)  = phys_state(lchnk)%pint(i,k+1) &
-                                         -phys_state(lchnk)%pint(i,k)
-             phys_state(lchnk)%rpdel(i,k) = 1._r8/phys_state(lchnk)%pdel(i,k)
-             phys_state(lchnk)%exner (i,k) = (phys_state(lchnk)%pint(i,pver+1) &
-                                             / phys_state(lchnk)%pmid(i,k))**cappa
-          end do
-       end do
-
-!-----------------------------------------------------------------------------------
-!  Need to fill zvirv 2D variables to be compatible with geopotential_t interface
-!-----------------------------------------------------------------------------------
-       zvirv(:,:) = zvir
-!
-! Compute initial geopotential heights
-!
-
-! NOTE:  if a tracer is marked "dry", that means physics wants it dry
-!        if dycore advects it wet, it should be converted here
-!        FV dycore does this, and in physics/cam/tphysac.F90 it will
-!        be converted back to wet, BUT ONLY FOR FV dycore
-!
-!        EUL: advects all tracers (except q1) as dry.  so it never
-!        calls this.
-!
-!        SE:  we should follow FV and advect all tracers wet (especially
-!        since we will be switching to conservation form of advection).
-!        So this is broken since dry tracers will never get converted
-!        back to wet. (in APE, all tracers are wet, so it is ok for now)
-!
-! Convert dry type constituents from moist to dry mixing ratio
-       call set_state_pdry(phys_state(lchnk), .true.)	 ! First get dry pressure to use for this timestep
-       call set_wet_to_dry(phys_state(lchnk), convert_cnst_type='dry')    ! Dynamics had moist, physics wants dry.
-!
-! Ensure tracers are all positive
-!
-!jt       Could cause differences if checking BFB
-       call qneg3('D_P_COUPLING',lchnk  ,ncol    ,pcols   ,pver    , &
-                  1, pcnst, qmin  ,phys_state(lchnk)%q)
-
-      ! Compute initial geopotential heights
-      call geopotential_t(phys_state(lchnk)%lnpint, phys_state(lchnk)%lnpmid  ,&
-                          phys_state(lchnk)%pint  , phys_state(lchnk)%pmid    ,&
-                          phys_state(lchnk)%pdel  , phys_state(lchnk)%rpdel   ,&
-                          phys_state(lchnk)%t     , phys_state(lchnk)%q       ,&
-                          rairv(:,:,lchnk)        , gravit, zvirv             ,&
-                          phys_state(lchnk)%zi    , phys_state(lchnk)%zm      ,&
-                          ncol)
-
-       ! Compute initial dry static energy s = g*z + c_p*T
-       call update_dry_static_energy_run(pver, gravit, phys_state(lchnk)%t(1:ncol,:),  &
-                                         phys_state(lchnk)%zm(1:ncol,:),               &
-                                         phys_state(lchnk)%phis(1:ncol),               &
-                                         phys_state(lchnk)%s(1:ncol,:),                &
-                                         cpairv(1:ncol,:,lchnk), errflg, errmsg)
-
-
-! Energy and water integrals of the input state: CAM side (d_p_coupling_cam_finish)
-
-
-#if 0
-       ke(:,lchnk) = 0._r8
-       se(:,lchnk) = 0._r8
-!       wv = 0._r8
-!       wl = 0._r8
-!       wi = 0._r8
-       do k = 1, pver
-          do i = 1, ncol
-             ke(i,lchnk) = ke(i,lchnk) + ( 0.5_r8*(phys_state(lchnk)%u(i,k)**2 + &
-                  phys_state(lchnk)%v(i,k)**2)*phys_state(lchnk)%pdel(i,k) )/gravit
-             se(i,lchnk) = se(i,lchnk) + phys_state(lchnk)%s(i,k         )*phys_state(lchnk)%pdel(i,k)/gravit
-!             wv = wv + phys_state(lchnk)%q(i,k,1       )*phys_state(lchnk)%pdel(i,k)
-!             wl = wl + phys_state(lchnk)%q(i,k,ixcldliq)*phys_state(lchnk)%pdel(i,k)
-!             wi = wi + phys_state(lchnk)%q(i,k,ixcldice)*phys_state(lchnk)%pdel(i,k)
-          end do
-       end do
-#endif
-    end do
-
-#if 0
-! This wont match SE exactly.  SE computes KE at half levels
-! SE includes cp_star (physics SE uses cp )
-! CAM stdout of total energy also includes latent energy of Q,Q1,Q2
-! making it a little larger
-    call gmean(ke,ke_glob,1)
-    call gmean(se,se_glob,1)
-    if (masterproc) then
-       write(iulog,'(a,e20.8,a,e20.8)') 'KE = ',ke_glob(1),' SE = ',se_glob(1)
-       write(iulog,'(a,e20.8)') 'TOTE = ',ke_glob(1)+se_glob(1)
-    endif
-#endif
-
-  end subroutine derived_phys
-
 
 end module dp_coupling_impl

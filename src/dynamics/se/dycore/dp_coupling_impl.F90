@@ -42,7 +42,7 @@ real (kind=r8), allocatable :: q_prev(:,:,:,:) ! Previous Q for computing tenden
 CONTAINS
 !=========================================================================================
 
-subroutine d_p_coupling(phys_state, phys_tend, dyn_out)
+subroutine d_p_coupling(dyn_out)
 
    ! Convert the dynamics output state into the physics input state.
    ! Note that all pressures and tracer mixing ratios coming from the dycore are based on
@@ -54,14 +54,12 @@ subroutine d_p_coupling(phys_state, phys_tend, dyn_out)
    use fvm_mapping,            only: dyn2phys_vector, dyn2phys_all_vars
    use se_dyn_time_mod,        only: timelevel_qdp
    use control_mod,            only: qsplit
-   use test_fvm_mapping_impl,       only: test_mapping_overwrite_dyn_state, test_mapping_output_phys_state
+   use test_fvm_mapping_impl,       only: test_mapping_overwrite_dyn_state
    use prim_advance_mod,       only: tot_energy_dyn
    use phys_cols_mod,          only: phys_cols_t
    use dyn_tests_utils,        only: vc_dry_pressure
    ! arguments
    type(dyn_export_t),  intent(inout)                               :: dyn_out             ! dynamics export
-   type(physics_state), intent(inout), dimension(begchunk:endchunk) :: phys_state
-   type(physics_tend ), intent(inout), dimension(begchunk:endchunk) :: phys_tend
 
 
    ! LOCAL VARIABLES
@@ -259,36 +257,22 @@ subroutine d_p_coupling(phys_state, phys_tend, dyn_out)
       end do
    end do
 
-   !$omp parallel do num_threads(max_num_threads) private (col_ind, lchnk, icol, ie, blk_ind, ilyr, m)
-   do col_ind = 1, phys_columns_on_task
-      call get_dyn_col_p(col_ind, ie, blk_ind)
-      call get_chunk_info_p(col_ind, lchnk, icol)
-      phys_state(lchnk)%ps(icol)   = cols%ps(col_ind)
-      phys_state(lchnk)%phis(icol) = cols%phis(col_ind)
-      do ilyr = 1, pver
-         phys_state(lchnk)%pdel(icol, ilyr)  = cols%pdel(col_ind, ilyr)
-         phys_state(lchnk)%t(icol, ilyr)     = cols%t(col_ind, ilyr)
-         phys_state(lchnk)%u(icol, ilyr)     = cols%u(col_ind, ilyr)
-         phys_state(lchnk)%v(icol, ilyr)     = cols%v(col_ind, ilyr)
-         phys_state(lchnk)%omega(icol, ilyr) = cols%omega(col_ind, ilyr)
-      end do
-
-      do m = 1, pcnst
-         do ilyr = 1, pver
-            phys_state(lchnk)%q(icol, ilyr,m) = cols%q(col_ind, ilyr, m)
-         end do
-      end do
-   end do
 
    call t_stopf('dpcopy')
 
    ! Save the tracer fields input to physics package for calculating tendencies
    ! The mixing ratios are all dry at this point.
-   do lchnk = begchunk, endchunk
-      ncols = phys_state(lchnk)%ncol
-      q_prev(1:ncols,1:pver,1:pcnst,lchnk) = phys_state(lchnk)%q(1:ncols,1:pver,1:pcnst)
+   !$omp parallel do num_threads(max_num_threads) private (col_ind, lchnk, icol, ilyr, m)
+   do col_ind = 1, phys_columns_on_task
+      call get_chunk_info_p(col_ind, lchnk, icol)
+      do m = 1, pcnst
+         do ilyr = 1, pver
+            q_prev(icol, ilyr, m, lchnk) = cols%q(col_ind, ilyr, m)
+         end do
+      end do
    end do
-   call test_mapping_output_phys_state(phys_state,dyn_out%fvm)
+   ! The debug_coupling output (test_mapping_output_phys_state) now runs on
+   ! CAM's side after the copy, through se_backend_t%debug_phys_state.
 
    ! Deallocate the temporary arrays
    deallocate(ps_tmp)
@@ -299,19 +283,6 @@ subroutine d_p_coupling(phys_state, phys_tend, dyn_out)
    deallocate(q_tmp)
    deallocate(omega_tmp)
 
-   ! ps, pdel, and q in phys_state are all dry at this point.  After return from derived_phys_dry
-   ! ps and pdel include water vapor only, and the 'wet' constituents have been converted to wet mmr.
-   call t_startf('derived_phys')
-   call derived_phys_dry(phys_state, phys_tend)
-   call t_stopf('derived_phys')
-
-  !$omp parallel do num_threads(max_num_threads) private (lchnk, ncols, ilyr, icol)
-   do lchnk = begchunk, endchunk
-      ncols=get_ncols_p(lchnk)
-      if (pcols > ncols) then
-         phys_state(lchnk)%phis(ncols+1:) = 0.0_r8
-      end if
-   end do
 end subroutine d_p_coupling
 
 !=========================================================================================
@@ -557,185 +528,4 @@ subroutine p_d_coupling(phys_state, phys_tend, dyn_in, tl_f, tl_qdp)
 end subroutine p_d_coupling
 
 !=========================================================================================
-
-subroutine derived_phys_dry(phys_state, phys_tend)
-
-   ! The ps, pdel, and q components of phys_state are all dry on input.
-   ! On output the psdry and pdeldry components are initialized; ps and pdel are
-   ! updated to contain contribution from water vapor only; the 'wet' constituent
-   ! mixing ratios are converted to a wet basis.  Initialize geopotential heights.
-   ! Finally compute energy and water column integrals of the physics input state.
-
-   use constituents,    only: qmin
-   use physconst,       only: gravit, zvir
-   use cam_thermo,      only: cam_thermo_dry_air_update, cam_thermo_water_update
-   use air_composition, only: thermodynamic_active_species_num
-   use air_composition, only: thermodynamic_active_species_idx
-   use air_composition, only: cpairv, rairv, cappav, dry_air_species_num
-   use shr_const_mod,   only: shr_const_rwv
-   use phys_control,    only: waccmx_is
-   use geopotential,    only: geopotential_t
-   use static_energy,   only: update_dry_static_energy_run
-   use hycoef,          only: hyai, ps0
-   use shr_vmath_mod,   only: shr_vmath_log
-   use qneg_module,     only: qneg3
-   use dyn_tests_utils, only: vc_dry_pressure
-   use shr_kind_mod,    only: shr_kind_cx
-   ! arguments
-   type(physics_state), intent(inout), dimension(begchunk:endchunk) :: phys_state
-   type(physics_tend ), intent(inout), dimension(begchunk:endchunk) :: phys_tend
-
-   ! local variables
-   integer :: lchnk
-
-   real(r8) :: zvirv(pcols,pver)    ! Local zvir array pointer
-   real(r8) :: factor_array(pcols,nlev)
-
-   integer :: m, i, k, ncol, m_cnst
-
-   !Needed for "update_dry_static_energy" CCPP scheme
-   integer :: errflg
-   character(len=shr_kind_cx) :: errmsg
-   !----------------------------------------------------------------------------
-
-   ! Evaluate derived quantities
-
-   !!$omp parallel do num_threads(horz_num_threads) private (lchnk, ncol, k, i, m , zvirv, factor_array)
-   do lchnk = begchunk,endchunk
-
-      ncol = get_ncols_p(lchnk)
-
-      ! dry pressure variables
-
-      do i = 1, ncol
-         phys_state(lchnk)%psdry(i) = hyai(1)*ps0 + sum(phys_state(lchnk)%pdel(i,:))
-      end do
-      do i = 1, ncol
-         phys_state(lchnk)%pintdry(i,1) = hyai(1)*ps0
-      end do
-      call shr_vmath_log(phys_state(lchnk)%pintdry(1:ncol,1), &
-                         phys_state(lchnk)%lnpintdry(1:ncol,1),ncol)
-      do k = 1, nlev
-         do i = 1, ncol
-            phys_state(lchnk)%pintdry(i,k+1) = phys_state(lchnk)%pintdry(i,k) + &
-                                               phys_state(lchnk)%pdel(i,k)
-         end do
-         call shr_vmath_log(phys_state(lchnk)%pintdry(1:ncol,k+1),&
-                            phys_state(lchnk)%lnpintdry(1:ncol,k+1),ncol)
-      end do
-
-      do k=1,nlev
-         do i=1,ncol
-            phys_state(lchnk)%pdeldry (i,k) = phys_state(lchnk)%pdel(i,k)
-            phys_state(lchnk)%rpdeldry(i,k) = 1._r8/phys_state(lchnk)%pdeldry(i,k)
-            phys_state(lchnk)%pmiddry (i,k) = 0.5D0*(phys_state(lchnk)%pintdry(i,k+1) + &
-                                                     phys_state(lchnk)%pintdry(i,k))
-         end do
-         call shr_vmath_log(phys_state(lchnk)%pmiddry(1:ncol,k), &
-                            phys_state(lchnk)%lnpmiddry(1:ncol,k),ncol)
-      end do
-
-      ! wet pressure variables (should be removed from physics!)
-      factor_array(:,:) = 1.0_r8
-      do m_cnst=dry_air_species_num + 1,thermodynamic_active_species_num
-        m = thermodynamic_active_species_idx(m_cnst)
-        do k=1,nlev
-          do i=1,ncol
-            ! at this point all q's are dry
-            factor_array(i,k) = factor_array(i,k)+phys_state(lchnk)%q(i,k,m)
-          end do
-        end do
-      end do
-
-      do k=1,nlev
-         do i=1,ncol
-            phys_state(lchnk)%pdel (i,k) = phys_state(lchnk)%pdeldry(i,k)*factor_array(i,k)
-         end do
-      end do
-
-      ! initialize vertical loop - model top pressure
-
-      do i=1,ncol
-         phys_state(lchnk)%ps(i)     = phys_state(lchnk)%pintdry(i,1)
-         phys_state(lchnk)%pint(i,1) = phys_state(lchnk)%pintdry(i,1)
-      end do
-      do k = 1, nlev
-         do i=1,ncol
-            phys_state(lchnk)%pint(i,k+1) =  phys_state(lchnk)%pint(i,k)+phys_state(lchnk)%pdel(i,k)
-            phys_state(lchnk)%pmid(i,k)   = (phys_state(lchnk)%pint(i,k+1)+phys_state(lchnk)%pint(i,k))/2._r8
-            phys_state(lchnk)%ps  (i)     =  phys_state(lchnk)%ps(i) + phys_state(lchnk)%pdel(i,k)
-         end do
-         call shr_vmath_log(phys_state(lchnk)%pint(1:ncol,k),phys_state(lchnk)%lnpint(1:ncol,k),ncol)
-         call shr_vmath_log(phys_state(lchnk)%pmid(1:ncol,k),phys_state(lchnk)%lnpmid(1:ncol,k),ncol)
-      end do
-      call shr_vmath_log(phys_state(lchnk)%pint(1:ncol,pverp),phys_state(lchnk)%lnpint(1:ncol,pverp),ncol)
-
-      do k = 1, nlev
-         do i = 1, ncol
-            phys_state(lchnk)%rpdel(i,k)  = 1._r8/phys_state(lchnk)%pdel(i,k)
-         end do
-      end do
-
-      !------------------------------------------------------------
-      ! Apply limiters to mixing ratios of major species (waccmx)
-      !------------------------------------------------------------
-      if (dry_air_species_num>0) then
-        call physics_cnst_limit( phys_state(lchnk) )
-        !-----------------------------------------------------------------------------
-        ! Call cam_thermo_dry_air_update to compute cpairv, rairv, mbarv, and cappav as
-        ! constituent dependent variables.
-        ! Compute molecular viscosity(kmvis) and conductivity(kmcnd).
-        ! Fill local zvirv variable; calculated for WACCM-X.
-        !-----------------------------------------------------------------------------
-        call cam_thermo_dry_air_update(phys_state(lchnk)%q, phys_state(lchnk)%t, lchnk, ncol)
-        zvirv(:,:) = shr_const_rwv / rairv(:,:,lchnk) -1._r8
-      else
-        zvirv(:,:) = zvir
-      end if
-      !
-      ! update cp_dycore in module air_composition.
-      ! (note: at this point q is dry)
-      !
-      call cam_thermo_water_update(phys_state(lchnk)%q(1:ncol,:,:), lchnk, ncol, vc_dry_pressure)
-      do k = 1, nlev
-         do i = 1, ncol
-            phys_state(lchnk)%exner(i,k) = (phys_state(lchnk)%pint(i,pver+1) &
-                                            / phys_state(lchnk)%pmid(i,k))**cappav(i,k,lchnk)
-         end do
-      end do
-      !
-      ! CAM physics: water tracers are moist; the rest dry
-      !
-      factor_array(1:ncol,1:nlev) = 1._r8/factor_array(1:ncol,1:nlev)
-      do m = 1,pcnst
-         if (cnst_type(m) == 'wet') then
-            do k = 1, nlev
-               do i = 1, ncol
-                  phys_state(lchnk)%q(i,k,m) = factor_array(i,k)*phys_state(lchnk)%q(i,k,m)
-               end do
-            end do
-         end if
-      end do
-
-      ! Ensure tracers are all positive
-      call qneg3('D_P_COUPLING',lchnk  ,ncol    ,pcols   ,pver    , &
-           1, pcnst, qmin  ,phys_state(lchnk)%q)
-
-      ! Compute initial geopotential heights - based on full pressure
-      call geopotential_t(phys_state(lchnk)%lnpint, phys_state(lchnk)%lnpmid  , phys_state(lchnk)%pint, &
-         phys_state(lchnk)%pmid  , phys_state(lchnk)%pdel    , phys_state(lchnk)%rpdel                , &
-         phys_state(lchnk)%t     , phys_state(lchnk)%q(:,:,:), rairv(:,:,lchnk), gravit, zvirv        , &
-         phys_state(lchnk)%zi    , phys_state(lchnk)%zm      , ncol)
-      ! Compute initial dry static energy, include surface geopotential
-      call update_dry_static_energy_run(pver, gravit, phys_state(lchnk)%t(1:ncol,:),  &
-                                        phys_state(lchnk)%zm(1:ncol,:),               &
-                                        phys_state(lchnk)%phis(1:ncol),               &
-                                        phys_state(lchnk)%s(1:ncol,:),                &
-                                        cpairv(1:ncol,:,lchnk), errflg, errmsg)
-      ! Energy and water integrals of the input state: CAM side (d_p_coupling_cam_finish)
-
-
-   end do  ! lchnk
-
-end subroutine derived_phys_dry
 end module dp_coupling_impl
