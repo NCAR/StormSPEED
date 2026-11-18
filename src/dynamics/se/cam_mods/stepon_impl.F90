@@ -311,6 +311,11 @@ subroutine stepon_run2(dyn_in, dyn_out)
 
    if(.not.par%dynproc) return
 
+#ifdef SE_GFR_DEVICE_RESIDENT
+   ! Resident dycore: Hommexx applies the CAM forcing on the device (CamForcing)
+   ! from the device-remapped forcing; the Fortran state here is not current.
+   tl_f = TimeLevel%n0
+#else
    do ie=1,nelemd
 
       tl_f = TimeLevel%n0   ! timelevel which was adjusted by physics
@@ -367,6 +372,7 @@ subroutine stepon_run2(dyn_in, dyn_out)
    if (ftype==1) then
       call applyCAMforcing_dynamics(dyn_in%elem,hvcoord,tl_f,dtime,1,nelemd)
       endif
+#endif
 
    ! Most output is done by physics.  We pass to the physics state variables
    ! at timelevel "tl_f".

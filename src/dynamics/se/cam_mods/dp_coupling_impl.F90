@@ -229,7 +229,8 @@ CONTAINS
     use control_mod_cam,         only: ftype
     use edge_mod,                only: edge_g, edgeVpack_nlyr, edgeVunpack_nlyr
     use gllfvremap_mod,          only: gfr_fv_phys_to_dyn
-    use gfr_device_check_mod,    only: gfr_device_check_return, gfr_device_forcing_from_cols
+    use gfr_device_check_mod,    only: gfr_device_check_return, gfr_device_forcing_from_cols, &
+                                       gfr_device_forcing_on_device
     use time_manager,            only: get_step_size
     implicit none
     ! OUTPUT PARAMETERS:
@@ -277,6 +278,12 @@ CONTAINS
 
     ! Tendencies and constituents after physics, filled by CAM's side (dp_coupling_cam)
     cols => dyn_in%phys
+#ifdef SE_GFR_DEVICE_RESIDENT
+    ! Resident dycore: the forcing is computed on the device and stays there
+    ! (HOMME's per-step forcing push is off); no Fortran remap, no DSS here.
+    if (par%dynproc .and. fv_nphys > 0) call gfr_device_forcing_on_device(cols)
+    return
+#endif
     call t_startf('pd_copy')
 
     !$omp parallel do num_threads(max_num_threads) private (col_ind, lchnk, icol, ie, blk_ind, ilyr, m)

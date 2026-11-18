@@ -1,0 +1,6 @@
+# GPU step 2b-2: resident dycore.  The device remap couples dynamics and physics
+# (as in _gfrdev) and HOMME's per-step forcing push and state pull are off
+# (HOMME fork >= stormspeed_homme.02, prim_driver_mod cam_device_coupling).
+# FKESSLER-class cases, se_ftype=2, no restarts yet; dynamics-grid history
+# fields (DYN_*, VOR, DIV, FU/FV) are only current on diagnostics steps.
+./xmlchange --append CAM_CONFIG_OPTS=' -cppdefs -DSE_GFR_DEVICE_RESIDENT'

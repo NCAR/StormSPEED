@@ -3325,5 +3325,14 @@
       <option name="comment">FKESSLER with dynamics-physics coupling through the device remap (Hommexx GllFvRemap); compare with the reference run</option>
     </options>
   </test>
+  <test compset="FKESSLER" grid="ne30pg2_ne30pg2_mt232" name="SMS_Ln9" testmods="cam/outfrq9s_thetal_kokkos_gpu_acc_gfrres" supported="false">
+    <machines>
+      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm_gpu_nvhpc"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:59:00</option>
+      <option name="comment">FKESSLER with a resident dycore: device remap, no per-step HOMME push/pull; should match the _gfrdev run</option>
+    </options>
+  </test>
 
 </testlist>

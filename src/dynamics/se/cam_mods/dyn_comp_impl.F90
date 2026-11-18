@@ -783,6 +783,10 @@ subroutine dyn_init(dyn_in, dyn_out)
        ! Device remap (shadow check or coupling): set up Hommexx's GllFvRemap
        if (fv_nphys > 0) call gfr_device_check_init()
 #endif
+#if defined(SE_GFR_DEVICE_RESIDENT) && defined(KOKKOS_TARGET)
+       ! Resident dycore: no per-step forcing push / state pull in HOMME
+       call set_cam_device_coupling()
+#endif
 
 !jt      ! This subroutine is used to create nc_topo files, if requested
 !jt       call nctopo_util_driver(elem,hybrid,nets,nete)
@@ -2093,5 +2097,20 @@ end subroutine read_phys_field_2d
 
 !========================================================================================
 
+
+!=========================================================================================
+
+subroutine set_cam_device_coupling()
+#if defined(SE_GFR_DEVICE_RESIDENT) && defined(KOKKOS_TARGET)
+   ! HOMME (fork >= stormspeed_homme.02): skip the per-step forcing push and
+   ! state pull; the state is still pulled on diagnostics steps.
+   use prim_driver_mod, only: cam_device_coupling
+   use control_mod_cam, only: ftype
+   if (fv_nphys < 1) call endrun('dyn_init: SE_GFR_DEVICE_RESIDENT needs a physics grid')
+   if (ftype /= 2) call endrun('dyn_init: SE_GFR_DEVICE_RESIDENT supports se_ftype=2 only')
+   cam_device_coupling = .true.
+   if (masterproc) write(iulog,*) 'dyn_init: resident dycore (SE_GFR_DEVICE_RESIDENT): HOMME push/pull off'
+#endif
+end subroutine set_cam_device_coupling
 
 end module dyn_comp_impl

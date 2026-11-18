@@ -237,6 +237,12 @@ contains
       class(se_dynamics_t), intent(in)    :: this
       type(file_desc_t),   intent(inout) :: File
       type(impl_exp_t) :: exp
+#ifdef SE_GFR_DEVICE_RESIDENT
+      block
+        use cam_abortutils, only: endrun
+        call endrun('write_restart: restarts are not supported yet with SE_GFR_DEVICE_RESIDENT')
+      end block
+#endif
       call this%sync_to_host()
       exp%elem => this%elem; exp%phys => this%phys
       call impl_wrest(File, exp)

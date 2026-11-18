@@ -19,6 +19,7 @@ module gfr_device_check_mod
   public :: gfr_device_check_init, gfr_device_check, gfr_device_check_return
   public :: gfr_device_fill_cols        ! -DSE_GFR_DEVICE_COUPLING: device remap fills phys
   public :: gfr_device_forcing_from_cols ! -DSE_GFR_DEVICE_COUPLING: device remap gives the forcing
+  public :: gfr_device_forcing_on_device ! -DSE_GFR_DEVICE_RESIDENT: forcing stays on the device
 
 #if defined(SE_GFR_DEVICE)
   real(r8), allocatable :: ps_c(:,:), phis_c(:,:)        ! (npg, nelemd)
@@ -152,6 +153,15 @@ contains
     call gfr_device_forcing_to_f90_c(elem_derived_FT, elem_derived_FM, elem_derived_FQ, nq)
 #endif
   end subroutine gfr_device_forcing_from_cols
+
+  subroutine gfr_device_forcing_on_device(cols)
+    ! -DSE_GFR_DEVICE_RESIDENT: physics->dynamics through the device remap only;
+    ! Hommexx's forcing views are the forcing (HOMME's push is switched off).
+    type(phys_cols_t), intent(in) :: cols
+#if defined(SE_GFR_DEVICE)
+    call device_phys_to_dyn(cols)
+#endif
+  end subroutine gfr_device_forcing_on_device
 
   subroutine gfr_device_check_return(cols)
     ! Return path: after the Fortran physics->dynamics remap and its DSS have
