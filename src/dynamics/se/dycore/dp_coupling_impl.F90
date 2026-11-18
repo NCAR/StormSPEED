@@ -57,6 +57,7 @@ subroutine d_p_coupling(phys_state, phys_tend, dyn_out)
    use test_fvm_mapping_impl,       only: test_mapping_overwrite_dyn_state, test_mapping_output_phys_state
    use prim_advance_mod,       only: tot_energy_dyn
    use phys_cols_mod,          only: phys_cols_t
+   use dyn_tests_utils,        only: vc_dry_pressure
    ! arguments
    type(dyn_export_t),  intent(inout)                               :: dyn_out             ! dynamics export
    type(physics_state), intent(inout), dimension(begchunk:endchunk) :: phys_state
@@ -232,6 +233,8 @@ subroutine d_p_coupling(phys_state, phys_tend, dyn_out)
    if (.not. associated(cols)) call endrun('d_p_coupling: dyn_out%phys not associated')
    call cols%alloc(phys_columns_on_task, pver, pcnst, &
         use_gw_front .or. use_gw_front_igw, use_gw_movmtn_pbl)
+   cols%vcoord      = vc_dry_pressure
+   cols%q_is_wet(:) = .false.   ! all mixing ratios are dry here
    !$omp parallel do num_threads(max_num_threads) private (col_ind, ie, blk_ind, ilyr, m)
    do col_ind = 1, phys_columns_on_task
       call get_dyn_col_p(col_ind, ie, blk_ind)

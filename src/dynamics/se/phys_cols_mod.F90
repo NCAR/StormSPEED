@@ -22,6 +22,10 @@ module phys_cols_mod
       logical :: has_front = .false. ! frontgf/frontga allocated
       logical :: has_vort  = .false. ! vort4gw allocated
 
+      ! What the backend's columns contain (set by the backend each d_p_coupling)
+      integer :: vcoord = -1                  ! vertical coordinate of ps/pdel (dyn_tests_utils vc_*)
+      logical, allocatable :: q_is_wet(:)     ! (ncnst) .true. if q(:,:,m) is a wet mixing ratio
+
       ! Dynamics -> physics
       real(r8), allocatable :: ps(:)          ! surface pressure (Pa)
       real(r8), allocatable :: phis(:)        ! surface geopotential (m2/s2)
@@ -64,6 +68,8 @@ contains
       allocate(this%t(ncol,nlev), this%u(ncol,nlev), this%v(ncol,nlev))
       allocate(this%omega(ncol,nlev), this%pdel(ncol,nlev))
       allocate(this%q(ncol,nlev,ncnst))
+      allocate(this%q_is_wet(ncnst))
+      this%q_is_wet(:) = .false.
       if (with_front) allocate(this%frontgf(ncol,nlev), this%frontga(ncol,nlev))
       if (with_vort)  allocate(this%vort4gw(ncol,nlev))
    end subroutine phys_cols_alloc
@@ -78,10 +84,11 @@ contains
       if (allocated(this%omega))   deallocate(this%omega)
       if (allocated(this%pdel))    deallocate(this%pdel)
       if (allocated(this%q))       deallocate(this%q)
+      if (allocated(this%q_is_wet)) deallocate(this%q_is_wet)
       if (allocated(this%frontgf)) deallocate(this%frontgf)
       if (allocated(this%frontga)) deallocate(this%frontga)
       if (allocated(this%vort4gw)) deallocate(this%vort4gw)
-      this%ncol = 0; this%nlev = 0; this%ncnst = 0
+      this%ncol = 0; this%nlev = 0; this%ncnst = 0; this%vcoord = -1
       this%has_front = .false.; this%has_vort = .false.
    end subroutine phys_cols_dealloc
 

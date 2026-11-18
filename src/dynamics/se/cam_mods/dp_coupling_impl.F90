@@ -41,6 +41,7 @@ CONTAINS
     use shr_vmath_mod,         only: shr_vmath_exp
     use time_manager,          only: is_first_step
     use phys_cols_mod,         only: phys_cols_t
+    use dyn_tests_utils,       only: vc_moist_pressure
     implicit none
 !-----------------------------------------------------------------------
 ! !INPUT PARAMETERS:
@@ -176,6 +177,8 @@ CONTAINS
     if (.not. associated(cols)) call endrun('d_p_coupling: dyn_out%phys not associated')
     call cols%alloc(phys_columns_on_task, pver, pcnst, &
          use_gw_front .or. use_gw_front_igw, use_gw_movmtn_pbl)
+    cols%vcoord      = vc_moist_pressure
+    cols%q_is_wet(:) = .true.    ! HOMME carries wet mixing ratios
     !$omp parallel do num_threads(max_num_threads) private (col_ind, ie, blk_ind, ilyr, m)
     do col_ind = 1, phys_columns_on_task
        call get_dyn_col_p(col_ind, ie, blk_ind)
