@@ -71,6 +71,35 @@ def extract_from_macros(case, comp_name, extra_vars=()):
     return result
 
 ###############################################################################
+def _nvhpc_gpu_host_cxx(case, kokkos_options):
+###############################################################################
+    """GPU build path for NVHPC + Kokkos/CUDA (KOKKOS_GPU_OFFLOAD with COMPILER=nvhpc).
+
+    HOMME's C++ and Kokkos do not compile with nvc++, so for this combination
+    they are compiled by nvcc (Kokkos' nvcc_wrapper) with a g++ host compiler,
+    while the Fortran (including OpenACC physics) is compiled by nvfortran.
+    The host g++ must be the GCC that NVHPC itself is configured with (its
+    localrc GCCDIR); a newer g++ gives a libstdc++ that nvfortran's link cannot
+    resolve (e.g. __cxa_call_terminate from GCC 14).  Returns that g++, or None
+    for every other build (normal builds are unaffected).
+    """
+    if case.get_value("COMPILER") != "nvhpc" or "Kokkos_ENABLE_CUDA" not in kokkos_options:
+        return None
+    nvfortran = shutil.which("nvfortran")
+    expect(nvfortran is not None, "nvfortran not in PATH for the NVHPC GPU build")
+    localrc = os.path.join(os.path.dirname(nvfortran), "localrc")
+    gccdir = None
+    with open(localrc) as fh:
+        for line in fh:
+            if line.startswith("set GCCDIR="):
+                gccdir = line.split("=", 1)[1].strip().rstrip(";").strip()
+                break
+    expect(gccdir is not None, f"No GCCDIR in {localrc}")
+    gxx = os.path.normpath(os.path.join(gccdir, "..", "..", "..", "..", "bin", "g++"))
+    expect(os.path.isfile(gxx), f"NVHPC's g++ not found at {gxx} (from {localrc})")
+    return gxx
+
+###############################################################################
 def _build_kokkos(caseroot):
     ###############################################################################
 
@@ -156,6 +185,12 @@ def _build_kokkos(caseroot):
                 cxx_path = shutil.which(cxx)
                 expect(cxx_path is not None, "{} is not in PATH?".format(cxx))
                 cxx = "-DCMAKE_CXX_COMPILER={}".format(cxx_path)
+
+        # NVHPC + Kokkos/CUDA (GPU tests only): nvcc_wrapper's host compiler
+        host_cxx = _nvhpc_gpu_host_cxx(case, kokkos_options)
+        if host_cxx:
+            os.environ["NVCC_WRAPPER_DEFAULT_COMPILER"] = host_cxx
+            logger.info("NVHPC GPU build: Kokkos compiled by nvcc_wrapper with host %s", host_cxx)
 
         gmake_cmd = case.get_value("GMAKE")
         gmake_j = case.get_value("GMAKE_J")
@@ -385,6 +420,13 @@ def _build_cam(caseroot, libroot, bldroot):
                 # Set path to nvcc_wrapper script to overwrite the default CXX compiler               
                 if "Kokkos_ENABLE_CUDA" in kokkos_options:
                     cxx = os.path.join(installed_kokkos_dir, "bin/nvcc_wrapper")
+
+            # NVHPC + Kokkos/CUDA (GPU tests only): HOMME's C++ through nvcc_wrapper
+            # with NVHPC's own g++ as the host compiler
+            host_cxx = _nvhpc_gpu_host_cxx(case, kokkos_options)
+            if host_cxx:
+                os.environ["NVCC_WRAPPER_DEFAULT_COMPILER"] = host_cxx
+                logger.info("NVHPC GPU build: HOMME C++ compiled by nvcc_wrapper with host %s", host_cxx)
 
         # -------------------------------------------------------
         # build the library

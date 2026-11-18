@@ -1,0 +1,6 @@
+# theta-l_kokkos on GPUs (HOMME through Kokkos/CUDA) together with OpenACC
+# physics in the same executable.  NVHPC only: Fortran by nvfortran, HOMME's
+# C++ and Kokkos by nvcc with NVHPC's own g++ as host (cime_config/buildlib,
+# _nvhpc_gpu_host_cxx).  This is the build path for GPU-resident work; the
+# data still moves between dycore and physics until the device coupling lands.
+./xmlchange OPENACC_GPU_OFFLOAD=TRUE
