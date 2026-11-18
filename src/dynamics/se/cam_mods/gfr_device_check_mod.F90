@@ -13,7 +13,7 @@ module gfr_device_check_mod
   use phys_cols_mod,  only: phys_cols_t
   implicit none
   private
-  public :: gfr_device_check_init, gfr_device_check
+  public :: gfr_device_check_init, gfr_device_check, gfr_device_check_return
 
 #if defined(SE_GFR_DEVICE_CHECK) && defined(KOKKOS_TARGET)
   real(r8), allocatable :: ps_c(:,:), phis_c(:,:)        ! (npg, nelemd)
@@ -24,11 +24,26 @@ module gfr_device_check_mod
   real(r8), allocatable :: g1(:,:)                       ! gathered (ncol, 2): ps, phis
   real(r8), allocatable :: gq(:,:,:)                     ! gathered (ncol, nlev, nq)
   integer,  allocatable :: map_ie(:), map_col(:)         ! physics column -> (ie, col)
-  integer :: npg = 0, nq = 0, ncall = 0
+  integer :: npg = 0, nq = 0, ncall = 0, ncall_r = 0
+  ! return path (physics -> dynamics)
+  real(r8), allocatable :: rt_c(:,:,:), ruv_c(:,:,:,:), rq_c(:,:,:,:)   ! GllFvRemap layout
+  real(r8), allocatable :: r2(:,:,:), rq(:,:,:)                         ! (ncol,nlev,3), (ncol,nlev,nq)
 
   interface
      subroutine gfr_device_init_c() bind(c, name='gfr_device_init_c')
      end subroutine gfr_device_init_c
+     subroutine gfr_device_phys_to_dyn_c(t, uv, q, nelem, npg, nlev, nq) &
+          bind(c, name='gfr_device_phys_to_dyn_c')
+       use iso_c_binding, only: c_double, c_int
+       real(c_double) :: t(*), uv(*), q(*)                          ! device addresses
+       integer(c_int), value :: nelem, npg, nlev, nq
+     end subroutine gfr_device_phys_to_dyn_c
+     subroutine gfr_device_compare_forcing_c(ft, fm, fq, nq, out) &
+          bind(c, name='gfr_device_compare_forcing_c')
+       use iso_c_binding, only: c_double, c_int
+       real(c_double) :: ft(*), fm(*), fq(*), out(6)                ! host arrays
+       integer(c_int), value :: nq
+     end subroutine gfr_device_compare_forcing_c
      subroutine gfr_device_dyn_to_phys_c(ps, phis, t, om, uv, q, nelem, npg, nlev, nq) &
           bind(c, name='gfr_device_dyn_to_phys_c')
        use iso_c_binding, only: c_double, c_int
@@ -130,6 +145,68 @@ contains
 #endif
   end subroutine gfr_device_check
 
+  subroutine gfr_device_check_return(cols)
+    ! Return path: after the Fortran physics->dynamics remap and its DSS have
+    ! filled elem_derived_FT/FM/FQ, scatter the physics tendencies (phys) into
+    ! GllFvRemap's layout on the device, run Hommexx's remap + DSS into its
+    ! forcing views, and compare those with the Fortran forcing.  Hommexx's
+    ! forcing is overwritten by push_forcing_to_c before it is used, so the
+    ! model's answers do not change.
+#if defined(SE_GFR_DEVICE_CHECK) && defined(KOKKOS_TARGET)
+    use dimensions_mod_cam, only: nelemd, nlev
+    use element_state,      only: elem_derived_FT, elem_derived_FM, elem_derived_FQ
+    use spmd_utils,         only: masterproc, mpicom, mpi_max, mpi_real8
+    use cam_logfile,        only: iulog
+#endif
+    type(phys_cols_t), intent(in) :: cols
+#if defined(SE_GFR_DEVICE_CHECK) && defined(KOKKOS_TARGET)
+    integer  :: col_ind, k, m, ncol, ierr
+    real(r8) :: dloc(6), dglob(6)
+
+    if (.not. allocated(t_c)) return       ! dynamics->physics check not set up yet
+    ncol = cols%ncol
+    if (.not. allocated(rt_c)) then
+       allocate(rt_c(nlev,npg,nelemd), ruv_c(nlev,2,npg,nelemd), rq_c(nlev,nq,npg,nelemd))
+       allocate(r2(ncol,nlev,3), rq(ncol,nlev,nq))
+       !$acc enter data create(rt_c, ruv_c, rq_c, r2, rq)
+    end if
+    r2(:,:,1) = cols%dtdt
+    r2(:,:,2) = cols%dudt
+    r2(:,:,3) = cols%dvdt
+    rq(:,:,1:nq) = cols%q_out(:,:,1:nq)
+    !$acc update device(r2, rq)
+
+    ! Scatter on the device: physics-column order -> GllFvRemap layout
+    !$acc parallel loop collapse(2) present(r2, rt_c, ruv_c, map_ie, map_col)
+    do k = 1, nlev
+       do col_ind = 1, ncol
+          rt_c (k,   map_col(col_ind), map_ie(col_ind)) = r2(col_ind,k,1)
+          ruv_c(k,1, map_col(col_ind), map_ie(col_ind)) = r2(col_ind,k,2)
+          ruv_c(k,2, map_col(col_ind), map_ie(col_ind)) = r2(col_ind,k,3)
+       end do
+    end do
+    !$acc parallel loop collapse(3) present(rq, rq_c, map_ie, map_col)
+    do m = 1, nq
+       do k = 1, nlev
+          do col_ind = 1, ncol
+             rq_c(k, m, map_col(col_ind), map_ie(col_ind)) = rq(col_ind,k,m)
+          end do
+       end do
+    end do
+
+    call run_remap_return(rt_c, ruv_c, rq_c, nelemd, npg, nlev, nq)
+    call gfr_device_compare_forcing_c(elem_derived_FT, elem_derived_FM, elem_derived_FQ, nq, dloc)
+    call mpi_allreduce(dloc, dglob, size(dloc), mpi_real8, mpi_max, mpicom, ierr)
+    ncall_r = ncall_r + 1
+    if (masterproc) then
+       write(iulog,'(a,i4,a)') 'gfr_device_check_return call ', ncall_r, &
+            ' (device C++ phys->dyn remap+DSS vs Fortran; max abs / max abs normalized by max|Fortran|):'
+       write(iulog,'(a,3(1x,a,es9.2,"/",es9.2))') '  ', &
+            'FT', dglob(1), dglob(4), 'FM', dglob(2), dglob(5), 'FQ', dglob(3), dglob(6)
+    end if
+#endif
+  end subroutine gfr_device_check_return
+
 #if defined(SE_GFR_DEVICE_CHECK) && defined(KOKKOS_TARGET)
   subroutine run_remap(ps, phis, t, om, uv, q, nelem, npg_, nlev, nq_)
     ! Explicit-shape dummies: their device addresses go to the C++ remap
@@ -141,6 +218,14 @@ contains
     call gfr_device_dyn_to_phys_c(ps, phis, t, om, uv, q, nelem, npg_, nlev, nq_)
     !$acc end host_data
   end subroutine run_remap
+
+  subroutine run_remap_return(t, uv, q, nelem, npg_, nlev, nq_)
+    integer,  intent(in)    :: nelem, npg_, nlev, nq_
+    real(r8), intent(inout) :: t(nlev,npg_,nelem), uv(nlev,2,npg_,nelem), q(nlev,nq_,npg_,nelem)
+    !$acc host_data use_device(t, uv, q)
+    call gfr_device_phys_to_dyn_c(t, uv, q, nelem, npg_, nlev, nq_)
+    !$acc end host_data
+  end subroutine run_remap_return
 #endif
 
 end module gfr_device_check_mod

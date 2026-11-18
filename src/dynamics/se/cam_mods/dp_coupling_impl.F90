@@ -219,6 +219,7 @@ CONTAINS
     use control_mod_cam,         only: ftype
     use edge_mod,                only: edge_g, edgeVpack_nlyr, edgeVunpack_nlyr
     use gllfvremap_mod,          only: gfr_fv_phys_to_dyn
+    use gfr_device_check_mod,    only: gfr_device_check_return
     use time_manager,            only: get_step_size
     implicit none
     ! OUTPUT PARAMETERS:
@@ -400,6 +401,10 @@ CONTAINS
    call t_stopf('p_d_coupling:bndry_exchange')
 
 
+#ifdef SE_GFR_DEVICE_CHECK
+    ! Device remap shadow check, return path (no effect on answers)
+    if (par%dynproc .and. fv_nphys > 0) call gfr_device_check_return(cols)
+#endif
   end subroutine p_d_coupling
   !=================================================================================================
   !=================================================================================================
