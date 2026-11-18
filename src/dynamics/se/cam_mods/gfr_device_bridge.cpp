@@ -128,6 +128,35 @@ void gfr_device_compare_forcing_c (const double* ft_f, const double* fm_f, const
   }
 }
 
+// -DSE_GFR_DEVICE_COUPLING (first step, no HOMME change): copy Hommexx's
+// forcing views into the Fortran forcing arrays (element_state, same layout
+// and index mapping as push_forcing_to_c), so the CAM-mode push hands Hommexx
+// back exactly the device-remapped forcing.  FM's third component and the
+// tracers beyond nq are left as they are.
+void gfr_device_forcing_to_f90_c (double* ft_f, double* fm_f, double* fq_f, const int nq) {
+  using namespace Homme;
+  auto& forcing = Context::singleton().get<ElementsForcing>();
+  auto& tracers = Context::singleton().get<Tracers>();
+  const int ne = forcing.num_elems();
+  HostViewUnmanaged<Real*[NUM_PHYSICAL_LEV][NP][NP]>          ft90(ft_f, ne);
+  HostViewUnmanaged<Real*[NUM_PHYSICAL_LEV][3][NP][NP]>       fm90(fm_f, ne);
+  HostViewUnmanaged<Real*[QSIZE_D][NUM_PHYSICAL_LEV][NP][NP]> fq90(fq_f, ne);
+  auto ft = Kokkos::create_mirror_view(forcing.m_ft); Kokkos::deep_copy(ft, forcing.m_ft);
+  auto fm = Kokkos::create_mirror_view(forcing.m_fm); Kokkos::deep_copy(fm, forcing.m_fm);
+  auto fq = Kokkos::create_mirror_view(tracers.fq);  Kokkos::deep_copy(fq, tracers.fq);
+  const int nqc = std::min(nq, tracers.num_tracers());
+  for (int ie = 0; ie < ne; ++ie)
+    for (int k = 0; k < NUM_PHYSICAL_LEV; ++k) {
+      const int ilev = k / VECTOR_SIZE, ivec = k % VECTOR_SIZE;
+      for (int i = 0; i < NP; ++i)
+        for (int j = 0; j < NP; ++j) {
+          ft90(ie,k,i,j) = ft(ie,i,j,ilev)[ivec];
+          for (int dd = 0; dd < 2; ++dd) fm90(ie,k,dd,i,j) = fm(ie,dd,i,j,ilev)[ivec];
+          for (int q = 0; q < nqc; ++q)   fq90(ie,q,k,i,j) = fq(ie,q,i,j,ilev)[ivec];
+        }
+    }
+}
+
 } // extern "C"
 
 #endif // KOKKOS_TARGET

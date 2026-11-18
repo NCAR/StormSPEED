@@ -43,7 +43,7 @@ CONTAINS
     use time_manager,          only: is_first_step
     use phys_cols_mod,         only: phys_cols_t
     use dyn_tests_utils,       only: vc_moist_pressure
-    use gfr_device_check_mod,  only: gfr_device_check
+    use gfr_device_check_mod,  only: gfr_device_check, gfr_device_fill_cols
     implicit none
 !-----------------------------------------------------------------------
 ! !INPUT PARAMETERS:
@@ -125,8 +125,10 @@ CONTAINS
         ! Map dynamics state to FV physics grid
         !-----------------------------------------------------------------------
         call t_startf('dyn_to_fv_phys')
+#ifndef SE_GFR_DEVICE_COUPLING
         call gfr_dyn_to_fv_phys(par, dom_mt, tl_f, hvcoord, elem, ps_tmp, phis_tmp, &
              T_tmp, uv_tmp, omega_tmp, q_tmp)
+#endif
         call t_stopf('dyn_to_fv_phys')
 
         !-----------------------------------------------------------------------
@@ -182,6 +184,13 @@ CONTAINS
 #else
     cols%omega_over_p = .true.   ! preqx: omega_p is omega/p
 #endif
+#ifdef SE_GFR_DEVICE_COUPLING
+    ! Dynamics -> physics through the device remap (Hommexx GllFvRemap)
+    if (fv_nphys < 1) call endrun('d_p_coupling: SE_GFR_DEVICE_COUPLING needs a physics grid (pg2/pg3)')
+    if (cols%has_front .or. cols%has_vort) &
+         call endrun('d_p_coupling: SE_GFR_DEVICE_COUPLING does not support gravity-wave source fields yet')
+    if (par%dynproc) call gfr_device_fill_cols(cols)
+#else
     !$omp parallel do num_threads(max_num_threads) private (col_ind, ie, blk_ind, ilyr, m)
     do col_ind = 1, phys_columns_on_task
        call get_dyn_col_p(col_ind, ie, blk_ind)
@@ -204,6 +213,7 @@ CONTAINS
           end do
        end do
     end do
+#endif
 
 #ifdef SE_GFR_DEVICE_CHECK
     ! Device remap shadow check: compare Hommexx's GllFvRemap (device) with the
@@ -219,7 +229,7 @@ CONTAINS
     use control_mod_cam,         only: ftype
     use edge_mod,                only: edge_g, edgeVpack_nlyr, edgeVunpack_nlyr
     use gllfvremap_mod,          only: gfr_fv_phys_to_dyn
-    use gfr_device_check_mod,    only: gfr_device_check_return
+    use gfr_device_check_mod,    only: gfr_device_check_return, gfr_device_forcing_from_cols
     use time_manager,            only: get_step_size
     implicit none
     ! OUTPUT PARAMETERS:
@@ -401,7 +411,12 @@ CONTAINS
    call t_stopf('p_d_coupling:bndry_exchange')
 
 
-#ifdef SE_GFR_DEVICE_CHECK
+#ifdef SE_GFR_DEVICE_COUPLING
+    ! Physics -> dynamics through the device remap: Hommexx's forcing from the
+    ! device, copied into the Fortran forcing for CAM mode's push.  (The Fortran
+    ! remap above still runs; removing it and the push is the next step.)
+    if (par%dynproc .and. fv_nphys > 0) call gfr_device_forcing_from_cols(cols)
+#elif defined(SE_GFR_DEVICE_CHECK)
     ! Device remap shadow check, return path (no effect on answers)
     if (par%dynproc .and. fv_nphys > 0) call gfr_device_check_return(cols)
 #endif

@@ -779,8 +779,8 @@ subroutine dyn_init(dyn_in, dyn_out)
        call t_startf('prim_init2')
        call prim_init2(elem,hybrid,nets,nete, TimeLevel, hvcoord)
        call t_stopf('prim_init2')
-#ifdef SE_GFR_DEVICE_CHECK
-       ! Device remap shadow check: set up Hommexx's GllFvRemap (no effect on answers)
+#if defined(SE_GFR_DEVICE_CHECK) || defined(SE_GFR_DEVICE_COUPLING)
+       ! Device remap (shadow check or coupling): set up Hommexx's GllFvRemap
        if (fv_nphys > 0) call gfr_device_check_init()
 #endif
 

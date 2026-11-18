@@ -1,0 +1,5 @@
+# GPU step 2b-1: dynamics <-> physics through the device remap (Hommexx
+# GllFvRemap on the GPU) instead of the Fortran remap.  Needs a physics grid
+# and no gravity-wave source fields (use FKESSLER).  Answers differ from the
+# Fortran-remap run at roundoff level (C++ vs Fortran remap).
+./xmlchange --append CAM_CONFIG_OPTS=' -cppdefs -DSE_GFR_DEVICE_COUPLING'
