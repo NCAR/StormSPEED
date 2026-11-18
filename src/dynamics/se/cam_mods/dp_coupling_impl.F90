@@ -43,6 +43,7 @@ CONTAINS
     use time_manager,          only: is_first_step
     use phys_cols_mod,         only: phys_cols_t
     use dyn_tests_utils,       only: vc_moist_pressure
+    use gfr_device_check_mod,  only: gfr_device_check
     implicit none
 !-----------------------------------------------------------------------
 ! !INPUT PARAMETERS:
@@ -204,6 +205,11 @@ CONTAINS
        end do
     end do
 
+#ifdef SE_GFR_DEVICE_CHECK
+    ! Device remap shadow check: compare Hommexx's GllFvRemap (device) with the
+    ! Fortran remap that filled cols (no effect on answers)
+    if (par%dynproc .and. fv_nphys > 0) call gfr_device_check(cols)
+#endif
   end subroutine d_p_coupling
   !=================================================================================================
   !=================================================================================================

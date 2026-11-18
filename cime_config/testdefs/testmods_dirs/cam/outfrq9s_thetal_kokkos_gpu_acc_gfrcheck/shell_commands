@@ -1,0 +1,5 @@
+# Device remap shadow check (stormspeed_sima GPU step 1): each d_p_coupling also
+# runs Hommexx's GllFvRemap on the GPU into device arrays, gathers them into
+# physics-column order on the GPU, and logs the max difference from the Fortran
+# remap in atm.log ("gfr_device_check").  Answers are unchanged.
+./xmlchange --append CAM_CONFIG_OPTS=' -cppdefs -DSE_GFR_DEVICE_CHECK'

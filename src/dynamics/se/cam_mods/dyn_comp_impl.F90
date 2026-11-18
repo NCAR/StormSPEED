@@ -21,6 +21,7 @@ use edge_mod,                only: edgevpack_nlyr, edgevunpack_nlyr, edge_g
 use element_mod,             only: element_t
 use element_state,           only: elem_state_t
 use gllfvremap_mod,          only: gfr_fv_phys_to_dyn_topo
+use gfr_device_check_mod,    only: gfr_device_check_init
 use hybrid_mod,          only: hybrid_create, hybrid_t
 use inic_analytic,           only: analytic_ic_active, analytic_ic_set_ic
 use inic_analytic_utils,    only: analytic_ic_is_moist
@@ -778,6 +779,10 @@ subroutine dyn_init(dyn_in, dyn_out)
        call t_startf('prim_init2')
        call prim_init2(elem,hybrid,nets,nete, TimeLevel, hvcoord)
        call t_stopf('prim_init2')
+#ifdef SE_GFR_DEVICE_CHECK
+       ! Device remap shadow check: set up Hommexx's GllFvRemap (no effect on answers)
+       if (fv_nphys > 0) call gfr_device_check_init()
+#endif
 
 !jt      ! This subroutine is used to create nc_topo files, if requested
 !jt       call nctopo_util_driver(elem,hybrid,nets,nete)

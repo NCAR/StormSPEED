@@ -3307,5 +3307,14 @@
       <option name="comment">NVHPC GPU build path: theta-l_kokkos HOMME (Kokkos/CUDA) and OpenACC physics in one executable</option>
     </options>
   </test>
+  <test compset="FHISTC_LTso" grid="ne30pg2_ne30pg2_mt232" name="SMS_Ln9" testmods="cam/outfrq9s_thetal_kokkos_gpu_acc_gfrcheck" supported="false">
+    <machines>
+      <machine name="derecho" compiler="nvhpc" category="aux_cam_e3sm_gpu_nvhpc"/>
+    </machines>
+    <options>
+      <option name="wallclock">00:59:00</option>
+      <option name="comment">Device GLL-to-physgrid remap (Hommexx GllFvRemap) checked against the Fortran remap each step; see gfr_device_check in atm.log</option>
+    </options>
+  </test>
 
 </testlist>
