@@ -269,7 +269,7 @@ subroutine stepon_run1( dtime_out, dyn_in, dyn_out )
 
 end subroutine stepon_run1
 
-subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
+subroutine stepon_run2(dyn_in, dyn_out)
    use dimensions_mod_cam, only: nlev, nlevp, nelemd, np, npsq
    use dyn_grid_impl,           only: TimeLevel, hvcoord, dom_mt
    use dp_coupling_impl,        only: p_d_coupling
@@ -281,9 +281,6 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
    use prim_driver_base,   only: applyCAMforcing_tracers
    use prim_advance_mod,   only: applyCAMforcing_dynamics
    use element_ops,        only: get_temperature
-
-   type(physics_state), intent(inout) :: phys_state(begchunk:endchunk)
-   type(physics_tend), intent(inout) :: phys_tend(begchunk:endchunk)
    type (dyn_import_t), intent(inout) :: dyn_in  ! Dynamics import container
    type (dyn_export_t), intent(inout) :: dyn_out ! Dynamics export container
    real(r8) :: temperature(np,np,nlev)   ! Temperature from dynamics
@@ -304,22 +301,12 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
    dtime = get_step_size()
    rec2dt = 1._r8/dtime
 
-   !----------------------------------------------------------
-   ! update physics state with aerosol constituents
-   !----------------------------------------------------------
-   nullify(aero_state_obj)
-   if (aerosols_transported) then
-      do c = begchunk,endchunk
-         aero_state_obj => aerosol_state_object(c)
-         ! get mass or number mixing ratios of aerosol constituents
-         call aero_state_obj%get_transported(phys_state(c)%q)
-      end do
-   end if
+   ! The aerosol constituents are put into phys_state on CAM's side.
 
    ! copy from phys structures -> dynamics structures
    call t_barrierf('sync_p_d_coupling', mpicom)
    call t_startf('p_d_coupling')
-   call p_d_coupling(phys_state, phys_tend,  dyn_in)
+   call p_d_coupling(dyn_in)
    call t_stopf('p_d_coupling')
 
    if(.not.par%dynproc) return
@@ -473,9 +460,7 @@ subroutine stepon_run2(phys_state, phys_tend, dyn_in, dyn_out )
    end subroutine stepon_run2
 
 
-subroutine stepon_run3(dtime, cam_out, phys_state, dyn_in, dyn_out)
-
-   use camsrfexch,         only: cam_out_t
+subroutine stepon_run3(dtime, dyn_in, dyn_out)
    use dyn_comp_impl,           only: dyn_run
    use advect_tend_impl,        only: compute_adv_tends_xyz
    use dyn_grid_impl,           only: TimeLevel
@@ -485,8 +470,6 @@ subroutine stepon_run3(dtime, cam_out, phys_state, dyn_in, dyn_out)
 
    ! arguments
    real(r8),            intent(in)    :: dtime   ! Time-step
-   type(cam_out_t),     intent(inout) :: cam_out(:) ! Output from CAM to surface
-   type(physics_state), intent(inout) :: phys_state(begchunk:endchunk)
    type (dyn_import_t), intent(inout) :: dyn_in  ! Dynamics import container
    type (dyn_export_t), intent(inout) :: dyn_out ! Dynamics export container
 

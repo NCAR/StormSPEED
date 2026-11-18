@@ -10,6 +10,7 @@ module stepon
    use dyn_comp,       only: dyn_import_t, dyn_export_t
    use dp_coupling,    only: d_p_coupling_cam_finish
    use dp_coupling_cam, only: phys_state_from_backend, aerosol_state_from_phys
+   use dp_coupling_cam, only: phys_tend_to_backend, aerosol_state_to_phys
 
    implicit none
    private
@@ -43,7 +44,9 @@ contains
       type(physics_tend),  intent(inout) :: phys_tend(begchunk:endchunk)
       type(dyn_import_t),  intent(inout) :: dyn_in
       type(dyn_export_t),  intent(inout) :: dyn_out
-      call dyn_in%stepon_run2(phys_state, phys_tend, dyn_out)
+      call aerosol_state_to_phys(phys_state)
+      call phys_tend_to_backend(phys_state, phys_tend, dyn_in)
+      call dyn_in%stepon_run2(dyn_out)
    end subroutine stepon_run2
 
    subroutine stepon_run3(dtime, cam_out, phys_state, dyn_in, dyn_out)
@@ -52,7 +55,7 @@ contains
       type(physics_state), intent(inout) :: phys_state(begchunk:endchunk)
       type(dyn_import_t),  intent(inout) :: dyn_in
       type(dyn_export_t),  intent(inout) :: dyn_out
-      call dyn_in%stepon_run3(dtime, cam_out, phys_state, dyn_out)
+      call dyn_in%stepon_run3(dtime, dyn_out)
    end subroutine stepon_run3
 
    subroutine stepon_final(dyn_in, dyn_out)

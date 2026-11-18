@@ -24,6 +24,7 @@ use cam_abortutils, only: endrun
 
 use parallel_mod,   only: par
 use thread_mod,     only: horz_num_threads, max_num_threads
+use phys_cols_mod,  only: phys_cols_t
 use hybrid_mod,     only: config_thread_region, get_loop_ranges, hybrid_t
 use dimensions_mod, only: np, nelemd, nlev, qsize, ntrac, fv_nphys
 
@@ -35,6 +36,7 @@ private
 save
 
 public :: d_p_coupling, p_d_coupling
+public :: debug_overwrite_tendencies   ! -Ddebug_coupling only, via se_backend_t%debug_phys_tend
 
 real (kind=r8), allocatable :: q_prev(:,:,:,:) ! Previous Q for computing tendencies
 
@@ -287,7 +289,26 @@ end subroutine d_p_coupling
 
 !=========================================================================================
 
-subroutine p_d_coupling(phys_state, phys_tend, dyn_in, tl_f, tl_qdp)
+subroutine debug_overwrite_tendencies(phys_state, phys_tend, fvm)
+   ! CAM-SE coupling test (does nothing unless cpp macro debug_coupling is
+   ! defined): overwrite the physics tendencies with test functions.  Called
+   ! by CAM's side before it fills the return arrays.
+   use test_fvm_mapping_impl, only: test_mapping_overwrite_tendencies
+   use fvm_control_volume_mod, only: fvm_struct
+   type(physics_state), intent(inout) :: phys_state(begchunk:endchunk)
+   type(physics_tend),  intent(inout) :: phys_tend(begchunk:endchunk)
+   type(fvm_struct),    intent(inout) :: fvm(:)
+   integer :: lchnk, ncols
+   do lchnk = begchunk, endchunk
+      ncols = get_ncols_p(lchnk)
+      call test_mapping_overwrite_tendencies(phys_state(lchnk), phys_tend(lchnk), ncols, lchnk, &
+           q_prev(1:ncols,:,:,lchnk), fvm)
+   end do
+end subroutine debug_overwrite_tendencies
+
+!=========================================================================================
+
+subroutine p_d_coupling(dyn_in, tl_f, tl_qdp)
 
    ! Convert the physics output state into the dynamics input state.
 
@@ -295,13 +316,10 @@ subroutine p_d_coupling(phys_state, phys_tend, dyn_in, tl_f, tl_qdp)
    use bndry_mod,        only: bndry_exchange
    use edge_mod,         only: edgeVpack, edgeVunpack
    use fvm_mapping,      only: phys2dyn_forcings_fvm
-   use test_fvm_mapping_impl, only: test_mapping_overwrite_tendencies
    use test_fvm_mapping_impl, only: test_mapping_output_mapped_tendencies
    use dimensions_mod,   only: use_cslam
    use control_mod,      only: gll_advect_q
    ! arguments
-   type(physics_state), intent(inout), dimension(begchunk:endchunk) :: phys_state
-   type(physics_tend),  intent(inout), dimension(begchunk:endchunk) :: phys_tend
    integer,             intent(in)                                  :: tl_qdp, tl_f
    type(dyn_import_t),  intent(inout)                               :: dyn_in
    type(hybrid_t)                                                   :: hybrid
@@ -320,7 +338,7 @@ subroutine p_d_coupling(phys_state, phys_tend, dyn_in, tl_f, tl_qdp)
    real (kind=r8),  allocatable :: uv_tmp(:,:,:,:)   ! temp array to hold uv
    integer                      :: m, i, j, k
 
-   real (kind=r8)               :: factor
+   type(phys_cols_t),   pointer :: cols
    integer                      :: num_trac
    integer                      :: nets, nete
    integer                      :: kptr, ii
@@ -349,43 +367,25 @@ subroutine p_d_coupling(phys_state, phys_tend, dyn_in, tl_f, tl_qdp)
       call endrun('p_d_coupling: q_prev not allocated')
    end if
 
-   ! Convert wet to dry mixing ratios and modify the physics temperature
-   ! tendency to be thermodynamically consistent with the dycore.
-   !$omp parallel do num_threads(max_num_threads) private (lchnk, ncols, icol, ilyr, m, factor)
-   do lchnk = begchunk, endchunk
-      ncols = get_ncols_p(lchnk)
-      do icol = 1, ncols
-         do ilyr = 1, pver
-            ! convert wet mixing ratios to dry
-            factor = phys_state(lchnk)%pdel(icol,ilyr)/phys_state(lchnk)%pdeldry(icol,ilyr)
-            do m = 1, pcnst
-               if (cnst_type(m) == 'wet') then
-                  phys_state(lchnk)%q(icol,ilyr,m) = factor*phys_state(lchnk)%q(icol,ilyr,m)
-               end if
-            end do
-         end do
-      end do
-    end do
 
+   ! Wet-to-dry conversion and the debug_coupling tendency test are done on
+   ! CAM's side (dp_coupling_cam), which fills cols%dtdt/dudt/dvdt/q_out/pdeldry_out.
+   cols => dyn_in%phys
    call t_startf('pd_copy')
    !$omp parallel do num_threads(max_num_threads) private (col_ind, lchnk, icol, ie, blk_ind, ilyr, m)
    do col_ind = 1, phys_columns_on_task
       call get_dyn_col_p(col_ind, ie, blk_ind)
       call get_chunk_info_p(col_ind, lchnk, icol)
 
-      ! test code -- does nothing unless cpp macro debug_coupling is defined.
-      call test_mapping_overwrite_tendencies(phys_state(lchnk),            &
-           phys_tend(lchnk), ncols, lchnk, q_prev(1:ncols,:,:,lchnk),      &
-           dyn_in%fvm)
 
       do ilyr = 1, pver
-         dp_phys(blk_ind(1),ilyr,ie)  = phys_state(lchnk)%pdeldry(icol,ilyr)
-         T_tmp(blk_ind(1),ilyr,ie)    = phys_tend(lchnk)%dtdt(icol,ilyr)
-         uv_tmp(blk_ind(1),1,ilyr,ie) = phys_tend(lchnk)%dudt(icol,ilyr)
-         uv_tmp(blk_ind(1),2,ilyr,ie) = phys_tend(lchnk)%dvdt(icol,ilyr)
+         dp_phys(blk_ind(1),ilyr,ie)  = cols%pdeldry_out(col_ind,ilyr)
+         T_tmp(blk_ind(1),ilyr,ie)    = cols%dtdt(col_ind,ilyr)
+         uv_tmp(blk_ind(1),1,ilyr,ie) = cols%dudt(col_ind,ilyr)
+         uv_tmp(blk_ind(1),2,ilyr,ie) = cols%dvdt(col_ind,ilyr)
          do m = 1, pcnst
             dq_tmp(blk_ind(1),ilyr,m,ie) =                                    &
-                 (phys_state(lchnk)%q(icol,ilyr,m) - q_prev(icol,ilyr,m,lchnk))
+                 (cols%q_out(col_ind,ilyr,m) - q_prev(icol,ilyr,m,lchnk))
          end do
       end do
    end do

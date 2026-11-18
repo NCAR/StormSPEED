@@ -39,6 +39,13 @@ module phys_cols_mod
       real(r8), allocatable :: frontgf(:,:)   ! frontogenesis function
       real(r8), allocatable :: frontga(:,:)   ! frontogenesis angle
       real(r8), allocatable :: vort4gw(:,:)   ! relative vorticity for gravity waves
+
+      ! Physics -> dynamics (filled by the host after physics)
+      real(r8), allocatable :: dtdt(:,:)      ! temperature tendency (K/s)
+      real(r8), allocatable :: dudt(:,:)      ! zonal wind tendency (m/s2)
+      real(r8), allocatable :: dvdt(:,:)      ! meridional wind tendency (m/s2)
+      real(r8), allocatable :: q_out(:,:,:)   ! constituents after physics (same basis as q)
+      real(r8), allocatable :: pdeldry_out(:,:) ! dry layer thickness after physics, dry-pressure dycores (Pa)
    contains
       procedure :: alloc   => phys_cols_alloc
       procedure :: dealloc => phys_cols_dealloc
@@ -69,6 +76,8 @@ contains
       allocate(this%t(ncol,nlev), this%u(ncol,nlev), this%v(ncol,nlev))
       allocate(this%omega(ncol,nlev), this%pdel(ncol,nlev))
       allocate(this%q(ncol,nlev,ncnst))
+      allocate(this%dtdt(ncol,nlev), this%dudt(ncol,nlev), this%dvdt(ncol,nlev))
+      allocate(this%q_out(ncol,nlev,ncnst), this%pdeldry_out(ncol,nlev))
       allocate(this%q_is_wet(ncnst))
       this%q_is_wet(:) = .false.
       if (with_front) allocate(this%frontgf(ncol,nlev), this%frontga(ncol,nlev))
@@ -89,6 +98,11 @@ contains
       if (allocated(this%frontgf)) deallocate(this%frontgf)
       if (allocated(this%frontga)) deallocate(this%frontga)
       if (allocated(this%vort4gw)) deallocate(this%vort4gw)
+      if (allocated(this%dtdt))    deallocate(this%dtdt)
+      if (allocated(this%dudt))    deallocate(this%dudt)
+      if (allocated(this%dvdt))    deallocate(this%dvdt)
+      if (allocated(this%q_out))   deallocate(this%q_out)
+      if (allocated(this%pdeldry_out)) deallocate(this%pdeldry_out)
       this%ncol = 0; this%nlev = 0; this%ncnst = 0; this%vcoord = -1
       this%has_front = .false.; this%has_vort = .false.
    end subroutine phys_cols_dealloc

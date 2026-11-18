@@ -26,6 +26,7 @@ module dp_coupling_impl
   use spmd_utils,     only: mpicom, iam
   use qneg_module,    only: qneg3
   use thread_mod_cam,     only: max_num_threads
+  use phys_cols_mod,      only: phys_cols_t
 
   private
   public :: d_p_coupling, p_d_coupling
@@ -206,7 +207,7 @@ CONTAINS
   end subroutine d_p_coupling
   !=================================================================================================
   !=================================================================================================
-  subroutine p_d_coupling(phys_state, phys_tend,  dyn_in)
+  subroutine p_d_coupling(dyn_in)
     use shr_vmath_mod, only: shr_vmath_log
     use cam_control_mod, only : adiabatic
     use control_mod_cam,         only: ftype
@@ -214,9 +215,6 @@ CONTAINS
     use gllfvremap_mod,          only: gfr_fv_phys_to_dyn
     use time_manager,            only: get_step_size
     implicit none
-    ! INPUT PARAMETERS:
-    type(physics_state), intent(inout), dimension(begchunk:endchunk) :: phys_state
-    type(physics_tend),  intent(inout), dimension(begchunk:endchunk) :: phys_tend
     ! OUTPUT PARAMETERS:
     type(dyn_import_t),  intent(inout)   :: dyn_in
 
@@ -235,6 +233,7 @@ CONTAINS
     integer     :: nphys, nphys_sq           ! physics grid parameters
     integer     :: col_ind                   ! index over columns
     integer     :: nlev_tot, kptr            ! level indices
+    type(phys_cols_t), pointer :: cols
 
     if (.not. local_dp_map) then
        call endrun('p_d_coupling: Weak scaling does not support load balancing')
@@ -259,6 +258,8 @@ CONTAINS
 
     if(adiabatic) return
 
+    ! Tendencies and constituents after physics, filled by CAM's side (dp_coupling_cam)
+    cols => dyn_in%phys
     call t_startf('pd_copy')
 
     !$omp parallel do num_threads(max_num_threads) private (col_ind, lchnk, icol, ie, blk_ind, ilyr, m)
@@ -266,12 +267,12 @@ CONTAINS
        call get_dyn_col_p(col_ind, ie, blk_ind)
        call get_chunk_info_p(col_ind, lchnk, icol)
        do ilyr=1,pver
-          T_tmp(blk_ind(1),ilyr,ie)      = phys_tend(lchnk)%dtdt(icol,ilyr)
-          uv_tmp(blk_ind(1),1,ilyr,ie)   = phys_tend(lchnk)%dudt(icol,ilyr)
-          uv_tmp(blk_ind(1),2,ilyr,ie)   = phys_tend(lchnk)%dvdt(icol,ilyr)
+          T_tmp(blk_ind(1),ilyr,ie)      = cols%dtdt(col_ind,ilyr)
+          uv_tmp(blk_ind(1),1,ilyr,ie)   = cols%dudt(col_ind,ilyr)
+          uv_tmp(blk_ind(1),2,ilyr,ie)   = cols%dvdt(col_ind,ilyr)
 
           do m=1,pcnst
-             q_tmp(blk_ind(1),ilyr,m,ie) = phys_state(lchnk)%q(icol,ilyr,m)
+             q_tmp(blk_ind(1),ilyr,m,ie) = cols%q_out(col_ind,ilyr,m)
           end do
        end do
     end do

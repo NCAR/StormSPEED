@@ -7,7 +7,6 @@ module se_backend_mod
    use phys_cols_mod,          only: phys_cols_t
    use ppgrid,                 only: begchunk, endchunk
    use physics_types,          only: physics_state, physics_tend
-   use camsrfexch,             only: cam_out_t
    use pio,                    only: file_desc_t
    use physics_column_type,    only: physics_column_t
    use cam_grid_support,       only: max_hcoordname_len
@@ -60,6 +59,7 @@ module se_backend_mod
 
       procedure         :: d_p_coupling   => backend_d_p_coupling
       procedure         :: debug_phys_state => backend_debug_phys_state
+      procedure         :: debug_phys_tend  => backend_debug_phys_tend
       procedure         :: p_d_coupling   => backend_p_d_coupling
 
       procedure         :: stepon_init    => backend_stepon_init
@@ -142,15 +142,20 @@ contains
       type(physics_state), intent(inout) :: phys_state(begchunk:endchunk)
    end subroutine backend_debug_phys_state
 
-   subroutine backend_p_d_coupling(this, phys_state, phys_tend)
-      use dp_coupling_impl, only: impl_pd => p_d_coupling
-      use dyn_comp_impl,    only: impl_imp_t => dyn_import_t
+   subroutine backend_debug_phys_tend(this, phys_state, phys_tend)
+      ! Debug hook used by CAM-SE's coupling test; nothing to do for HOMME.
       class(se_backend_t), intent(inout) :: this
       type(physics_state), intent(inout) :: phys_state(begchunk:endchunk)
       type(physics_tend),  intent(inout) :: phys_tend(begchunk:endchunk)
+   end subroutine backend_debug_phys_tend
+
+   subroutine backend_p_d_coupling(this)
+      use dp_coupling_impl, only: impl_pd => p_d_coupling
+      use dyn_comp_impl,    only: impl_imp_t => dyn_import_t
+      class(se_backend_t), intent(inout) :: this
       type(impl_imp_t) :: imp
       imp%elem => this%elem; imp%phys => this%phys
-      call impl_pd(phys_state, phys_tend, imp)
+      call impl_pd(imp)
    end subroutine backend_p_d_coupling
 
    subroutine backend_stepon_init(this, dyn_out)
@@ -178,33 +183,29 @@ contains
       call impl_srun1(dtime_out, imp, exp)
    end subroutine backend_stepon_run1
 
-   subroutine backend_stepon_run2(this, phys_state, phys_tend, dyn_out)
+   subroutine backend_stepon_run2(this, dyn_out)
       use stepon_impl,   only: impl_srun2 => stepon_run2
       use dyn_comp_impl, only: impl_imp_t => dyn_import_t, impl_exp_t => dyn_export_t
       class(se_backend_t), intent(inout) :: this
-      type(physics_state), intent(inout) :: phys_state(begchunk:endchunk)
-      type(physics_tend),  intent(inout) :: phys_tend(begchunk:endchunk)
       class(se_backend_t), intent(inout) :: dyn_out
       type(impl_imp_t) :: imp
       type(impl_exp_t) :: exp
       imp%elem => this%elem; imp%phys => this%phys
       exp%elem => dyn_out%elem; exp%phys => dyn_out%phys
-      call impl_srun2(phys_state, phys_tend, imp, exp)
+      call impl_srun2(imp, exp)
    end subroutine backend_stepon_run2
 
-   subroutine backend_stepon_run3(this, dtime, cam_out, phys_state, dyn_out)
+   subroutine backend_stepon_run3(this, dtime, dyn_out)
       use stepon_impl,   only: impl_srun3 => stepon_run3
       use dyn_comp_impl, only: impl_imp_t => dyn_import_t, impl_exp_t => dyn_export_t
       class(se_backend_t), intent(inout) :: this
       real(r8),            intent(in)    :: dtime
-      type(cam_out_t),     intent(inout) :: cam_out(:)
-      type(physics_state), intent(inout) :: phys_state(begchunk:endchunk)
       class(se_backend_t), intent(inout) :: dyn_out
       type(impl_imp_t) :: imp
       type(impl_exp_t) :: exp
       imp%elem => this%elem; imp%phys => this%phys
       exp%elem => dyn_out%elem; exp%phys => dyn_out%phys
-      call impl_srun3(dtime, cam_out, phys_state, imp, exp)
+      call impl_srun3(dtime, imp, exp)
    end subroutine backend_stepon_run3
 
    subroutine backend_stepon_final(this, dyn_out)

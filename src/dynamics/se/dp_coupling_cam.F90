@@ -30,6 +30,8 @@ module dp_coupling_cam
 
    public :: phys_state_from_backend   ! copy + derived quantities (d_p_coupling, stepon_run1)
    public :: aerosol_state_from_phys   ! aerosol state update from phys_state%q (stepon_run1)
+   public :: phys_tend_to_backend      ! physics output into the return arrays (p_d_coupling, stepon_run2)
+   public :: aerosol_state_to_phys     ! aerosol constituents into phys_state%q (stepon_run2)
 
 contains
 
@@ -135,6 +137,94 @@ contains
          end do
       end if
    end subroutine aerosol_state_from_phys
+
+   subroutine phys_tend_to_backend(phys_state, phys_tend, dyn_in)
+      ! Physics -> dynamics: fill the backend's return arrays from CAM's
+      ! physics state and tendencies.  For a dry-pressure dycore the wet
+      ! constituents are first converted to dry mixing ratios in phys_state
+      ! (moved unchanged from CAM-SE's p_d_coupling).
+      use dyn_tests_utils, only: vc_dry_pressure
+      type(physics_state), intent(inout) :: phys_state(begchunk:endchunk)
+      type(physics_tend ), intent(inout) :: phys_tend(begchunk:endchunk)
+      class(se_backend_t), intent(inout) :: dyn_in
+
+      type(phys_cols_t), pointer :: cols
+      integer  :: col_ind, lchnk, icol, ilyr, m, ncols
+      real(r8) :: factor
+      logical  :: dry
+
+      cols => dyn_in%phys
+      if (.not. associated(cols)) call endrun('phys_tend_to_backend: dyn_in%phys not associated')
+      dry = (cols%vcoord == vc_dry_pressure)
+
+      if (dry) then
+         ! Convert wet to dry mixing ratios
+         !$omp parallel do private (lchnk, ncols, icol, ilyr, m, factor)
+         do lchnk = begchunk, endchunk
+            ncols = get_ncols_p(lchnk)
+            do icol = 1, ncols
+               do ilyr = 1, pver
+                  factor = phys_state(lchnk)%pdel(icol,ilyr)/phys_state(lchnk)%pdeldry(icol,ilyr)
+                  do m = 1, pcnst
+                     if (cnst_type(m) == 'wet') then
+                        phys_state(lchnk)%q(icol,ilyr,m) = factor*phys_state(lchnk)%q(icol,ilyr,m)
+                     end if
+                  end do
+               end do
+            end do
+         end do
+      end if
+
+      ! CAM-SE's coupling test (-Ddebug_coupling); a no-op otherwise
+      call dyn_in%debug_phys_tend(phys_state, phys_tend)
+
+      call t_startf('pd_copy_cam')
+      !$omp parallel do private (col_ind, lchnk, icol, ilyr, m)
+      do col_ind = 1, phys_columns_on_task
+         call get_chunk_info_p(col_ind, lchnk, icol)
+         do ilyr = 1, pver
+            cols%dtdt(col_ind, ilyr) = phys_tend(lchnk)%dtdt(icol, ilyr)
+            cols%dudt(col_ind, ilyr) = phys_tend(lchnk)%dudt(icol, ilyr)
+            cols%dvdt(col_ind, ilyr) = phys_tend(lchnk)%dvdt(icol, ilyr)
+            if (dry) cols%pdeldry_out(col_ind, ilyr) = phys_state(lchnk)%pdeldry(icol, ilyr)
+         end do
+         do m = 1, pcnst
+            do ilyr = 1, pver
+               cols%q_out(col_ind, ilyr, m) = phys_state(lchnk)%q(icol, ilyr, m)
+            end do
+         end do
+      end do
+      call t_stopf('pd_copy_cam')
+   end subroutine phys_tend_to_backend
+
+   subroutine aerosol_state_to_phys(phys_state)
+      ! Put the aerosol constituents (mass or number mixing ratios) into the
+      ! physics state before it goes to the dycore (moved from the backends'
+      ! stepon_run2).
+      use aerosol_properties_mod, only: aerosol_properties
+      use aerosol_state_mod,      only: aerosol_state
+      use microp_aero,            only: aerosol_state_object, aerosol_properties_object
+      type(physics_state), intent(inout) :: phys_state(begchunk:endchunk)
+
+      class(aerosol_properties), pointer :: aero_props_obj
+      class(aerosol_state),      pointer :: aero_state_obj
+      logical, save :: checked = .false., aerosols_transported = .false.
+      integer :: c
+
+      if (.not. checked) then
+         aero_props_obj => aerosol_properties_object()
+         if (associated(aero_props_obj)) then
+            aerosols_transported = aero_props_obj%number_transported() > 0
+         end if
+         checked = .true.
+      end if
+      if (aerosols_transported) then
+         do c = begchunk, endchunk
+            aero_state_obj => aerosol_state_object(c)
+            call aero_state_obj%get_transported(phys_state(c)%q)
+         end do
+      end if
+   end subroutine aerosol_state_to_phys
 
 !=========================================================================================
 ! Moved unchanged from se/dycore/dp_coupling_impl.F90 (nlev -> pver)
