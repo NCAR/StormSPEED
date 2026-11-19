@@ -1,0 +1,3 @@
+# Diagnostic E2a: resident forcing (HOMME's forcing push off) but HOMME's
+# per-step state pull kept.
+./xmlchange --append CAM_CONFIG_OPTS=' -cppdefs -DSE_GFR_KEEP_PULL'

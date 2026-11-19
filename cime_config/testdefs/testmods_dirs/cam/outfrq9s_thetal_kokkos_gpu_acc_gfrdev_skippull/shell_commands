@@ -1,0 +1,3 @@
+# Diagnostic E2b: the 2b-1 path (device forcing copied to Fortran and pushed)
+# with HOMME's per-step state pull switched off.
+./xmlchange --append CAM_CONFIG_OPTS=' -cppdefs -DSE_GFR_SKIP_PULL'

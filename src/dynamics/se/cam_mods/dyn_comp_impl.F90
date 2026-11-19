@@ -783,8 +783,9 @@ subroutine dyn_init(dyn_in, dyn_out)
        ! Device remap (shadow check or coupling): set up Hommexx's GllFvRemap
        if (fv_nphys > 0) call gfr_device_check_init()
 #endif
-#if defined(SE_GFR_DEVICE_RESIDENT) && defined(KOKKOS_TARGET)
+#if (defined(SE_GFR_DEVICE_RESIDENT) || defined(SE_GFR_SKIP_PULL)) && defined(KOKKOS_TARGET)
        ! Resident dycore: no per-step forcing push / state pull in HOMME
+       ! (diagnostic variants: -DSE_GFR_KEEP_PULL, -DSE_GFR_SKIP_PULL)
        call set_cam_device_coupling()
 #endif
 
@@ -2101,15 +2102,23 @@ end subroutine read_phys_field_2d
 !=========================================================================================
 
 subroutine set_cam_device_coupling()
-#if defined(SE_GFR_DEVICE_RESIDENT) && defined(KOKKOS_TARGET)
-   ! HOMME (fork >= stormspeed_homme.02): skip the per-step forcing push and
+#if (defined(SE_GFR_DEVICE_RESIDENT) || defined(SE_GFR_SKIP_PULL)) && defined(KOKKOS_TARGET)
+   ! HOMME (fork >= stormspeed_homme.02): skip the per-step forcing push and/or
    ! state pull; the state is still pulled on diagnostics steps.
-   use prim_driver_mod, only: cam_device_coupling
+   use prim_driver_mod, only: cam_skip_forcing_push, cam_skip_state_pull
    use control_mod_cam, only: ftype
-   if (fv_nphys < 1) call endrun('dyn_init: SE_GFR_DEVICE_RESIDENT needs a physics grid')
+   if (fv_nphys < 1) call endrun('dyn_init: device coupling needs a physics grid')
+#ifdef SE_GFR_DEVICE_RESIDENT
    if (ftype /= 2) call endrun('dyn_init: SE_GFR_DEVICE_RESIDENT supports se_ftype=2 only')
-   cam_device_coupling = .true.
-   if (masterproc) write(iulog,*) 'dyn_init: resident dycore (SE_GFR_DEVICE_RESIDENT): HOMME push/pull off'
+   cam_skip_forcing_push = .true.     ! the forcing is computed on the device
+#ifndef SE_GFR_KEEP_PULL
+   cam_skip_state_pull   = .true.
+#endif
+#else
+   cam_skip_state_pull   = .true.     ! -DSE_GFR_SKIP_PULL with the 2b-1 path
+#endif
+   if (masterproc) write(iulog,*) 'dyn_init: HOMME skip forcing push = ', cam_skip_forcing_push, &
+        ', skip state pull = ', cam_skip_state_pull
 #endif
 end subroutine set_cam_device_coupling
 

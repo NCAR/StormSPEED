@@ -104,6 +104,7 @@ contains
     dloc(7) = maxval(abs(gq(:,:,1:nqc) - cols%q(:,:,1:nqc)))
     dloc(14) = maxval(abs(gq(:,:,1:nqc) - cols%q(:,:,1:nqc))/max(abs(cols%q(:,:,1:nqc)), tiny(1._r8)))
     call mpi_allreduce(dloc, dglob, size(dloc), mpi_real8, mpi_max, mpicom, ierr)
+    call t_hypotheses(cols)
     ncall = ncall + 1
     if (masterproc) then
        write(iulog,'(a,i4,a)') 'gfr_device_check call ', ncall, ' (device C++ remap vs Fortran remap; max abs / max rel diff):'
@@ -196,6 +197,39 @@ contains
   end subroutine gfr_device_check_return
 
 #if defined(SE_GFR_DEVICE)
+  subroutine t_hypotheses(cols)
+    ! E1: why does the device T differ from the Fortran T?  Test whether the
+    ! device T is the virtual temperature of the Fortran T (or the reverse),
+    ! and report the worst point (column, level, T both ways, q).
+    use physconst,  only: zvir
+    use spmd_utils, only: masterproc, mpicom, mpi_max, mpi_real8, iam
+    use cam_logfile, only: iulog
+    type(phys_cols_t), intent(in) :: cols
+    real(r8) :: d(3), dg(3), worst, w
+    integer  :: i, k, ib, kb, ierr
+    d(1) = maxval(abs(g2(:,:,1) - cols%t))                                   ! as is
+    d(2) = maxval(abs(g2(:,:,1) - cols%t*(1._r8 + zvir*cols%q(:,:,1))))      ! device = Tv(Fortran)
+    d(3) = maxval(abs(g2(:,:,1)*(1._r8 + zvir*cols%q(:,:,1)) - cols%t))      ! Fortran = Tv(device)
+    call mpi_allreduce(d, dg, 3, mpi_real8, mpi_max, mpicom, ierr)
+    worst = -1._r8; ib = 1; kb = 1
+    do k = 1, cols%nlev
+       do i = 1, cols%ncol
+          w = abs(g2(i,k,1) - cols%t(i,k))
+          if (w > worst) then
+             worst = w; ib = i; kb = k
+          end if
+       end do
+    end do
+    if (masterproc) then
+       write(iulog,'(a,3es10.2)') '  E1 max|Tdev-Tf|, max|Tdev-Tf*(1+zvir*q)|, max|Tdev*(1+zvir*q)-Tf|:', dg
+    end if
+    if (worst >= 0.99_r8*dg(1) .and. dg(1) > 0._r8) then
+       write(iulog,'(a,i6,a,i4,a,i4,a,f9.4,a,f9.4,a,es10.3,a,es10.3,a,es10.3)') '  E1 worst (task ', iam, &
+            ') col ', ib, ' lev ', kb, ': Tdev ', g2(ib,kb,1), ' Tf ', cols%t(ib,kb), &
+            ' q ', cols%q(ib,kb,1), ' cldliq ', cols%q(ib,kb,min(2,cols%ncnst)), ' rainqm ', cols%q(ib,kb,min(3,cols%ncnst))
+    end if
+  end subroutine t_hypotheses
+
   subroutine device_dyn_to_phys(ncol)
     ! The remap on the device (C++ GllFvRemap) into this module's device arrays,
     ! then a device gather into physics-column order (the phys_cols_t layout);
