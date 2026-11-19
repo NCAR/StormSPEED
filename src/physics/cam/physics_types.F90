@@ -1213,8 +1213,9 @@ end subroutine physics_ptend_copy
 
     ! SENH (HOMME theta-l/preqx, moist pressure): HOMME's applyCAMforcing_tracers performs
     ! the moist mass adjustment from FQ relative to the pre-adjustment dp, as in EAM;
-    ! rescaling q/pdel here as well would double-count it.
-    if (dycore_is('SENH')) return
+    ! rescaling q/pdel here as well would double-count it. tphysac therefore calls this
+    ! routine for SENH only for thermodynamic-budget diagnostics and restores q, pdel, ps
+    ! and cp_or_cv_dycore afterwards (as for the dry-mass SE and MPAS dycores).
 
     lchnk = state%lchnk
     ncol  = state%ncol
@@ -1222,7 +1223,7 @@ end subroutine physics_ptend_copy
     !
     ! original code for backwards compatability with FV
     !
-    if (.not.(dycore_is('MPAS') .or. dycore_is('SE'))) then
+    if (.not.(dycore_is('MPAS') .or. dycore_is('SE') .or. dycore_is('SENH'))) then
 
       !Initialize the surface pressure
       state%ps(:ncol) = state%pint(:ncol,1)

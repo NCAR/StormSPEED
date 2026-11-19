@@ -522,6 +522,7 @@ contains
     use cam_history,     only: hist_fld_active
     use cam_thermo,      only: cam_thermo_water_update
     use cam_budget,      only: thermo_budget_history
+    use cam_snapshot_common,only: cam_snapshot_all_outfld
     use dyn_tests_utils, only: vc_dycore, vc_height, vc_dry_pressure
     use air_composition, only: cpairv, cp_or_cv_dycore
     use time_manager,    only: get_nstep
@@ -672,6 +673,44 @@ contains
           state%ps(:ncol)             = tmp_ps(:ncol)
           cp_or_cv_dycore(:ncol,:pver,lchnk) = tmp_cpcv(:ncol,:pver)
         end if
+      else if (dycore_is('SENH')) then
+        !
+        ! SENH (HOMME theta-l): the moist-mass (dme) adjustment is done by the dynamical
+        ! core in applyCAMforcing_tracers, from the physics-updated q relative to the
+        ! pre-adjustment dp3d. physics_dme_adjust is called here for diagnostics only
+        ! (energy budgets and the physics_dme_adjust snapshots) and the state is restored,
+        ! so the adjustment is not applied twice. It runs every step, not only with
+        ! thermo_budget_history, so cam_take_snapshot_before/after='physics_dme_adjust'
+        ! work with the budgets off. 'dry' constituents still go back to moist mixing
+        ! ratios, as for other moist dycores.
+        !
+        ! Note: this operation will NOT be reverted with set_wet_to_dry after set_dry_to_wet call
+        !
+        call set_dry_to_wet(state, convert_cnst_type='dry')
+        tmp_trac(:ncol,:pver,:pcnst) = state%q(:ncol,:pver,:pcnst)
+        tmp_pdel(:ncol,:pver)        = state%pdel(:ncol,:pver)
+        tmp_ps(:ncol)                = state%ps(:ncol)
+        tmp_cpcv(:ncol,:pver)        = cp_or_cv_dycore(:ncol,:pver,lchnk)
+        if (trim(cam_take_snapshot_before) == "physics_dme_adjust") then
+          call cam_snapshot_all_outfld(cam_snapshot_before_num, state, tend, cam_in, cam_out, pbuf)
+        end if
+        !
+        ! update cp/cv for energy computation based in updated water variables
+        !
+        call cam_thermo_water_update(state%q(:ncol,:,:), lchnk, ncol, vc_dycore,&
+             to_dry_factor=state%pdel(:ncol,:)/state%pdeldry(:ncol,:))
+
+        call physics_dme_adjust(state, tend, qini, totliqini, toticeini, ztodt)
+        if (trim(cam_take_snapshot_after) == "physics_dme_adjust") then
+          call cam_snapshot_all_outfld(cam_snapshot_after_num, state, tend, cam_in, cam_out, pbuf)
+        end if
+        call tot_energy_phys(state, 'phAM')
+        call tot_energy_phys(state, 'dyAM', vc=vc_dycore)
+        ! Restore pre-"physics_dme_adjust" tracers
+        state%q(:ncol,:pver,:pcnst) = tmp_trac(:ncol,:pver,:pcnst)
+        state%pdel(:ncol,:pver)     = tmp_pdel(:ncol,:pver)
+        state%ps(:ncol)             = tmp_ps(:ncol)
+        cp_or_cv_dycore(:ncol,:pver,lchnk) = tmp_cpcv(:ncol,:pver)
       else
         !
         ! for moist-mixing ratio based dycores
@@ -683,9 +722,10 @@ contains
         call tot_energy_phys(state, 'phAM')
         call tot_energy_phys(state, 'dyAM', vc=vc_dycore)
       endif
-      if (vc_dycore == vc_height.or.vc_dycore == vc_dry_pressure) then
+      if (vc_dycore == vc_height.or.vc_dycore == vc_dry_pressure.or.dycore_is('SENH')) then
         !
-        ! MPAS and SE specific scaling of temperature for enforcing energy consistency
+        ! MPAS, SE and SENH specific scaling of temperature for enforcing energy consistency
+        ! (SENH: cp_or_cv_dycore = cpd*R*/Rd, HOMME's constant-kappa enthalpy)
         ! (and to make sure that temperature dependent diagnostic tendencies
         !  are computed correctly; e.g. dtcore)
         !
