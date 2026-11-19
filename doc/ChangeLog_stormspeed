@@ -12,6 +12,84 @@ Newest entries are at the top.  CAM's own history is in doc/ChangeLog.
 
 ===============================================================
 
+Tag name: cam6_4_219_ss.08 (tentative; assigned at merge)
+Originator(s): Nicholas Androski
+Date: Nov 18, 2026
+One-line Summary: SE-NH condensate water loading (HOMME port of mt5555/E3SM PR #10) and energy-consistent physics coupling
+Github PR URL: TBD
+
+Purpose of changes (include the issue number and title text for each relevant GitHub issue):
+- Condensate water loading for SE-NH (HOMME theta-l): dp3d and ps carry the mass of dry air, vapor and the
+  condensates listed in water_species_in_air, and R* = Rd*q_dry + Rv*qv, so theta_v is the density potential
+  temperature. HOMME side is a port of mt5555/E3SM PR #10 (water_loading, condensate_idx, get_q_dry,
+  get_R_star(R,q_dry,qv); Fortran and Kokkos) on stormspeed_homme.01. CAM sets HOMME's condensate list from
+  water_species_in_air, so CAM and HOMME use one list. Off by default (water_species_in_air='Q'), as in HOMME/EAM.
+- Energy consistency of physics forcing for SE-NH: the physics T increment is rescaled by cpairv/cp_or_cv_dycore
+  with cp_or_cv_dycore = cpd*R*/Rd (HOMME applies heating at constant nonhydrostatic pressure, so the dycore gains
+  cp* dT). SENH dycore-energy diagnostics use the SE energy formula with that cp.
+- physics_dme_adjust for SE-NH is diagnostic only (HOMME's applyCAMforcing_tracers does the moist-mass
+  adjustment) and restores the state; it runs every step so the physics_dme_adjust snapshots work without
+  thermo_budget_history.
+- d_p_coupling: pdeldry from all listed water species is kept (it was recomputed from vapor only), so Kessler's
+  dry mixing ratios and dry density and the wet<->dry conversions use HOMME's dry mass.
+- preqx stays vapor-only (water loading is theta-l only); preqx aborts if condensates are listed.
+- Thermodynamic budgets enabled for SE-NH on the GLL grid.
+
+Describe any changes made to build system: N/A
+Describe any changes made to the namelist: water_species_in_air default 'Q' for se_dyn_target theta-l and preqx.
+  HOMME's water_loading and condensate_idx are set from water_species_in_air (not CAM namelist variables).
+List any changes to the defaults for the boundary datasets: N/A
+Describe any substantial timing or memory changes: SE-NH calls physics_dme_adjust (diagnostic, column-local)
+  every step: all of tphysac was ~0.5% of dyn_run in an ne30 FKESSLER theta-l test.
+Code reviewed by: TBD
+List all files eliminated: N/A
+List all files added and what they do: N/A
+
+List all existing files that have been modified, and describe the changes:
+M       src/dynamics/senh/dycore (submodule pointer; .gitmodules fxtag to be updated to the new HOMME tag)
+  - HOMME water_loading port (control_mod, namelist_mod, element_ops, prim_driver_base, theta-l_kokkos C++)
+M       src/dynamics/senh/dyn_comp.F90
+  - set HOMME water_loading/condensate_idx from water_species_in_air; preqx guard; full Q to set_thermostate
+M       src/dynamics/senh/dp_coupling.F90
+  - all-species pdeldry kept; cp_or_cv_dycore updated each physics step
+M       src/dynamics/senh/dycore_budget.F90
+  - budget printing enabled for SENH
+M       src/utils/air_composition.F90
+  - SENH cp_or_cv_dycore = cpd*R*/Rd
+M       src/control/cam_budget.F90
+  - thermo budgets allowed for SENH (GLL grid)
+M       src/physics/cam/check_energy.F90
+  - SE energy formula for SENH dycore-energy diagnostics
+M       src/physics/cam/physics_types.F90
+  - SENH no longer returns early from physics_dme_adjust (diagnostic use)
+M       src/physics/cam/physpkg.F90, src/physics/cam7/physpkg.F90, src/physics/simple/physpkg.F90
+  - SENH diagnostic-only physics_dme_adjust with state restore; T rescaling for SENH
+M       bld/namelist_files/namelist_defaults_senh.xml
+  - water_species_in_air='Q' for theta-l and preqx
+
+If there were any failures reported from running test_driver.sh on any test
+platform, they are listed below with their justification.
+
+aux_cam_e3sm and aux_cam_preqx: not yet run.
+Expected: answer changes in every SE-NH test (theta-l, theta-l_kokkos, preqx) from the T rescaling, including
+  water_species_in_air='Q'. With 'Q', the HOMME port itself is BFB.
+Developer verification (derecho/intel, FKESSLER ne30_ne30 theta-l moist bubble, reduced radius X=120, 150 steps,
+  against the developer's earlier SourceMods on the same base):
+  water_species_in_air='Q': BFB.
+  'Q','CLDLIQ','RAINQM': roundoff-only differences from the HOMME port; the pdeldry fix is the only physics change.
+  Column mass, tracer and energy-budget diagnostics: same pass pattern as the earlier SourceMods.
+Builds: FKESSLER theta-l (ne30_ne30), QPC6 and QPC7 theta-l (ne30pg2). Kokkos not built.
+  preqx does not build on stormspeed before this change (dyn_comp.F90 imports fine_ne, hypervis_power and
+  max_hypervis_courant, absent from HOMME's control_mod at stormspeed_homme.01); the preqx guard is untested.
+
+CAM tag used for the baseline comparison tests if different than previous
+tag: N/A
+
+Summarize any changes to answers: all SE-NH configurations change answers (T rescaling); condensate loading
+is opt-in through water_species_in_air.
+
+===============================================================
+
 Tag name: cam6_4_219_ss.07
 Originator(s): jtruesdal
 Date: Nov 7, 2026
