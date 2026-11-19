@@ -228,6 +228,15 @@ CONTAINS
        end do ! m
     end do ! icol
 
+    ! The SENH dycore uses moist mixing ratios (mmr) where
+    ! moist air mass is defined by water_species_in_air.
+    ! dme_adjust, check_energy, and temperature scaling
+    ! must be consistent to match assumptions in CAM physics 
+
+    ! by the end of physics the following should be true:
+    ! 1. ps, pdel include dry air, water vapor, and any other thermodynamically active species
+    ! 2. 'wet' constituents are wet mmr w.r.t moist air defined by water_species_in_air
+    ! 3. 'dry' constituents have been converted to dry mixing ratios
     call t_startf('derived_phys')
     call derived_phys(phys_state,phys_tend,pbuf2d)
     call t_stopf('derived_phys')
@@ -445,6 +454,10 @@ CONTAINS
     use physics_buffer, only : physics_buffer_desc, pbuf_get_chunk
     use constituents,  only: qmin
     use physconst,     only: gravit, zvir, cappa
+    use cam_thermo,    only: cam_thermo_water_update
+    use air_composition, only: thermodynamic_active_species_num,dry_air_species_num
+    use air_composition, only: thermodynamic_active_species_idx
+    use dyn_tests_utils, only: vc_moist_pressure
     use spmd_utils,    only: masterproc
     use ppgrid,        only: pver
     use geopotential,  only: geopotential_t
@@ -473,7 +486,8 @@ CONTAINS
     real(r8) :: ke_glob(1),se_glob(1)
     real(r8) :: zvirv(pcols,pver)    ! Local zvir array pointer
 
-    integer :: m, i, k, ncol
+    real(r8) :: factor_array(pcols,nlev)
+    integer :: m, i, k, ncol, m_cnst
 
     ! Needed for "update_dry_static_energy" CCPP scheme
     integer :: errflg
@@ -513,10 +527,31 @@ CONTAINS
           end do
        end do
 
+! compute pdeldry for to_dry_factor in cam_thermo_water_update
+      factor_array(:,:) = 1.0_r8 
+      do k=1,nlev
+         do i=1,ncol
+            do m_cnst=dry_air_species_num + 1,thermodynamic_active_species_num
+             m = thermodynamic_active_species_idx(m_cnst)
+             ! q's are moist, so factor_array represents the dry moist mixing ratio = (dry_air_density / moist_air_density)
+             factor_array(i,k) = factor_array(i,k)-phys_state(lchnk)%q(i,k,m)
+            end do
+            ! pdeldry = pdel*factor_array = (-moist_air_density * dphi) * (dry_air_density / moist_air_density) = (-dry_air_density * dphi) = dpeldry
+            phys_state(lchnk)%pdeldry (i,k) = phys_state(lchnk)%pdel(i,k)*factor_array(i,k)
+        end do
+      end do
+
+
 !-----------------------------------------------------------------------------------
 !  Need to fill zvirv 2D variables to be compatible with geopotential_t interface
 !-----------------------------------------------------------------------------------
        zvirv(:,:) = zvir
+!
+! update cp_dycore in module air_composition.
+! (note: at this point q is moist)
+!
+       call cam_thermo_water_update(phys_state(lchnk)%q(1:ncol,:,:), lchnk, ncol, vc_moist_pressure,&
+                                    to_dry_factor=phys_state(lchnk)%pdel(:ncol,:)/phys_state(lchnk)%pdeldry(:ncol,:))
 !
 ! Compute initial geopotential heights
 !
@@ -535,7 +570,10 @@ CONTAINS
 !        back to wet. (in APE, all tracers are wet, so it is ok for now)
 !
 ! Convert dry type constituents from moist to dry mixing ratio
-       call set_state_pdry(phys_state(lchnk), .true.)	 ! First get dry pressure to use for this timestep
+       ! pdeldry was computed above from every species in water_species_in_air; keep it
+       ! (pdeld_calc=.false.) so pintdry/pmiddry/psdry and the wet<->dry conversions use
+       ! the same dry mass as HOMME. pdeld_calc=.true. would recompute pdeldry from vapor only.
+       call set_state_pdry(phys_state(lchnk), .false.)
        call set_wet_to_dry(phys_state(lchnk), convert_cnst_type='dry')    ! Dynamics had moist, physics wants dry.
 !
 ! Ensure tracers are all positive

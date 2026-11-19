@@ -180,4 +180,10 @@
 <se_hypervis_order   se_dyn_target="theta-l"  > 2 </se_hypervis_order>
 <se_hypervis_order   se_dyn_target="preqx"    > 2 </se_hypervis_order>
 
+<!-- ================================================================== -->
+<!-- Defaults for composition of air                                    -->
+<!-- ================================================================== -->
+<water_species_in_air se_dyn_target="theta-l" > 'Q' </water_species_in_air>
+
+
 </namelist_defaults>
