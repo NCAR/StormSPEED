@@ -760,7 +760,17 @@ subroutine dyn_init(dyn_in, dyn_out)
        end if
        condensate_idx(num_condensates) = thermodynamic_active_species_idx_dycore(m)
     end do
+#ifdef MODEL_THETA_L
     water_loading = use_moisture .and. num_condensates > 0
+#else
+    ! preqx: HOMME water loading (get_q_dry, R* with condensates) exists only in theta-l,
+    ! so preqx stays vapor-only; listing condensates would add their mass to dp3d
+    ! without their effect on the gas constant.
+    if (num_condensates > 0) then
+       call endrun(sub//': water_species_in_air may list only Q for the preqx target')
+    end if
+    water_loading = .false.
+#endif
     if (masterproc) then
        write(iulog,*) sub//': HOMME water_loading = ', water_loading
        if (water_loading) write(iulog,*) sub//': HOMME condensate_idx = ', condensate_idx(1:num_condensates)

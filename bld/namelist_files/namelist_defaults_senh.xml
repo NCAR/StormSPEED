@@ -184,6 +184,7 @@
 <!-- Defaults for composition of air                                    -->
 <!-- ================================================================== -->
 <water_species_in_air se_dyn_target="theta-l" > 'Q' </water_species_in_air>
+<water_species_in_air se_dyn_target="preqx"   > 'Q' </water_species_in_air>
 
 
 </namelist_defaults>
