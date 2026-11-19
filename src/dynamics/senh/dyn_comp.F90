@@ -681,6 +681,8 @@ subroutine dyn_init(dyn_in, dyn_out)
     use air_composition,    only: thermodynamic_active_species_liq_idx,thermodynamic_active_species_ice_idx
     use air_composition,    only: thermodynamic_active_species_liq_idx_dycore,thermodynamic_active_species_ice_idx_dycore
     use air_composition,    only: thermodynamic_active_species_liq_num, thermodynamic_active_species_ice_num
+    use air_composition,    only: dry_air_species_num
+    use control_mod,        only: water_loading, num_condensates, condensate_idx, max_condensates
     use dyn_grid,         only: elem
     use cam_control_mod,  only: aqua_planet, ideal_phys, adiabatic
     use cam_instance,     only: inst_index
@@ -740,6 +742,39 @@ subroutine dyn_init(dyn_in, dyn_out)
           write(iulog,*) sub//": m,thermodynamic_active_species_idx_ice_dycore: ",m,thermodynamic_active_species_ice_idx_dycore(m)
        end if
     end do
+
+    ! Condensate water loading in HOMME (theta-l): dp3d is the mass of dry air plus
+    ! every water species listed in water_species_in_air, so HOMME needs the tracer
+    ! indices of the condensates (vapor is always tracer 1). Deriving them from
+    ! water_species_in_air keeps HOMME (R*, applyCAMforcing mass adjustment) and CAM
+    ! (pdeldry, cp_or_cv_dycore, generalized virtual temperature) on the same list.
+    ! water_species_in_air='Q' (the SE-NH default) gives water_loading=.false., which
+    ! reproduces the vapor-only formulation.
+    num_condensates   = 0
+    condensate_idx(:) = 0
+    do m = dry_air_species_num+1, thermodynamic_active_species_num
+       if (thermodynamic_active_species_idx_dycore(m) == 1) cycle ! water vapor
+       num_condensates = num_condensates + 1
+       if (num_condensates > max_condensates) then
+          call endrun(sub//': more condensates in water_species_in_air than HOMME max_condensates')
+       end if
+       condensate_idx(num_condensates) = thermodynamic_active_species_idx_dycore(m)
+    end do
+#ifdef MODEL_THETA_L
+    water_loading = use_moisture .and. num_condensates > 0
+#else
+    ! preqx: HOMME water loading (get_q_dry, R* with condensates) exists only in theta-l,
+    ! so preqx stays vapor-only; listing condensates would add their mass to dp3d
+    ! without their effect on the gas constant.
+    if (num_condensates > 0) then
+       call endrun(sub//': water_species_in_air may list only Q for the preqx target')
+    end if
+    water_loading = .false.
+#endif
+    if (masterproc) then
+       write(iulog,*) sub//': HOMME water_loading = ', water_loading
+       if (water_loading) write(iulog,*) sub//': HOMME condensate_idx = ', condensate_idx(1:num_condensates)
+    end if
 
     ! Initialize the import/export objects
     if(par%dynproc) then
@@ -1586,7 +1621,7 @@ subroutine read_inidat(dyn_in)
       ps=elem(ie)%state%ps_v(:,:,tl)
 #ifdef MODEL_THETA_L
       elem(ie)%state%w_i = 0.0
-      call set_thermostate(elem(ie),ps,elem(ie)%derived%FT,hvcoord,elem(ie)%state%Q(:,:,:,1))
+      call set_thermostate(elem(ie),ps,elem(ie)%derived%FT,hvcoord,elem(ie)%state%Q)
       !FT used as tmp array - reset
       elem(ie)%derived%FT = 0.0
 #else

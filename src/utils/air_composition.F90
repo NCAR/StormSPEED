@@ -659,6 +659,7 @@ CONTAINS
       use cam_abortutils,  only: endrun
       use string_utils,    only: int2str
       use dyn_tests_utils, only: vc_height, vc_moist_pressure, vc_dry_pressure
+      use dycore,          only: dycore_is
       real(r8),           intent(in) :: mmr(:,:,:) ! constituents array
       integer,            intent(in) :: lchnk      ! Chunk number
       integer,            intent(in) :: ncol       ! number of columns
@@ -679,6 +680,16 @@ CONTAINS
         !
         cp_or_cv_dycore(:ncol,:,lchnk)=cp_or_cv_dycore(:ncol,:,lchnk)*&
              (cpairv(:ncol,:,lchnk)-rairv(:ncol,:,lchnk)) /rairv(:ncol,:,lchnk)
+      else if (dycore_is('SENH')) then
+         call get_R(mmr(:ncol,:,:), thermodynamic_active_species_idx, &
+             cp_or_cv_dycore(:ncol,:,lchnk), fact=to_dry_factor, Rdry=rairv(:ncol,:,lchnk))
+        !
+        ! internal energy coefficient for SENH which uses a constant-kappa approximation
+        ! (equation 93 in Eldred et al. 2023; https://rmets.onlinelibrary.wiley.com/doi/epdf/10.1002/qj.4353)
+        ! cp = cpd * R/Rd
+        !
+        cp_or_cv_dycore(:ncol,:,lchnk)=cp_or_cv_dycore(:ncol,:,lchnk)*&
+             cpairv(:ncol,:,lchnk) / rairv(:ncol,:,lchnk)
       else if (vcoord==vc_moist_pressure) then
         ! no update needed for moist pressure vcoord
       else

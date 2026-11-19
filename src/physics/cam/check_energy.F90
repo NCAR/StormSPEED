@@ -197,6 +197,7 @@ end subroutine check_energy_readnl
     use cam_history,     only: outfld
     use dyn_tests_utils, only: vc_physics
     use cam_thermo_formula, only: ENERGY_FORMULA_DYCORE_SE, ENERGY_FORMULA_DYCORE_MPAS
+    use dycore,          only: dycore_is
 
     use cam_abortutils,  only: endrun
     use cam_history_support, only: max_fieldname_len
@@ -246,6 +247,11 @@ end subroutine check_energy_readnl
     ! by get_hydrostatic_energy.
     if (present(vc)) then
       vc_loc = vc
+      ! SENH: every dycore-energy diagnostic (callers pass vc=vc_dycore) uses the SE
+      ! formula with cp_or_cv_dycore = cpd*R*/Rd (HOMME's constant-kappa enthalpy), as in
+      ! check_energy_timestep_init and check_energy_cam_chng. vc_dycore equals vc_physics
+      ! for SENH, so the presence of vc is what identifies a dycore-energy call.
+      if (dycore_is('SENH')) vc_loc = ENERGY_FORMULA_DYCORE_SE
     else
       vc_loc = vc_physics
     end if
@@ -278,7 +284,7 @@ end subroutine check_energy_readnl
     call cnst_get_ind('TT_LW' , ixtt    , abort=.false.)
     tt    = 0._r8
     if (ixtt > 1) then
-      if (name_out(ttidx) == 'TT_pAM'.or.name_out(ttidx) == 'TT_zAM') then
+      if (name_out(ttidx) == 'TT_phAM'.or.name_out(ttidx) == 'TT_dyAM') then
         !
         ! after dme_adjust mixing ratios are all wet
         !
@@ -434,6 +440,7 @@ end subroutine check_energy_readnl
     use time_manager,    only: is_first_step
     use physconst,       only: cpair, rair
     use air_composition, only: cpairv, cp_or_cv_dycore
+    use dycore,          only: dycore_is
 
     ! CCPP-ized subroutine
     use check_energy_chng, only: check_energy_chng_timestep_init
@@ -450,9 +457,21 @@ end subroutine check_energy_readnl
     integer   :: ncol      ! number of atmospheric columns
     character(len=512) :: errmsg
     integer            :: errflg
+    integer   :: local_vc_dycore ! to treat the special case for SENH
 
     lchnk = state%lchnk
     ncol  = state%ncol
+
+    if(dycore_is('SENH')) then
+      ! for the SENH dycore, use the SE energy formula.
+      ! There are no differences between vc_moist_pressure
+      ! and vc_dry_pressure in check_energy computations
+      ! and cp_or_cv_dycore is still computed consistent
+      ! with the respective thermo approximation for SE and SENH.
+      local_vc_dycore = ENERGY_FORMULA_DYCORE_SE
+    else
+      local_vc_dycore = vc_dycore
+    end if
 
     ! The code below is split into not-subcolumns and subcolumns code, as there is different handling of the
     ! cp passed into the hydrostatic energy call. CAM-SIMA does not support subcolumns, so we keep this special
@@ -470,10 +489,10 @@ end subroutine check_energy_readnl
 
         local_cp_phys(1:ncol,:) = cpair
 
-        if (vc_dycore == ENERGY_FORMULA_DYCORE_MPAS) then
+        if (local_vc_dycore == ENERGY_FORMULA_DYCORE_MPAS) then
             ! MPAS specific hydrostatic energy computation (internal energy)
             local_cp_or_cv_dycore(:ncol,:) = cpair-rair
-        else if(vc_dycore == ENERGY_FORMULA_DYCORE_SE) then
+        else if(local_vc_dycore == ENERGY_FORMULA_DYCORE_SE) then
             ! SE specific hydrostatic energy (enthalpy)
             local_cp_or_cv_dycore(:ncol,:) = cpair
         else
@@ -511,7 +530,7 @@ end subroutine check_energy_readnl
         count           = state%count,                      &
         teout           = teout(1:ncol),                    & ! dummy argument - actual teout written to pbuf directly below
         energy_formula_physics = vc_physics,                &
-        energy_formula_dycore  = vc_dycore,                 &
+        energy_formula_dycore  = local_vc_dycore,           &
         errmsg          = errmsg, &
         errflg          = errflg  &
     )
@@ -533,6 +552,8 @@ end subroutine check_energy_readnl
     use physics_types,      only: physics_tend
     use physconst,          only: cpair, rair, latice, latvap
     use air_composition,    only: cpairv, cp_or_cv_dycore
+    use dycore,          only: dycore_is
+
 
     ! CCPP-ized subroutine
     use check_energy_chng,  only: check_energy_chng_run
@@ -554,16 +575,29 @@ end subroutine check_energy_readnl
     real(r8)  :: scaling_dycore(state%ncol,pver)
     character(len=512) :: errmsg
     integer            :: errflg
+    integer   :: local_vc_dycore ! to treat the special case for SENH
+
 
     lchnk = state%lchnk
     ncol  = state%ncol
+
+    if(dycore_is('SENH')) then
+      ! for the SENH dycore, use the SE energy formula.
+      ! There are no differences between vc_moist_pressure
+      ! and vc_dry_pressure in check_energy computations
+      ! and cp_or_cv_dycore is still computed consistent
+      ! with the respective thermo approximation for SE and SENH.
+      local_vc_dycore = ENERGY_FORMULA_DYCORE_SE
+    else
+      local_vc_dycore = vc_dycore
+    end if
 
     if(state%psetcols == pcols) then
         ! No subcolumns
         local_cp_phys(:ncol,:) = cpairv(:ncol,:,lchnk)
 
         ! Only if using MPAS or SE energy formula cp_or_cv_dycore is nonzero.
-        if(vc_dycore == ENERGY_FORMULA_DYCORE_MPAS .or. vc_dycore == ENERGY_FORMULA_DYCORE_SE) then
+        if(local_vc_dycore == ENERGY_FORMULA_DYCORE_MPAS .or. local_vc_dycore == ENERGY_FORMULA_DYCORE_SE) then
             local_cp_or_cv_dycore(:ncol,:) = cp_or_cv_dycore(:ncol,:,lchnk)
 
             scaling_dycore(:ncol,:)  = cpairv(:ncol,:,lchnk)/local_cp_or_cv_dycore(:ncol,:) ! cp/cv scaling
@@ -577,11 +611,11 @@ end subroutine check_energy_readnl
         local_cp_phys(:,:) = cpair
 
         ! Note: cp_or_cv set above for pressure coordinate
-        if (vc_dycore == ENERGY_FORMULA_DYCORE_MPAS) then
+        if (local_vc_dycore == ENERGY_FORMULA_DYCORE_MPAS) then
             ! compute cv if vertical coordinate is height: cv = cp - R
             local_cp_or_cv_dycore(:ncol,:) = cpair-rair
             scaling_dycore(:ncol,:)  = cpairv(:ncol,:,lchnk)/local_cp_or_cv_dycore(:ncol,:) ! cp/cv scaling
-        else if (vc_dycore == ENERGY_FORMULA_DYCORE_SE) then
+        else if (local_vc_dycore == ENERGY_FORMULA_DYCORE_SE) then
             ! SE specific hydrostatic energy
             local_cp_or_cv_dycore(:ncol,:) = cpair
             scaling_dycore(:ncol,:) = 1.0_r8
@@ -621,7 +655,7 @@ end subroutine check_energy_readnl
         latice          = latice,                           &
         latvap          = latvap,                           &
         energy_formula_physics = vc_physics,                &
-        energy_formula_dycore  = vc_dycore,                 &
+        energy_formula_dycore  = local_vc_dycore,           &
         name            = name,       &
         flx_vap         = flx_vap,    &
         flx_cnd         = flx_cnd,    &
